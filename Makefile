@@ -4,8 +4,8 @@ CFLAGS=-O3 -fdiagnostics-color=auto -pthread -std=gnu11
 CPPFLAGS=$(filter-out -std=gnu11, $(CFLAGS)) -stdu=gnu++11 -fno-exceptions -Wno-write-strings
 MKDIRS=lib bin tst/bin
 INCLUDE=$(addprefix -I,include)
-EXECS=
-TESTS=
+EXECS=$(addprefix bin/,)
+TESTS=$(addprefix tst/bin,)
 
 .PHONY: default all clean again
 default: all
