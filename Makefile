@@ -20,9 +20,9 @@ bin/%: %.cpp | bin
 bin/%: %.c | bin
 	$(CC) $(CFLAGS) $(INCLUDE) $< -o $@
 lib/%.o: src/%.cpp include/%.h | lib
-	$(CPP) $(CPPFLAGS) $(INCLUDE) $< -o $@
+	$(CPP) -c $(CPPFLAGS) $(INCLUDE) $< -o $@
 lib/%.o: src/%.c include/%.h | lib
-	$(CC) $(CFLAGS) $(INCLUDE) $< -o $@
+	$(CC) -c $(CFLAGS) $(INCLUDE) $< -o $@
 tst/bin/%: tst/%.cpp src/%.cpp include/%.h | tst/bin
 	$(CPP) $(CPPFLAGS) $(INCLUDE) $< -o $@
 tst/bin/%: tst/%.c src/%.c include/%.h | tst/bin
