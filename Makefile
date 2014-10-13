@@ -20,7 +20,7 @@ check: $(addprefix .pass/,$(TESTS))
 	@printf "$<: "
 	@$<\
 		&& echo -e "\033[0;32mpass\033[0m" && touch $@\
-		|| echo -e "\033[0;32mfail\033[0m"
+		|| echo -e "\033[0;31mfail\033[0m"
 $(MKDIRS):
 	@mkdir -p $@
 bin/%: %.cpp | bin
