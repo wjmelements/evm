@@ -6,9 +6,9 @@ CPPFLAGS=$(filter-out -std=gnu11, $(CFLAGS)) -std=gnu++11 -fno-exceptions -Wno-w
 MKDIRS=lib bin tst/bin .pass .pass/tst/bin
 INCLUDE=$(addprefix -I,include)
 EXECS=$(addprefix bin/,)
-TESTS=$(addprefix tst/bin,)
+TESTS=$(addprefix tst/bin/,)
 
-.PHONY: default all clean again check
+.PHONY: default all clean again check distcheck dist-check
 .SECONDARY:
 default: all
 all: $(EXECS) $(TESTS)
@@ -16,6 +16,9 @@ clean:
 	rm -rf $(MKDIRS)
 again: clean all
 check: $(addprefix .pass/,$(TESTS))
+distcheck dist-check:
+	@rm -rf .pass
+	@make --no-print-directory check
 .pass/tst/bin/%: tst/bin/% | .pass/tst/bin
 	@printf "$<: "
 	@$<\
