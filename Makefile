@@ -26,9 +26,10 @@ distcheck dist-check:
 		|| echo -e "\033[0;31mfail\033[0m"
 $(MKDIRS):
 	@mkdir -p $@
-bin/%: %.cpp | bin
+$(EXECS): | bin
+bin/%: %.cpp
 	$(CPP) $(CXXFLAGS) $(INCLUDE) $^ -o $@
-bin/%: %.c | bin
+bin/%: %.c
 	$(CC) $(CFLAGS) $(INCLUDE) $^ -o $@
 lib/%.o: src/%.cpp include/%.h | lib
 	$(CPP) -c $(CXXFLAGS) $(INCLUDE) $< -o $@
