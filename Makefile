@@ -2,7 +2,7 @@ SHELL=/bin/bash
 CC=gcc
 CPP=g++
 CFLAGS=-O3 -fdiagnostics-color=auto -pthread -std=gnu11
-CPPFLAGS=$(filter-out -std=gnu11, $(CFLAGS)) -std=gnu++11 -fno-exceptions -Wno-write-strings
+CXXFLAGS=$(filter-out -std=gnu11, $(CFLAGS)) -std=gnu++11 -fno-exceptions -Wno-write-strings
 MKDIRS=lib bin tst/bin .pass .pass/tst/bin
 INCLUDE=$(addprefix -I,include)
 EXECS=$(addprefix bin/,)
@@ -27,14 +27,14 @@ distcheck dist-check:
 $(MKDIRS):
 	@mkdir -p $@
 bin/%: %.cpp | bin
-	$(CPP) $(CPPFLAGS) $(INCLUDE) $< -o $@
+	$(CPP) $(CXXFLAGS) $(INCLUDE) $< -o $@
 bin/%: %.c | bin
 	$(CC) $(CFLAGS) $(INCLUDE) $< -o $@
 lib/%.o: src/%.cpp include/%.h | lib
-	$(CPP) -c $(CPPFLAGS) $(INCLUDE) $< -o $@
+	$(CPP) -c $(CXXFLAGS) $(INCLUDE) $< -o $@
 lib/%.o: src/%.c include/%.h | lib
 	$(CC) -c $(CFLAGS) $(INCLUDE) $< -o $@
 tst/bin/%: tst/%.cpp lib/%.o | tst/bin
-	$(CPP) $(CPPFLAGS) $(INCLUDE) $^ -o $@
+	$(CPP) $(CXXFLAGS) $(INCLUDE) $^ -o $@
 tst/bin/%: tst/%.c lib/%.o | tst/bin
 	$(CC) $(CFLAGS) $(INCLUDE) $^ -o $@
