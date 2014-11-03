@@ -27,9 +27,9 @@ distcheck dist-check:
 $(MKDIRS):
 	@mkdir -p $@
 bin/%: %.cpp | bin
-	$(CPP) $(CXXFLAGS) $(INCLUDE) $< -o $@
+	$(CPP) $(CXXFLAGS) $(INCLUDE) $^ -o $@
 bin/%: %.c | bin
-	$(CC) $(CFLAGS) $(INCLUDE) $< -o $@
+	$(CC) $(CFLAGS) $(INCLUDE) $^ -o $@
 lib/%.o: src/%.cpp include/%.h | lib
 	$(CPP) -c $(CXXFLAGS) $(INCLUDE) $< -o $@
 lib/%.o: src/%.c include/%.h | lib
