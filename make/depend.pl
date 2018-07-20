@@ -1,6 +1,5 @@
 #!/usr/bin/perl
 while (<>) {
-    chomp;
     @depends = split;
     foreach $item (@depends) {
         if ($item =~ /(\w+)\.o/) {
@@ -15,5 +14,4 @@ while (<>) {
             }
         }
     }
-    print "\n";
 }
