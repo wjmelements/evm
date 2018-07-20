@@ -63,7 +63,7 @@ bin/%: %.cpp
 bin/%: %.c
 	$(CC) $(CFLAGS) $(INCLUDE) $^ -o $@
 lib/%.o: src/%.m include/%.h | lib
-	$(CPP) -c $(OCFLAGS) $(INCLUDE) $< -o $@
+	$(CC) -c $(OCFLAGS) $(INCLUDE) $< -o $@
 lib/%.o: src/%.cpp include/%.h | lib
 	$(CPP) -c $(CXXFLAGS) $(INCLUDE) $< -o $@
 lib/%.o: src/%.c include/%.h | lib
