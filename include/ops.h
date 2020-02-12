@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 typedef enum {
     STOP,
     ADD,
@@ -257,3 +259,6 @@ typedef enum {
     SELFDESTRUCT,
     NUM_OPCODES
 } op_t;
+
+extern const uint8_t argCount[NUM_OPCODES];
+extern const uint8_t retCount[NUM_OPCODES];
