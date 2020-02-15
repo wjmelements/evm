@@ -22,7 +22,7 @@ OP(LT,2,1) \
 OP(GT,2,1) \
 OP(SLT,2,1) \
 OP(SGT,2,1) \
-OP(EQT,2,1) \
+OP(EQ,2,1) \
 OP(ISZERO,2,1) \
 OP(AND,2,1) \
 OP(OR,2,1) \
@@ -269,3 +269,4 @@ typedef enum {
 
 extern const uint8_t argCount[NUM_OPCODES];
 extern const uint8_t retCount[NUM_OPCODES];
+extern op_t opFromString(const char *str);
