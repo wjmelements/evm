@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdio.h>
 
 #define HEXCHARS \
 HEX(a) \
@@ -30,6 +31,10 @@ static inline uint8_t hexString8ToUint8(const uint8_t hexString8) {
         HEXCHARS
         #undef HEX
     }
+    fputs("hexString8ToUint8: unexpected hex string", stderr);
+    fputc(hexString8, stderr);
+    fputc('\n', stderr);
+    return 0xff;
 }
 static inline uint8_t hexString16ToUint8(const char *hexString16) {
     return hexString8ToUint8(hexString16[0]) * 16 + hexString8ToUint8(hexString16[1]);

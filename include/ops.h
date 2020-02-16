@@ -1,3 +1,4 @@
+#ifndef OPS
 #include <stdint.h>
 
 
@@ -270,3 +271,6 @@ typedef enum {
 extern const uint8_t argCount[NUM_OPCODES];
 extern const uint8_t retCount[NUM_OPCODES];
 extern op_t opFromString(const char *str);
+op_t parseOp(const char *start, const char **endOut);
+
+#endif // OPS
