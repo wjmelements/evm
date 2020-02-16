@@ -1,7 +1,10 @@
-Makefile
+EVM
 ========
+An assembler for the EVM
 
-Basic Makefile for C/C++ projects.
+# Contributing
+
+## Makefile
 
 - make: build the things
 
