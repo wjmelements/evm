@@ -30,5 +30,6 @@ int main(int argc, const char *argv[]) {
         }
         munmap(start, fstatus.st_size);
         close(fd);
+        putchar('\n');
     }
 }
