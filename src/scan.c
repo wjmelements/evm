@@ -15,13 +15,18 @@ static inline int shouldIgnore(char ch) {
 void scanInit() {
 
 }
+
+int scanValid(const char **iter) {
+    return **iter || !scanstackEmpty();
+}
+
 // For FUNCTION(ARG1,ARG2) the op order is ARG2 ARG1 FUNCTION
 // For FN1(FN11(ARG11,ARG12), FN12(ARG21,ARG22)) the op order is ARG22 ARG21 FN12 ARG12 ARG11 FN11 FN1
 
 
 static inline char scanWaste(const char **iter) {
     char ch;
-    for (; shouldIgnore(ch = **iter); (*iter)++);
+    for (; shouldIgnore(ch = **iter) && ch; (*iter)++);
     return ch;
 }
 
@@ -54,6 +59,7 @@ op_t scanOp(const char **iter) {
         scanstackPush(arg);
     }
     scanChar(iter, ')');
+    scanWaste(iter);
     return scanstackPop();
 }
 op_t scanNextOp(const char **iter) {
