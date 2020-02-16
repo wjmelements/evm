@@ -20,17 +20,13 @@ void scanInit() {
 
 
 static inline char scanWaste(const char **iter) {
+    char ch;
     for (; shouldIgnore(ch = **iter); (*iter)++);
+    return ch;
 }
 
-op_t scanNextOp(const char **iter) {
-    if (!scanstackEmpty()) {
-        return scanstackPop();
-    }
-    return scanOp(iter);
-}
 void scanChar(const char **iter, char expected) {
-    for (; (ch = **iter) != expected; (*iter)++) {
+    for (char ch; (ch = **iter) != expected; (*iter)++) {
         assert(shouldIgnore(ch));
     }
     (*iter)++;
@@ -38,11 +34,12 @@ void scanChar(const char **iter, char expected) {
 op_t scanOp(const char **iter) {
     scanWaste(iter);
     op_t op = parseOp(*iter, iter);
-    ch next = scanWaste(iter);
+    char next = scanWaste(iter);
     if (next != '(') {
         return op;
     }
     scanstackPush(op);
+    scanChar(iter, '(');
     for (uint8_t i = 0; i < argCount[op]; i++) {
         if (i) {
             scanChar(iter, ',');
@@ -57,5 +54,11 @@ op_t scanOp(const char **iter) {
         scanstackPush(arg);
     }
     scanChar(iter, ')');
-    return scanstackPop(op);
+    return scanstackPop();
+}
+op_t scanNextOp(const char **iter) {
+    if (!scanstackEmpty()) {
+        return scanstackPop();
+    }
+    return scanOp(iter);
 }
