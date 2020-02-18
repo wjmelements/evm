@@ -39,3 +39,12 @@ static inline uint8_t hexString8ToUint8(const uint8_t hexString8) {
 static inline uint8_t hexString16ToUint8(const char *hexString16) {
     return hexString8ToUint8(hexString16[0]) * 16 + hexString8ToUint8(hexString16[1]);
 }
+static inline int isHex(char h) {
+    switch (h) {
+        #define HEX(c) case #c[0]:
+        HEXCHARS
+        #undef HEX
+        return 1;
+    }
+    return 0;
+}

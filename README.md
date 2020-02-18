@@ -2,6 +2,10 @@ EVM
 ========
 An assembler for the EVM
 
+## TODO
+* Labels
+* Constructor
+
 # Contributing
 
 ## Makefile

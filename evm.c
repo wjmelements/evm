@@ -26,7 +26,7 @@ int main(int argc, const char *argv[]) {
             perror(argv[i]);
         }
         while (scanValid(&contents)) {
-            printf("%2x", scanNextOp(&contents));
+            printf("%02x", scanNextOp(&contents));
         }
         munmap(start, fstatus.st_size);
         close(fd);
