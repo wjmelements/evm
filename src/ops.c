@@ -335,7 +335,6 @@ op_t opFromString(const char *str) {
 
 
 op_t parseOp(const char *start, const char **endOut) {
-        // TODO XXX
     switch (*(uint32_t *)start) {
         case 'RDDA': *endOut = start + 7; return ADDRESS;
         case 'MDDA': *endOut = start + 6; return ADDMOD;

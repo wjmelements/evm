@@ -1,5 +1,6 @@
 #include "scan.h"
 #include "scanstack.h"
+#include "dec.h"
 #include "hex.h"
 #include <assert.h>
 
@@ -21,32 +22,106 @@ int scanValid(const char **iter) {
     return **iter || !scanstackEmpty();
 }
 
-int isConstantPrefix(const char *iter) {
+int isHexConstantPrefix(const char *iter) {
     return *(uint16_t *)iter == 'x0';
 }
 
-op_t parseConstant(const char **iter) {
-    if (isConstantPrefix(*iter)) {
-        (*iter) += 2;
-        const char *start = *iter;
-        while (isHex(**iter)) ++(*iter);
-        uint8_t words = 0;
-        const char *end = *iter;
-        while (end > start) {
-            words++;
-            if (end - start >= 2) {
-                end -= 2;
-                scanstackPush((op_t)hexString16ToUint8(end));
-            } else {
-                --end;
-                scanstackPush((op_t)hexString8ToUint8(*end));
+int isConstant(const char *iter) {
+    return isDecimal(*iter);  
+}
+
+op_t parseHex(const char **iter) {
+    const char *start = *iter;
+    while (isHex(**iter)) ++(*iter);
+    uint8_t words = 0;
+    const char *end = *iter;
+    while (end > start) {
+        words++;
+        if (end - start >= 2) {
+            end -= 2;
+            scanstackPush((op_t)hexString16ToUint8(end));
+        } else {
+            --end;
+            scanstackPush((op_t)hexString8ToUint8(*end));
+        }
+    }
+    assert(words <= 32);
+    return (op_t)((PUSH1 - 1) + words);
+}
+
+static inline uint64_t hi32(uint64_t in) {
+    return in >> 32;
+}
+
+static inline uint64_t lo32(uint64_t in) {
+    return in & 0xffffffff;
+}
+
+op_t parseDecimal(const char **iter) {
+    uint64_t words[4] = {0,0,0,0};
+    while (isDecimal(**iter)) {
+        // multiply number by 10
+        for (uint8_t i = 0; i < 4; i++) {
+            // long multiplication
+            uint64_t s0, s1, s2, s3;
+
+            uint64_t x = lo32(words[i]) * 10;
+            s0 = lo32(x);
+
+            x = hi32(words[i]) * 10 + hi32(x);
+            s1 = lo32(x);
+            s2 = hi32(x);
+
+            x = s1;
+            s1 = lo32(x);
+
+            x = s2 + hi32(x);
+            s2 = lo32(x);
+            s3 = hi32(x);
+
+            words[i] = s1 << 32 | s0;
+            uint64_t carry = s3 << 32 | s2;
+            // add carry
+            for (uint8_t j = i + 1; j < 4; j++) {
+                words[j] += carry;
+                if (carry > words[j]) {
+                    carry = 1;
+                } else break;
             }
         }
-        return (op_t)((PUSH1 - 1) + words);
+        uint8_t digit = *((*iter)++) - '0';
+        // add digit
+        for (uint8_t i = 0; i < 4; i++) {
+            words[i] += digit;
+            if (digit > words[i]) {
+                digit = 1;
+            } else break;
+        }
+    }
+    uint8_t start = 0;
+    for (uint8_t i = 4; i --> 0;) {
+        for (uint8_t j = 4; j --> 0;) {
+            uint8_t shift = j * 8;
+            uint8_t word = (words[i] & (0xff << shift)) >> shift;
+            if (!start) {
+                if (word) {
+                    start = i * 8 + j;
+                } else {
+                    continue;
+                }
+            }
+            scanstackPush(word);
+        }
+    }
+    return (op_t) PUSH1 + start;
+}
+
+op_t parseConstant(const char **iter) {
+    if (isHexConstantPrefix(*iter)) {
+        (*iter) += 2;
+        return parseHex(iter);
     } else {
-        // TODO decimal?
-        fprintf(stderr, "Unexpected constant: %s", *iter);
-        return 0;
+        return parseDecimal(iter);
     }
 }
 
@@ -71,7 +146,7 @@ void scanChar(const char **iter, char expected) {
 }
 op_t scanOp(const char **iter) {
     scanWaste(iter);
-    if (isConstantPrefix(*iter)) {
+    if (isConstant(*iter)) {
         return parseConstant(iter);
     }
     op_t op = parseOp(*iter, iter);
@@ -86,7 +161,7 @@ op_t scanOp(const char **iter) {
             scanChar(iter, ',');
         }
         scanWaste(iter);
-        if (isConstantPrefix(*iter)) {
+        if (isConstant(*iter)) {
             scanstackPush(parseConstant(iter));
         } else {
             const char *end;

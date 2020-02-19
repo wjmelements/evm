@@ -1,6 +1,17 @@
 #include "scan.h"
 #include <assert.h>
 
+extern op_t parseConstant(const char **iter);
+
+void test_parseConstant() {
+    //const char *dec32 = "32";
+    const char *hex32 = "0x32";
+    op_t op = parseConstant(&hex32);
+    assert(op == PUSH1);
+    op = scanNextOp(&hex32);
+    assert(op == 0x32);
+}
+
 
 int main() {
     scanInit();
@@ -30,5 +41,7 @@ int main() {
     assert(scanNextOp(&remaining) == CODESIZE);
     assert(scanNextOp(&remaining) == MUL);
     assert(scanNextOp(&remaining) == ADD);
+
+    test_parseConstant();
     return 0;
 }
