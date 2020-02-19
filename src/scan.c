@@ -61,7 +61,7 @@ op_t parseDecimal(const char **iter) {
     uint64_t words[4] = {0,0,0,0};
     while (isDecimal(**iter)) {
         // multiply number by 10
-        for (uint8_t i = 0; i < 4; i++) {
+        for (uint8_t i = 4; i --> 0;) {
             // long multiplication
             uint64_t s0, s1, s2, s3;
 
@@ -100,16 +100,23 @@ op_t parseDecimal(const char **iter) {
     }
     uint8_t start = 0;
     for (uint8_t i = 4; i --> 0;) {
-        for (uint8_t j = 4; j --> 0;) {
-            uint8_t shift = j * 8;
-            uint8_t word = (words[i] & (0xff << shift)) >> shift;
-            if (!start) {
-                if (word) {
-                    start = i * 8 + j;
-                } else {
-                    continue;
-                }
+        for (uint8_t j = 8; j --> 0;) {
+            uint64_t shift = j * 8;
+            uint8_t word = (words[i] & (0xffllu << shift)) >> shift;
+            if (word) {
+                start = i * 8 + j;
+                i = 0;
+                break;
             }
+        }
+    }
+    for (uint8_t i = 0; i < 4; i++) {
+        for (uint8_t j = 0; j < 8; j++) {
+            if (i * 8 + j > start) {
+                break;
+            }
+            uint64_t shift = j * 8;
+            uint8_t word = (words[i] & (0xffllu << shift)) >> shift;
             scanstackPush(word);
         }
     }
@@ -139,7 +146,7 @@ void scanChar(const char **iter, char expected) {
     for (char ch; (ch = **iter) != expected; (*iter)++) {
         if (!shouldIgnore(ch)) {
             fprintf(stderr, "When seeking %c found unexpected character %c, before: %s", expected, ch, *iter);
-            //assert(expected == ch);
+            assert(expected == ch);
         }
     }
     (*iter)++;
@@ -147,7 +154,9 @@ void scanChar(const char **iter, char expected) {
 op_t scanOp(const char **iter) {
     scanWaste(iter);
     if (isConstant(*iter)) {
-        return parseConstant(iter);
+        op_t op = parseConstant(iter);
+        scanWaste(iter);
+        return op;
     }
     op_t op = parseOp(*iter, iter);
     char next = scanWaste(iter);
