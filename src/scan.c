@@ -1,4 +1,6 @@
+#include "alpha.h"
 #include "scan.h"
+#include "labelQueue.h"
 #include "scanstack.h"
 #include "dec.h"
 #include "hex.h"
@@ -16,8 +18,11 @@ static inline int shouldIgnore(char ch) {
     ;
 }
 
-void scanInit() {
+static uint32_t programCounter;
 
+void scanInit() {
+    programCounter = (uint32_t)-1;
+    labelQueueInit();
 }
 
 int scanValid(const char **iter) {
@@ -163,20 +168,37 @@ static inline char scanWaste(const char **iter) {
     return ch;
 }
 
+static void scanLabel(const char **iter) {
+    const char *start = *iter;
+    for (char ch; isLowerCase(**iter); (*iter)++);
+    const char *end = *iter;
+    char next = scanWaste(iter);
+    if (next == ':') {
+        (*iter)++;
+        scanstackPushLabel(start, end - start, JUMPDEST);
+    } else {
+        scanstackPushLabel(start, end - start, STOP);
+        scanstackPush(PUSH1);
+    }
+}
 
-op_t scanOp(const char **iter) {
+static void scanOp(const char **iter) {
     scanWaste(iter);
     if (isConstant(*iter)) {
         op_t op = parseConstant(iter);
         scanWaste(iter);
-        return op;
+        scanstackPush(op);
+        return;
+    } else if (isLowerCase(**iter)) {
+        scanLabel(iter);
+        return;
     }
     op_t op = parseOp(*iter, iter);
     char next = scanWaste(iter);
-    if (next != '(') {
-        return op;
-    }
     scanstackPush(op);
+    if (next != '(') {
+        return;
+    }
     scanChar(iter, '(');
     for (uint8_t i = 0; i < argCount[op]; i++) {
         if (i) {
@@ -186,24 +208,57 @@ op_t scanOp(const char **iter) {
         scanWaste(iter);
         if (isConstant(*iter)) {
             scanstackPush(parseConstant(iter));
+        } else if (isLowerCase(**iter)) {
+            scanLabel(iter);
         } else {
             const char *end;
             op_t next = parseOp(*iter, &end);
             // TODO maybe next can be read from stack after scanOp instead of parsing twice
             assert(retCount[next] != 0);
             i += (retCount[next] - 1);
-            op_t arg = scanOp(iter);
-            scanstackPush(arg);
+            scanOp(iter);
         }
     }
     scanWaste(iter);
     scanChar(iter, ')');
     scanWaste(iter);
-    return scanstackPop();
 }
+
 op_t scanNextOp(const char **iter) {
+    jump_t jump;
+    programCounter++;
+    jump.programCounter = programCounter;
     if (!scanstackEmpty()) {
-        return scanstackPop();
+        if (scanstackTopLabel(&jump.label)) {
+            op_t type = scanstackPop();
+            if (type == JUMPDEST) {
+                registerLabel(jump);
+            } else {
+                labelQueuePush(jump);
+            }
+            return type;
+        } else return scanstackPop();
     }
-    return scanOp(iter);
+    scanOp(iter);
+    if (scanstackTopLabel(&jump.label)) {
+        op_t type = scanstackPop();
+        if (type == JUMPDEST) {
+            registerLabel(jump);
+        } else {
+            labelQueuePush(jump);
+        }
+        return type;
+    } else return scanstackPop();
+}
+
+void scanFinalize(op_t *begin, uint32_t *programLength) {
+    // TODO handle labels for programs longer than 256
+    while (!labelQueueEmpty()) {
+        jump_t jump = labelQueuePop();
+        uint32_t location = getLabelLocation(jump.label);
+        if (location >= 256) {
+            fprintf(stderr, "Unsupported label location %u\n", location);
+        }
+        begin[jump.programCounter] = location;
+    }
 }

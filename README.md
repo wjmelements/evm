@@ -21,7 +21,6 @@ $ evm add.evm
 
 ## Roadmap
 * Constructor
-* Labels
 * Implicit stack use
 * Stack warnings
 

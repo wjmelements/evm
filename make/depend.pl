@@ -9,7 +9,7 @@ while (<>) {
         } else {
             if ($item =~ /\w+:/) {
                 print $item;
-            } else {
+            } elsif ($item != "\\") {
                 print " $item"
             }
         }

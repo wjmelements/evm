@@ -330,7 +330,7 @@ op_t opFromString(const char *str) {
     fputs("Unknown op: ", stderr);
     fputs(str, stderr);
     fputc('\n', stderr);
-    return NUM_OPCODES;
+    return STOP;
 }
 
 
@@ -543,5 +543,5 @@ op_t parseOp(const char *start, const char **endOut) {
     fputs("Unknown op: ", stderr);
     fputs(start, stderr);
     fputc('\n', stderr);
-    return NUM_OPCODES;
+    return STOP;
 }

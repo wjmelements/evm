@@ -8,7 +8,7 @@
 
 #define CONSTRUCTOR_OFFSET 0x1000
 #define PROGRAM_BUFFER_LENGTH 0x8000
-uint8_t ops[PROGRAM_BUFFER_LENGTH];
+op_t ops[PROGRAM_BUFFER_LENGTH];
 
 
 int main(int argc, char *const argv[]) {
@@ -45,7 +45,7 @@ int main(int argc, char *const argv[]) {
         if (contents == NULL) {
             perror(argv[i]);
         }
-        uint8_t *programStart = &ops[CONSTRUCTOR_OFFSET];
+        op_t *programStart = &ops[CONSTRUCTOR_OFFSET];
         uint32_t programLength = 0;
         for (; scanValid(&contents); programLength++) {
             if (programLength > (PROGRAM_BUFFER_LENGTH - CONSTRUCTOR_OFFSET)) {
@@ -54,6 +54,7 @@ int main(int argc, char *const argv[]) {
             }
             programStart[programLength] = scanNextOp(&contents);
         }
+        scanFinalize(programStart, &programLength);
         if (wrapConstructor) {
             programStart -= 4;
             *((uint32_t *)programStart) = 0xf33d393d;
