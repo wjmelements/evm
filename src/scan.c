@@ -8,6 +8,8 @@ static inline int shouldIgnore(char ch) {
     return ch != '('
         && ch != ')'
         && ch != ','
+        && ch != ':'
+        && ch != '/'
         && (ch < '0' || ch > '9')
         && (ch < 'A' || ch > 'Z')
         && (ch < 'a' || ch > 'z')
@@ -136,12 +138,6 @@ op_t parseConstant(const char **iter) {
 // For FN1(FN11(ARG11,ARG12), FN12(ARG21,ARG22)) the op order is ARG22 ARG21 FN12 ARG12 ARG11 FN11 FN1
 
 
-static inline char scanWaste(const char **iter) {
-    char ch;
-    for (; shouldIgnore(ch = **iter) && ch; (*iter)++);
-    return ch;
-}
-
 void scanChar(const char **iter, char expected) {
     for (char ch; (ch = **iter) != expected; (*iter)++) {
         if (!shouldIgnore(ch)) {
@@ -151,6 +147,23 @@ void scanChar(const char **iter, char expected) {
     }
     (*iter)++;
 }
+
+static void scanComment(const char **iter) {
+    for (char ch; (ch = **iter) != '\n'; (*iter)++);
+    (*iter)++;
+}
+
+static inline char scanWaste(const char **iter) {
+    char ch;
+    for (; shouldIgnore(ch = **iter) && ch; (*iter)++);
+    if (ch == '/') {
+        scanComment(iter);
+        return scanWaste(iter);
+    }
+    return ch;
+}
+
+
 op_t scanOp(const char **iter) {
     scanWaste(iter);
     if (isConstant(*iter)) {
@@ -167,6 +180,7 @@ op_t scanOp(const char **iter) {
     scanChar(iter, '(');
     for (uint8_t i = 0; i < argCount[op]; i++) {
         if (i) {
+            scanWaste(iter);
             scanChar(iter, ',');
         }
         scanWaste(iter);
@@ -182,6 +196,7 @@ op_t scanOp(const char **iter) {
             scanstackPush(arg);
         }
     }
+    scanWaste(iter);
     scanChar(iter, ')');
     scanWaste(iter);
     return scanstackPop();
