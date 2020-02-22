@@ -7,7 +7,10 @@ int main() {
     assert(NUM_OPCODES == 256);
     assert(argCount[ADD] == 2);
     assert(retCount[ADD] == 1);
+    assert(argCount[ISZERO] == 1);
+    assert(retCount[ISZERO] == 1);
     assert(argCount[SELFDESTRUCT] == 1);
+    assert(argCount[JUMPI] == 2);
     #define OP(name,in,out) assert(opFromString(#name) == name);
     OPS
     #undef OP

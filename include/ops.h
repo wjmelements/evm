@@ -24,7 +24,7 @@ OP(GT,2,1) \
 OP(SLT,2,1) \
 OP(SGT,2,1) \
 OP(EQ,2,1) \
-OP(ISZERO,2,1) \
+OP(ISZERO,1,1) \
 OP(AND,2,1) \
 OP(OR,2,1) \
 OP(XOR,2,1) \
