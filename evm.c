@@ -56,13 +56,20 @@ int main(int argc, char *const argv[]) {
         }
         scanFinalize(programStart, &programLength);
         if (wrapConstructor) {
-            if (programLength < 0x19) {
+            if (programLength < 0x20) {
                 // PUSHx<>3d5260xx60xxf3
                 programStart -= 1;
-                *programStart = PUSH1 + (programLength - 1);
+                *programStart = (PUSH1 - 1) + programLength;
                 *((uint32_t *)(programStart + programLength + 1)) = 0x0060523d + (programLength << 24);
                 *((uint32_t *)(programStart + programLength + 5)) = 0xf30060 + ((32 - programLength) << 8);
                 programLength += 8;
+            } else if (programLength == 0x20) {
+                // 7f<>3d5260203df3
+                programStart -= 1;
+                *programStart = PUSH32;
+                *((uint32_t *)(programStart + programLength + 1)) = 0x2060523d;
+                *((uint16_t *)(programStart + programLength + 5)) = 0xf33d;
+                programLength += 7;
             } else {
                 programStart -= 4;
                 *((uint32_t *)programStart) = 0xf33d393d;
