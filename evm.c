@@ -56,22 +56,31 @@ int main(int argc, char *const argv[]) {
         }
         scanFinalize(programStart, &programLength);
         if (wrapConstructor) {
-            programStart -= 4;
-            *((uint32_t *)programStart) = 0xf33d393d;
-            if (programLength < 0x100) {
-                // 60xx8060093d393df3
-                programStart -= 3;
-                *((uint32_t *)programStart) = 0x3d096080;
-                programStart -= 2;
-                *((uint16_t *)programStart) = 0x0060 | programLength << 8;
-                programLength += 9;
-            } else if (programLength < 0x10000) {
-                // 61xxxx80600a3d393df3
-                programStart -= 3;
-                *((uint32_t *)programStart) = 0x3d0a6080;
-                programStart -= 3;
-                *((uint32_t *)programStart) = 0x80000061 | (programLength & 0xff) << 16 | (programLength & 0xff00);
-                programLength += 10;
+            if (programLength < 0x19) {
+                // PUSHx<>3d5260xx3df3
+                programStart -= 1;
+                *programStart = PUSH1 + (programLength - 1);
+                *((uint32_t *)(programStart + programLength + 1)) = 0x0060523d + (programLength << 24);
+                *((uint16_t *)(programStart + programLength + 5)) = 0xf33d;
+                programLength += 7;
+            } else {
+                programStart -= 4;
+                *((uint32_t *)programStart) = 0xf33d393d;
+                if (programLength < 0x100) {
+                    // 60xx8060093d393df3<>
+                    programStart -= 3;
+                    *((uint32_t *)programStart) = 0x3d096080;
+                    programStart -= 2;
+                    *((uint16_t *)programStart) = 0x0060 | programLength << 8;
+                    programLength += 9;
+                } else if (programLength < 0x10000) {
+                    // 61xxxx80600a3d393df3<>
+                    programStart -= 3;
+                    *((uint32_t *)programStart) = 0x3d0a6080;
+                    programStart -= 3;
+                    *((uint32_t *)programStart) = 0x80000061 | (programLength & 0xff) << 16 | (programLength & 0xff00);
+                    programLength += 10;
+                }
             }
         }
 
