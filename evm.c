@@ -57,12 +57,12 @@ int main(int argc, char *const argv[]) {
         scanFinalize(programStart, &programLength);
         if (wrapConstructor) {
             if (programLength < 0x19) {
-                // PUSHx<>3d5260xx3df3
+                // PUSHx<>3d5260xx60xxf3
                 programStart -= 1;
                 *programStart = PUSH1 + (programLength - 1);
                 *((uint32_t *)(programStart + programLength + 1)) = 0x0060523d + (programLength << 24);
-                *((uint16_t *)(programStart + programLength + 5)) = 0xf33d;
-                programLength += 7;
+                *((uint32_t *)(programStart + programLength + 5)) = 0xf30060 + ((32 - programLength) << 8);
+                programLength += 8;
             } else {
                 programStart -= 4;
                 *((uint32_t *)programStart) = 0xf33d393d;
