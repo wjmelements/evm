@@ -183,7 +183,11 @@ op_t opFromString(const char *str) {
                 case 'YPOC': return CODECOPY;
             }
         case 'NIOC': return COINBASE;
-        case 'AERC': return CREATE;
+        case 'AERC':
+            switch (*(uint16_t *)(str += 5)) {
+                case '2E': return CREATE2;
+            }
+            return CREATE;
         case 'ELED': return DELEGATECALL;
         case 'FFID': return DIFFICULTY;
         case 'VID': return DIV;
@@ -310,6 +314,9 @@ op_t opFromString(const char *str) {
         case 'VIDS': return SDIV;
         case 'TGS': return SGT;
         case '3AHS': return SHA3;
+        case 'RAS': return SAR;
+        case 'LHS': return SHL;
+        case 'RHS': return SHR;
         case 'AOLS': return SLOAD;
         case 'TLS': return SLT;
         case 'OTSS': return SSTORE;
@@ -362,7 +369,15 @@ op_t parseOp(const char *start, const char **endOut) {
                 case 'YPOC': *endOut = start + 4; return CODECOPY;
             }
         case 'NIOC': *endOut = start + 8; return COINBASE;
-        case 'AERC': *endOut = start + 6; return CREATE;
+        case 'AERC': 
+            start += 5;
+            if ('2E' == *(uint16_t *)start) {
+                *endOut = start + 2;
+                return CREATE2;
+            } else {
+                *endOut = start + 1;
+                return CREATE;
+            }
         case 'ELED': *endOut = start + 12; return DELEGATECALL;
         case 'FFID': *endOut = start + 10; return DIFFICULTY;
         case '1PUD': 
@@ -526,6 +541,9 @@ op_t parseOp(const char *start, const char **endOut) {
         case 'ROX': return XOR;
         case 'SAG': return GAS;
         case 'DOM': return MOD;
+        case 'LHS': return SHL;
+        case 'RAS': return SAR;
+        case 'RHS': return SHR;
         case 'LUM': return MUL;
         case 'TON': return NOT;
         case 'POP': return POP;
