@@ -309,7 +309,11 @@ op_t opFromString(const char *str) {
                 case 'OCAT': return RETURNDATACOPY;
             }
         case 'EVER': return REVERT;
-        case 'FLES': return SELFDESTRUCT;
+        case 'FLES':
+            switch (*(uint32_t *)(str + 4)) {
+                case 'ALAB': return SELFBALANCE;
+                case 'TSED': return SELFDESTRUCT;
+            }
         case 'NGIS': return SIGNEXTEND;
         case 'VIDS': return SDIV;
         case 'TGS': return SGT;
@@ -520,7 +524,11 @@ op_t parseOp(const char *start, const char **endOut) {
             *endOut = start + 6;
             return RETURN;
         case 'EVER': *endOut = start + 6; return REVERT;
-        case 'FLES': *endOut = start + 12; return SELFDESTRUCT;
+        case 'FLES':
+            switch (*(uint32_t *)(start + 4)) {
+                case 'ALAB': *endOut = start + 11; return SELFBALANCE;
+                case 'TSED': *endOut = start + 12; return SELFDESTRUCT;
+            }
         case 'NGIS': *endOut = start + 10; return SIGNEXTEND;
         case 'VIDS': *endOut = start + 4; return SDIV;
         case '3AHS': *endOut = start + 4; return SHA3;
