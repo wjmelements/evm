@@ -3,12 +3,12 @@
 #include <stdio.h>
 
 const uint8_t argCount[NUM_OPCODES] = {
-    #define OP(name,in,out) in,
+    #define OP(index,name,in,out) in,
     OPS
     #undef OP
 };
 const uint8_t retCount[NUM_OPCODES] = {
-    #define OP(name,in,out) out,
+    #define OP(index,name,in,out) out,
     OPS
     #undef OP
 };
@@ -153,6 +153,16 @@ OP(SWAP16,0,0) \
 OP(TIMESTAMP,0,1) \
 OP(XOR,2,1)
 
+
+const char *opString(op_t op) {
+    switch (op) {
+        #define OP(index,name,in,out) case index: return #name;
+        OPS
+        #undef OP
+    }
+    fprintf(stderr, "Unexpected op %X", op);
+    return "UNKNOWN";
+}
 
 op_t opFromString(const char *str) {
     switch (*(uint32_t *)str) {
