@@ -57,6 +57,7 @@ OP(EQ,2,1) \
 OP(EXP,2,1) \
 OP(EXTCODESIZE,1,1) \
 OP(EXTCODECOPY,4,0) \
+OP(EXTCODEHASH,1,1) \
 OP(GAS,0,1) \
 OP(GASLIMIT,0,1) \
 OP(GASPRICE,0,1) \
@@ -233,6 +234,7 @@ op_t opFromString(const char *str) {
         case 'CTXE': 
             switch (*(uint32_t *)(str += 4)) {
                 case 'CEDO': return EXTCODECOPY;
+                case 'HEDO': return EXTCODEHASH;
                 case 'SEDO': return EXTCODESIZE;
             }
         case 'SAG': return GAS;
@@ -432,6 +434,7 @@ op_t parseOp(const char *start, const char **endOut) {
         case 'CTXE': 
             switch (*(uint32_t *)(start += 4)) {
                 case 'CEDO': *endOut = start + 7; return EXTCODECOPY;
+                case 'HEDO': *endOut = start + 7; return EXTCODEHASH;
                 case 'SEDO': *endOut = start + 7; return EXTCODESIZE;
             }
         case 'ESSA':
