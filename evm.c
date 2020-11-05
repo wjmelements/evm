@@ -120,10 +120,10 @@ int main(int argc, char *const argv[]) {
             disassemble(contents);
         } else {
             assemble(contents);
+            putchar('\n');
         }
         munmap(start, fstatus.st_size);
         close(fd);
-        putchar('\n');
     }
     return 0;
 }

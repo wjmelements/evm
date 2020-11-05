@@ -8,7 +8,7 @@ statement_stack_t stack;
 
 void disassembleInit() {
     // TODO free strings
-    statement_stack_trimTo(&stack, 0);
+    statement_stack_init(&stack, 8);
 }
 static void disassembleWaste(const char **iter) {
     while (**iter && !isHex(**iter)) {
@@ -73,13 +73,20 @@ void disassembleNextOp(const char **iter) {
         disassemblePush(op, iter);
         return;
     }
+    char *str = malloc(15);
+    strncpy(str, opString[op], 15);
+    stack_statement_t op_statement = {
+        15,
+        15,
+        str
+    };
+    statement_stack_append(&stack, op_statement);
 }
 int disassembleValid(const char **iter) {
     disassembleWaste(iter);
     return **iter;
 }
 void disassembleFinalize() {
-    puts("disassembleFinalize");
     for (size_t i = 0; i < stack.num_statements; i++) {
         puts(stack.statements[i].schars);
     }

@@ -268,7 +268,7 @@ typedef enum {
     NUM_OPCODES
 } op_et;
 typedef uint8_t op_t;
-const char *opString(op_t op);
+extern const char *opString[NUM_OPCODES];
 extern const op_t argCount[NUM_OPCODES];
 extern const op_t retCount[NUM_OPCODES];
 extern op_t opFromString(const char *str);

@@ -19,7 +19,7 @@ int main() {
     #define OP(index,name,in,out) start = #name; assert(name == parseOp(start, &end)); assert(strlen(#name) == end - start); start = #name "("; assert(name == parseOp(start, &end)); assert(strlen(#name) == end - start);
     OPS
     #undef OP
-    #define OP(index,name,in,out) assert(0 == strcmp(opString(index),#name));
+    #define OP(index,name,in,out) assert(0 == strcmp(opString[index],#name));
     OPS
     #undef OP
     return 0;
