@@ -1,8 +1,9 @@
 EVM
 ========
-Fast assembler for the Ethereum Virtual Machine (EVM) supporting expressive syntax.
+Fast assembler and disassembler for the Ethereum Virtual Machine (EVM) supporting expressive syntax.
 
 ## Usage
+### Assembler
 ```sh
 # Optional function-syntax
 $ cat echo.evm
@@ -29,6 +30,13 @@ $ evm add.evm
 ```
 
 More examples can be found in the `tst/in` directory.
+
+### Disassembler
+```sh
+# Outputs valid assembly
+$ bin/evm -d tst/out/selfdestruct.out
+SELFDESTRUCT(CALLER)
+```
 
 ## Roadmap
 * Implicit stack use

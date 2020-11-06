@@ -7,7 +7,6 @@
 statement_stack_t stack;
 
 void disassembleInit() {
-    // TODO free strings
     statement_stack_init(&stack, 8);
 }
 static void disassembleWaste(const char **iter) {
@@ -27,9 +26,9 @@ static void disassemblePushDecimal(op_t op, uint8_t pushlen, const char **iter) 
         pushlen--;
     }
     size_t bufLength = 20;
-    char *str = (char *)malloc(bufLength);
+    char *str = (char *)calloc(bufLength, 1);
     int strLength = sprintf(str, "%llu", value);
-    stack_statement_t pushDec = {
+    statement_t pushDec = {
         strLength,
         bufLength,
         str
@@ -38,7 +37,7 @@ static void disassemblePushDecimal(op_t op, uint8_t pushlen, const char **iter) 
 }
 static void disassemblePushHex(op_t op, uint8_t pushlen, const char **iter) {
     size_t strLength = pushlen + 2;
-    char *str = (char *)malloc(strLength);
+    char *str = (char *)calloc(strLength, 1);
     str[0] = '0';
     str[1] = 'x';
     uint8_t i = 2;
@@ -49,7 +48,7 @@ static void disassemblePushHex(op_t op, uint8_t pushlen, const char **iter) {
         str[i++] = *(*iter)++;
         pushlen--;
     }
-    stack_statement_t pushHex = {
+    statement_t pushHex = {
         strLength,
         strLength,
         str
@@ -73,13 +72,30 @@ void disassembleNextOp(const char **iter) {
         disassemblePush(op, iter);
         return;
     }
-    char *str = malloc(15);
-    strncpy(str, opString[op], 15);
-    stack_statement_t op_statement = {
-        15,
-        15,
+    uint8_t bufLen = 15;
+    char *str = calloc(bufLen, 1);
+    char *end = stpncpy(str, opString[op], bufLen);
+    uint8_t strLen = end - str;
+    statement_t op_statement = {
+        strLen,
+        bufLen,
         str
     };
+    int argc = argCount[op];
+    if (argc && argc <= stack.num_statements) {
+        statement_append(&op_statement, '(');
+        while (argc--) {
+            statement_t arg = statement_stack_pop(&stack);
+            for (uint32_t i = 0; i < arg.num_schars; i++) {
+                statement_append(&op_statement,arg.schars[i]);
+            }
+            free(arg.schars);
+            if (argc) {
+                statement_append(&op_statement,',');
+            }
+        }
+        statement_append(&op_statement, ')');
+    }
     statement_stack_append(&stack, op_statement);
 }
 int disassembleValid(const char **iter) {
