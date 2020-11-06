@@ -33,15 +33,20 @@ More examples can be found in the `tst/in` directory.
 
 ### Disassembler
 ```sh
+$ cat selfdestruct.out
+33ff
 # Outputs valid assembly
-$ bin/evm -d tst/out/selfdestruct.out
+$ evm -d selfdestruct.out
 SELFDESTRUCT(CALLER)
 ```
 
 ## Roadmap
+### Assembler
 * Implicit stack use
 * Stack underflow warnings
 * Explicit Constructor
+### Disassembler
+* Label JUMPDEST in JUMPI and JUMP args
 
 # Contributing
 Please use camelCase for methods and variables but snake\_case for types.
