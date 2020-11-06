@@ -154,15 +154,11 @@ OP(TIMESTAMP,0,1) \
 OP(XOR,2,1)
 
 
-const char *opString(op_t op) {
-    switch (op) {
-        #define OP(index,name,in,out) case index: return #name;
+const char *opString[NUM_OPCODES] = {
+        #define OP(index,name,in,out) #name,
         OPS
         #undef OP
-    }
-    fprintf(stderr, "Unexpected op %X", op);
-    return "UNKNOWN";
-}
+};
 
 op_t opFromString(const char *str) {
     switch (*(uint32_t *)str) {
