@@ -11,7 +11,7 @@ void disassembleInit() {
 }
 static void disassembleWaste(const char **iter) {
     while (**iter && !isHex(**iter)) {
-        *iter += 1;
+        (*iter)++;
     }
 }
 static void disassemblePushDecimal(op_t op, uint8_t pushlen, const char **iter) {
@@ -36,7 +36,7 @@ static void disassemblePushDecimal(op_t op, uint8_t pushlen, const char **iter) 
     statement_stack_append(&stack, pushDec);
 }
 static void disassemblePushHex(op_t op, uint8_t pushlen, const char **iter) {
-    size_t strLength = pushlen + 2;
+    size_t strLength = 2 * pushlen + 2;
     char *str = (char *)calloc(strLength, 1);
     str[0] = '0';
     str[1] = 'x';
