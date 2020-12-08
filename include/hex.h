@@ -30,10 +30,10 @@ static inline uint8_t hexString8ToUint8(const uint8_t hexString8) {
 		return hexString8 - '0';
 	}
 	if ('a' <= hexString8 && hexString8 <= 'f') {
-		return hexString8 - 'a';
+		return hexString8 - 'a' + 0xa;
 	}
 	if ('A' <= hexString8 && hexString8 <= 'F') {
-		return hexString8 - 'A';
+		return hexString8 - 'A' + 0xa;
 	}
     fputs("hexString8ToUint8: unexpected hex string", stderr);
     fputc(hexString8, stderr);
