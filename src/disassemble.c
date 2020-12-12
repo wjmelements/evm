@@ -13,6 +13,10 @@ static void disassembleWaste(const char **iter) {
     while (**iter && !isHex(**iter)) {
         (*iter)++;
     }
+    if (**iter == '0' && *(*iter + 1) == 'x') {
+        (*iter) += 2;
+        disassembleWaste(iter);
+    }
 }
 static void disassemblePushDecimal(op_t op, uint8_t pushlen, const char **iter) {
     uint64_t value = 0;
