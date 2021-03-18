@@ -21,6 +21,7 @@ OP(ADDRESS,0,1) \
 OP(AND,2,1) \
 OP(ADDMOD,3,1) \
 OP(BALANCE,1,1) \
+OP(BASEFEE,0,1) \
 OP(BLOCKHASH,1,1) \
 OP(BYTE,2,1) \
 OP(CALL,7,1) \
@@ -28,6 +29,7 @@ OP(CALLCODE,7,1) \
 OP(CALLDATALOAD,1,1) \
 OP(CALLDATACOPY,3,0) \
 OP(CALLDATASIZE,0,1) \
+OP(CHAINID,0,1) \
 OP(CALLER,0,1) \
 OP(CALLVALUE,0,1) \
 OP(CODESIZE,0,1) \
@@ -246,6 +248,7 @@ op_t opFromString(const char *str) {
                 case 'SEDO': return EXTCODESIZE;
             }
         case 'SAG': return GAS;
+        case 'ESAB': return BASEFEE;
         case 'ESSA':
             return (op_t)hexString16ToUint8(str + 9);
         case 'LSAG': return GASLIMIT;
@@ -448,6 +451,9 @@ op_t parseOp(const char *start, const char **endOut) {
                 case 'HEDO': *endOut = start + 7; return EXTCODEHASH;
                 case 'SEDO': *endOut = start + 7; return EXTCODESIZE;
             }
+        case 'ESAB':
+            *endOut = start + 7;
+            return BASEFEE;
         case 'ESSA':
             *endOut = start + 11;
             return (op_t)hexString16ToUint8(start + 9);
