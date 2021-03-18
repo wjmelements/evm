@@ -184,6 +184,8 @@ op_t opFromString(const char *str) {
                 case 'RE': return CALLER;
                 case 'AV': return CALLVALUE;
             }
+        case 'IAHC':
+            return CHAINID;
         case 'EDOC':
             switch (*(uint32_t *)(str += 4)) {
                 case 'EZIS': return CODESIZE;
@@ -375,6 +377,9 @@ op_t parseOp(const char *start, const char **endOut) {
             }
             *endOut = start;
             return CALL;
+        case 'IAHC':
+            *endOut = start + 7;
+            return CHAINID;
         case 'EDOC':
             switch (*(uint32_t *)(start += 4)) {
                 case 'EZIS': *endOut = start + 4; return CODESIZE;
