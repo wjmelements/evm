@@ -42,6 +42,7 @@ static inline jump_t labelQueuePop() {
     return jump;
 }
 
+// label locations, in the same order as in the program
 #define MAX_LABEL_COUNT 1024
 static label_t labels[MAX_LABEL_COUNT];
 static uint32_t labelLocations[MAX_LABEL_COUNT];
@@ -60,6 +61,29 @@ static void registerLabel(jump_t jump) {
     }
     labelLocations[labelCount] = jump.programCounter;
     labels[labelCount++] = jump.label;
+}
+
+
+static void incrementLabelLocations(uint32_t after, uint32_t by) {
+    // inclusive indices
+    uint32_t begin = 0; 
+    uint32_t end = labelCount - 1;
+    while (begin < end) {
+        uint32_t mid = (begin + end) / 2;
+        if (labelLocations[mid] < after) {
+            begin = mid + 1;
+        } else {
+            end = mid;
+        }
+    }
+    for (uint32_t i = begin; i < labelCount; i++) {
+        int before = labelLocations[i] < 256;
+        labelLocations[i] += by;
+        int after = labelLocations[i] >= 256;
+        if (before && after) {
+            // TODO shift label positions 
+        }
+    }
 }
 
 static uint32_t getLabelLocation(label_t label) {
