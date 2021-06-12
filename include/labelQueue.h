@@ -6,6 +6,8 @@
 
 typedef struct {
     uint32_t programCounter;
+    uint8_t len;
+    uint32_t labelIndex; // undefined until scanFinalize
     label_t label;
 } jump_t;
 
@@ -63,20 +65,23 @@ static void registerLabel(jump_t jump) {
     labels[labelCount++] = jump.label;
 }
 
-
-static void incrementLabelLocations(uint32_t after, uint32_t by) {
+static uint32_t firstLabelAfter(uint32_t pc) {
     // inclusive indices
     uint32_t begin = 0; 
     uint32_t end = labelCount - 1;
     while (begin < end) {
         uint32_t mid = (begin + end) / 2;
-        if (labelLocations[mid] < after) {
+        if (labelLocations[mid] < pc) {
             begin = mid + 1;
         } else {
             end = mid;
         }
     }
-    for (uint32_t i = begin; i < labelCount; i++) {
+    return begin;
+}
+
+static void incrementLabelLocations(uint32_t after, uint32_t by) {
+    for (uint32_t i = firstLabelAfter(after); i < labelCount; i++) {
         int before = labelLocations[i] < 256;
         labelLocations[i] += by;
         int after = labelLocations[i] >= 256;

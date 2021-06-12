@@ -5,6 +5,7 @@
 #include "dec.h"
 #include "hex.h"
 #include <assert.h>
+#include <string.h>
 
 static inline int shouldIgnore(char ch) {
     return ch != '('
@@ -226,6 +227,7 @@ static void scanOp(const char **iter) {
 
 op_t scanNextOp(const char **iter) {
     jump_t jump;
+    jump.len = 1;
     programCounter++;
     jump.programCounter = programCounter;
     if (!scanstackEmpty()) {
@@ -251,8 +253,42 @@ op_t scanNextOp(const char **iter) {
     } else return scanstackPop();
 }
 
+
+void shiftProgram(op_t* begin, uint32_t *programLength, uint32_t offset, uint32_t amount) {
+    memmove(begin + offset + amount, begin + offset, *programLength - offset);
+    *programLength += amount;
+}
+
 void scanFinalize(op_t *begin, uint32_t *programLength) {
     // TODO handle labels for programs longer than 256
+    // set label indices
+    node_t *node = head;
+    while (node) {
+        node->jump.labelIndex = labelCount;
+        for (uint32_t i = 0; i < labelCount; i++) {
+            if (labels[i].length != node->jump.label.length) {
+                continue;
+            }
+            if (0 == strncmp(labels[i].start, node->jump.label.start, labels[i].length)) {
+                node->jump.labelIndex = i;
+                break;
+            }
+        }
+        assert(node->jump.labelIndex != labelCount);
+        node = node->next;
+    }
+
+    // find first label that needs larger len
+    uint32_t labelIndex = firstLabelAfter(256);
+    // loop through jumps, extending jump.len
+    node = head;
+    while (node) {
+        if (labelLocations[node->jump.labelIndex] > 255 && node->jump.len == 1) {
+            // TODO shift program and increment jump.programCounter
+        }
+        node = node->next;
+    }
+
     while (!labelQueueEmpty()) {
         jump_t jump = labelQueuePop();
         uint32_t location = getLabelLocation(jump.label);
