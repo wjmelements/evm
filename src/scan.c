@@ -308,7 +308,7 @@ void scanFinalize(op_t *begin, uint32_t *programLength) {
     while (!labelQueueEmpty()) {
         jump_t jump = labelQueuePop();
         uint32_t location = labelLocations[jump.labelIndex]; //getLabelLocation(jump.label);
-        if (location >= 0xffff) {
+        if (location > 0xffff) {
             fprintf(stderr, "Unsupported label location %u\n", location);
         }
         if (location > 0xff) {
