@@ -5,6 +5,7 @@
 #include "dec.h"
 #include "hex.h"
 #include <assert.h>
+#include <string.h>
 
 static inline int shouldIgnore(char ch) {
     return ch != '('
@@ -180,6 +181,7 @@ static void scanLabel(const char **iter) {
         scanstackPushLabel(start, end - start, STOP);
         scanstackPush(PUSH1);
     }
+    scanWaste(iter);
 }
 
 static void scanOp(const char **iter) {
@@ -226,6 +228,7 @@ static void scanOp(const char **iter) {
 
 op_t scanNextOp(const char **iter) {
     jump_t jump;
+    jump.len = 1;
     programCounter++;
     jump.programCounter = programCounter;
     if (!scanstackEmpty()) {
@@ -251,14 +254,69 @@ op_t scanNextOp(const char **iter) {
     } else return scanstackPop();
 }
 
+
+void shiftProgram(op_t* begin, uint32_t *programLength, uint32_t offset, uint32_t amount) {
+    memmove(begin + offset + amount, begin + offset, *programLength - offset);
+    *programLength += amount;
+}
+
 void scanFinalize(op_t *begin, uint32_t *programLength) {
-    // TODO handle labels for programs longer than 256
+    // set label indices
+    node_t *node = head;
+    while (node) {
+        node->jump.labelIndex = labelCount;
+        for (uint32_t i = 0; i < labelCount; i++) {
+            if (labels[i].length != node->jump.label.length) {
+                continue;
+            }
+            if (0 == strncmp(labels[i].start, node->jump.label.start, labels[i].length)) {
+                node->jump.labelIndex = i;
+                break;
+            }
+        }
+        assert(node->jump.labelIndex != labelCount);
+        node = node->next;
+    }
+
+    // find first label that needs larger len
+    uint32_t labelIndex = firstLabelAfter(256);
+    // loop through jumps, extending jump.len
+    node = head;
+    int again;
+    do {
+        again = 0;
+        while (node) {
+            if (labelLocations[node->jump.labelIndex] > 255 && node->jump.len == 1) {
+                again = 1;
+                node->jump.len++;
+                shiftProgram(begin, programLength, node->jump.programCounter, 1);
+                // shift jump.programCounter for subsequent jumps
+                node_t *follower = node->next;
+                while (follower) {
+                    follower->jump.programCounter++;
+                    follower = follower->next;
+                }
+                // change jump locations
+                for (uint32_t i = firstLabelAfter(node->jump.programCounter); i < labelCount; i++) {
+                    labelLocations[i]++;
+                }
+            }
+            node = node->next;
+        }
+    } while (again);
+
     while (!labelQueueEmpty()) {
         jump_t jump = labelQueuePop();
-        uint32_t location = getLabelLocation(jump.label);
-        if (location >= 256) {
+        uint32_t location = labelLocations[jump.labelIndex]; //getLabelLocation(jump.label);
+        if (location > 0xffff) {
             fprintf(stderr, "Unsupported label location %u\n", location);
         }
-        begin[jump.programCounter] = location;
+        if (location > 0xff) {
+            begin[jump.programCounter - 1]++; // PUSH1 -> PUSH2
+            begin[jump.programCounter] = location / 256;
+            begin[jump.programCounter + 1] = location % 256;
+        } else {
+            begin[jump.programCounter] = location;
+        }
     }
 }
