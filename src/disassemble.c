@@ -31,7 +31,7 @@ static void disassemblePushDecimal(op_t op, uint8_t pushlen, const char **iter) 
     }
     size_t bufLength = 20;
     char *str = (char *)calloc(bufLength, 1);
-    int strLength = sprintf(str, "%llu", value);
+    int strLength = snprintf(str, bufLength, "%llu", value);
     statement_t pushDec = {
         strLength,
         bufLength,
