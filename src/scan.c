@@ -13,6 +13,7 @@ static inline int shouldIgnore(char ch) {
         && ch != ','
         && ch != ':'
         && ch != '/'
+        && ch != '-'
         && (ch < '0' || ch > '9')
         && (ch < 'A' || ch > 'Z')
         && (ch < 'a' || ch > 'z')
@@ -65,7 +66,7 @@ static inline uint64_t lo32(uint64_t in) {
     return in & 0xffffffff;
 }
 
-op_t parseDecimal(const char **iter) {
+op_t parseDecimal(const char **iter, int negative) {
     uint64_t words[4] = {0,0,0,0};
     while (isDecimal(**iter)) {
         // multiply number by 10
@@ -106,14 +107,28 @@ op_t parseDecimal(const char **iter) {
             } else break;
         }
     }
+    if (negative) {
+        // negate via -x = ~x + 1
+        for (uint8_t i = 4; i --> 0;) {
+            words[i] = ~words[i];
+        }
+        // add 1 with carry
+        for (uint8_t i = 0; i < 4; i++) {
+            words[i]++;
+            if (words[i]) {
+                break;
+            }
+        }
+    }
     uint8_t start = 0;
+    // determine start
     for (uint8_t i = 4; i --> 0;) {
         for (uint8_t j = 8; j --> 0;) {
             uint64_t shift = j * 8;
-            uint8_t word = (words[i] & (0xffllu << shift)) >> shift;
-            if (word) {
+            uint8_t byte = (words[i] & (0xffllu << shift)) >> shift;
+            if (byte) {
                 start = i * 8 + j;
-                i = 0;
+                i = 0; // break outer
                 break;
             }
         }
@@ -124,11 +139,20 @@ op_t parseDecimal(const char **iter) {
                 break;
             }
             uint64_t shift = j * 8;
-            uint8_t word = (words[i] & (0xffllu << shift)) >> shift;
-            scanstackPush(word);
+            uint8_t byte = (words[i] & (0xffllu << shift)) >> shift;
+            scanstackPush(byte);
         }
     }
     return (op_t) PUSH1 + start;
+}
+
+
+int parseNegative(const char **iter) {
+    if (**iter == '-') {
+        (*iter)++;
+        return 1;
+    }
+    return 0;
 }
 
 op_t parseConstant(const char **iter) {
@@ -136,7 +160,11 @@ op_t parseConstant(const char **iter) {
         (*iter) += 2;
         return parseHex(iter);
     } else {
-        return parseDecimal(iter);
+        int negative = 0;
+        while (parseNegative(iter)) {
+            negative = !negative;
+        }
+        return parseDecimal(iter, negative);
     }
 }
 

@@ -11,5 +11,5 @@ DEC(8) \
 DEC(9) \
 
 static inline int isDecimal(char h) {
-    return h >= '0' && h <= '9';
+    return (h >= '0' && h <= '9') || (h == '-');
 }

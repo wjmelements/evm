@@ -56,7 +56,7 @@ distcheck dist-check:
 	@$<\
 		&& echo -e "\033[0;32mpass\033[0m" && touch $@\
 		|| echo -e "\033[0;31mfail\033[0m"
-.pass/tst/in/%: bin/evm | .pass/tst/in
+.pass/tst/in/%: bin/evm tst/in/% | .pass/tst/in
 	@printf "$(patsubst .pass/tst/in/%,tst/in/%,$@): "
 	@bin/evm $(patsubst .pass/tst/in/%,tst/in/%,$@) | diff $(patsubst .pass/tst/in/%.evm,tst/out/%.out, $@) - \
 		&& echo -e "\033[0;32mpass\033[0m" && touch $@\
