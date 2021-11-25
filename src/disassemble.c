@@ -35,6 +35,7 @@ static void disassemblePushDecimal(op_t op, uint8_t pushlen, const char **iter) 
         value *= 16;
         value += hexString8ToUint8(*(*iter)++);
         pushlen--;
+        pc++;
     }
     size_t bufLength = 20;
     char *str = (char *)calloc(bufLength, 1);
@@ -58,6 +59,7 @@ static void disassemblePushHex(op_t op, uint8_t pushlen, const char **iter) {
         disassembleWaste(iter);
         str[i++] = *(*iter)++;
         pushlen--;
+        pc++;
     }
     statement_t pushHex = {
         strLength,
@@ -98,6 +100,7 @@ void disassembleNextOp(const char **iter) {
     op_t op = hexString16ToUint8(*iter);
     *iter += 2;
     if (op >= PUSH1 && op <= PUSH32) {
+        pc++;
         disassemblePush(op, iter);
         return;
     }
