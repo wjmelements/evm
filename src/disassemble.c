@@ -4,9 +4,16 @@
 #include <stdint.h>
 #include <stdio.h>
 
-statement_stack_t stack;
+static statement_stack_t stack;
+static uint32_t pc;
+
+typedef uint32_t pc_t;
+VECTOR(pc, pcs);
+static pcs_t jumpdests;
 
 void disassembleInit() {
+    pc = 0;
+    pcs_init(&jumpdests, 8);
     statement_stack_init(&stack, 8);
 }
 static void disassembleWaste(const char **iter) {
@@ -60,6 +67,23 @@ static void disassemblePushHex(op_t op, uint8_t pushlen, const char **iter) {
     statement_stack_append(&stack, pushHex);
 }
 
+
+statement_t labelForPc(pc_t pc) {
+    const uint32_t bufLen = 8;
+    char *str = calloc(bufLen, 1);
+    uint32_t strLen = (uint32_t) snprintf(str, bufLen, "%u:", pc);
+    /*  TODO label
+    for (uint8_t i = 0; i < strLen - 1; i++) {
+        str[i] += 'a' - '0';
+    }
+    */
+    return (statement_t) {
+        strLen,
+        bufLen,
+        str,
+    };
+}
+
 static void disassemblePush(op_t op, const char **iter) {
     uint8_t pushlen = op - PUSH1 + 1;
     if (pushlen <= 8) {
@@ -68,6 +92,7 @@ static void disassemblePush(op_t op, const char **iter) {
         disassemblePushHex(op, pushlen, iter);
     }
 }
+
 void disassembleNextOp(const char **iter) {
     disassembleWaste(iter);
     op_t op = hexString16ToUint8(*iter);
@@ -76,15 +101,21 @@ void disassembleNextOp(const char **iter) {
         disassemblePush(op, iter);
         return;
     }
-    uint8_t bufLen = 15;
-    char *str = calloc(bufLen, 1);
-    char *end = stpncpy(str, opString[op], bufLen);
-    uint8_t strLen = end - str;
-    statement_t op_statement = {
-        strLen,
-        bufLen,
-        str
-    };
+    statement_t op_statement;
+    if (op == JUMPDEST) {
+        pcs_append(&jumpdests, pc);
+        op_statement = labelForPc(pc);
+    } else {
+        uint32_t bufLen = 15;
+        char *str = calloc(bufLen, 1);
+        char *end = stpncpy(str, opString[op], bufLen);
+        uint32_t strLen = end - str;
+        op_statement = (statement_t){
+            strLen,
+            bufLen,
+            str
+        };
+    }
     int argc = argCount[op];
     if (argc && argc <= stack.num_statements) {
         statement_append(&op_statement, '(');
@@ -101,12 +132,21 @@ void disassembleNextOp(const char **iter) {
         statement_append(&op_statement, ')');
     }
     statement_stack_append(&stack, op_statement);
+    pc++;
 }
+
 int disassembleValid(const char **iter) {
     disassembleWaste(iter);
     return **iter;
 }
+
 void disassembleFinalize() {
+    for (size_t j = 0; j < jumpdests.num_pcs; j++) {
+        uint32_t jumpdest = jumpdests.pcs[j]; 
+        for (size_t i = 0; i < stack.num_statements; i++) {
+            // TODO scan for label
+        }
+    }
     for (size_t i = 0; i < stack.num_statements; i++) {
         puts(stack.statements[i].schars);
     }

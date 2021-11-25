@@ -2,7 +2,6 @@
 #include "vector.h"
 typedef char schar_t;
 VECTOR(schar, statement);
-typedef statement_t statement_t;
 VECTOR(statement, statement_stack);
 
 
