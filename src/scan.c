@@ -6,6 +6,7 @@
 #include "hex.h"
 #include <assert.h>
 #include <string.h>
+#include <stdlib.h>
 
 static inline int shouldIgnore(char ch) {
     return ch != '('
@@ -297,7 +298,14 @@ void scanFinalize(op_t *begin, uint32_t *programLength) {
                 break;
             }
         }
-        assert(node->jump.labelIndex != labelCount);
+        if (node->jump.labelIndex == labelCount) {
+            fputs("Unmatched label: ", stderr); 
+            for (const char *c = node->jump.label.start; isLowerCase(*c); c++) {
+                putc(*c, stderr);
+            }
+            putc('\n', stderr);
+            exit(1);
+        }
         node = node->next;
     }
 
