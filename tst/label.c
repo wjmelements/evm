@@ -17,13 +17,21 @@ int main() {
     assert(labelCount == 1);
     assert(labels[0].length == jump1.label.length);
     assert(labelLocations[0] == 0);
-    assert(firstLabelAfter(0) == 0);
+    assert(firstLabelAfter(0) == 1);
 
 
-    incrementLabelLocations(0, 1);
+    labelLocations[0] = 1;
     assert(labelLocations[0] == 1);
     assert(firstLabelAfter(0) == 0);
-    //assert(firstLabelAfter(2) == 1);
+    assert(firstLabelAfter(1) == 1);
+    assert(firstLabelAfter(2) == 1);
+
+    incrementLabelLocations(0, 1);
+    assert(labelLocations[0] == 2);
+    assert(firstLabelAfter(0) == 0);
+    assert(firstLabelAfter(1) == 0);
+    assert(firstLabelAfter(2) == 1);
+    assert(firstLabelAfter(3) == 1);
 
     const char *label2 = "world";
     jump_t jump2;
@@ -33,12 +41,15 @@ int main() {
     registerLabel(jump2);
     assert(labelCount == 2);
     assert(labels[0].length == jump2.label.length);
-    assert(labelLocations[0] == 1);
+    assert(labelLocations[0] == 2);
     assert(labelLocations[1] == 254);
     incrementLabelLocations(10, 3);
-    assert(labelLocations[0] == 1);
+    assert(labelLocations[0] == 2);
     assert(labelLocations[1] == 257);
     assert(firstLabelAfter(0) == 0);
+    assert(firstLabelAfter(1) == 0);
+    assert(firstLabelAfter(2) == 1);
     assert(firstLabelAfter(256) == 1);
-    //assert(firstLabelAfter(258) == 2);
+    assert(firstLabelAfter(257) == 2);
+    assert(firstLabelAfter(258) == 2);
 }
