@@ -66,12 +66,13 @@ static void registerLabel(jump_t jump) {
 }
 
 static uint32_t firstLabelAfter(uint32_t pc) {
-    // inclusive indices
+    // inclusive
     uint32_t begin = 0; 
-    uint32_t end = labelCount - 1;
+    // exclusive
+    uint32_t end = labelCount;
     while (begin < end) {
         uint32_t mid = (begin + end) / 2;
-        if (labelLocations[mid] < pc) {
+        if (labelLocations[mid] <= pc) {
             begin = mid + 1;
         } else {
             end = mid;

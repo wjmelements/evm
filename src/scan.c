@@ -309,13 +309,11 @@ void scanFinalize(op_t *begin, uint32_t *programLength) {
         node = node->next;
     }
 
-    // find first label that needs larger len
-    uint32_t labelIndex = firstLabelAfter(256);
     // loop through jumps, extending jump.len
-    node = head;
     int again;
     do {
         again = 0;
+        node = head;
         while (node) {
             if (labelLocations[node->jump.labelIndex] > 255 && node->jump.len == 1) {
                 again = 1;
