@@ -240,7 +240,10 @@ static void scanOp(const char **iter) {
             const char *end;
             op_t next = parseOp(*iter, &end);
             // TODO maybe next can be read from stack after scanOp instead of parsing twice
-            assert(retCount[next] != 0);
+            if (!retCount[next]) {
+                fprintf(stderr, "When reading args for op %s found unexpected op %s, near: %s", opString[op], opString[next], *iter);
+                assert(retCount[next] != 0);
+            }
             i += (retCount[next] - 1);
             scanOp(iter);
         }
