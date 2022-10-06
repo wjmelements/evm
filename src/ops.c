@@ -20,6 +20,8 @@ OP(ADD,2,1) \
 OP(ADDRESS,0,1) \
 OP(AND,2,1) \
 OP(ADDMOD,3,1) \
+OP(AUTH,4,1) \
+OP(AUTHCALL,8,1) \
 OP(BALANCE,1,1) \
 OP(BASEFEE,0,1) \
 OP(BLOCKHASH,1,1) \
@@ -261,6 +263,7 @@ op_t opFromString(const char *str) {
                 case 'D': return JUMPDEST;
                 case 'I': return JUMPI;
             }
+            break;
         case '0GOL': return LOG0;
         case '1GOL': return LOG1;
         case '2GOL': return LOG2;
@@ -274,11 +277,18 @@ op_t opFromString(const char *str) {
                 case '\0': return MSTORE;
                 case '8': return MSTORE8;
             }
+            break;
         case 'LUM': return MUL;
         case 'MLUM': return MULMOD;
         case 'TON': return NOT;
         case 'BMUN': return NUMBER;
         case 'GIRO': return ORIGIN;
+        case 'HTUA':
+            switch (*(uint8_t *)(str + 4)) {
+                case '\0': return AUTH;
+                case 'C': return AUTHCALL;
+            }
+            break;
         case 'HSUP':
             switch (*(uint16_t *)(str + 4)) {
                 case '1': return PUSH1;
@@ -365,6 +375,11 @@ op_t parseOp(const char *start, const char **endOut) {
         case 'ALAB': *endOut = start + 7; return BALANCE;
         case 'COLB': *endOut = start + 9; return BLOCKHASH;
         case 'ETYB': *endOut = start + 4; return BYTE;
+        case 'HTUA': *endOut = start + 4;
+            switch (*(uint8_t *)(start + 4)) {
+                case 'C': *endOut += 4; return AUTHCALL;
+            }
+            return AUTH;
         case 'LLAC':
             switch (*(uint16_t *)(start += 4)) {
                 case 'OC': *endOut = start + 4; return CALLCODE;
