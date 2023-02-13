@@ -89,6 +89,7 @@ OP(NUMBER,0,1) \
 OP(OR,2,1) \
 OP(ORIGIN,0,1) \
 OP(PC,0,1) \
+OP(PUSH0,0,1) \
 OP(PUSH1,0,1) \
 OP(PUSH2,0,1) \
 OP(PUSH3,0,1) \
@@ -291,6 +292,7 @@ op_t opFromString(const char *str) {
             break;
         case 'HSUP':
             switch (*(uint16_t *)(str + 4)) {
+                case '0': return PUSH0;
                 case '1': return PUSH1;
                 case '2': return PUSH2;
                 case '3': return PUSH3;
@@ -527,6 +529,7 @@ op_t parseOp(const char *start, const char **endOut) {
                     }
                     *endOut = start + 5;
                     return PUSH3;
+                case '0': return PUSH0;
                 case '4': return PUSH4;
                 case '5': return PUSH5;
                 case '6': return PUSH6;
