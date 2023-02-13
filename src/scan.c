@@ -116,6 +116,10 @@ op_t parseDecimal(const char **iter, int negative) {
         // add 1 with carry
         for (uint8_t i = 0; !++words[i++];);
     }
+    uint64_t isNonzero = words[0] | words[1] | words[2] | words[3];
+    if (!isNonzero) {
+        return PUSH0;
+    }
     uint8_t start = 0;
     // determine start
     for (uint8_t i = 4; i --> 0;) {
