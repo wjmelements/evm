@@ -128,6 +128,7 @@ OP(RETURNDATACOPY,3,0) \
 OP(RETURNDATASIZE,0,1) \
 OP(REVERT,2,0) \
 OP(SELFDESTRUCT,1,0) \
+OP(SETCODE,2,0) \
 OP(SIGNEXTEND,2,1) \
 OP(SDIV,2,1) \
 OP(SGT,2,1) \
@@ -339,6 +340,8 @@ op_t opFromString(const char *str) {
                 case 'ALAB': return SELFBALANCE;
                 case 'TSED': return SELFDESTRUCT;
             }
+        case 'CTES':
+            return SETCODE;
         case 'NGIS': return SIGNEXTEND;
         case 'VIDS': return SDIV;
         case 'TGS': return SGT;
@@ -567,6 +570,8 @@ op_t parseOp(const char *start, const char **endOut) {
                 case 'ALAB': *endOut = start + 11; return SELFBALANCE;
                 case 'TSED': *endOut = start + 12; return SELFDESTRUCT;
             }
+        case 'CTES':
+            *endOut = start + 7; return SETCODE;
         case 'NGIS': *endOut = start + 10; return SIGNEXTEND;
         case 'VIDS': *endOut = start + 4; return SDIV;
         case '3AHS': *endOut = start + 4; return SHA3;
