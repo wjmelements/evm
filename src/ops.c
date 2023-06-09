@@ -77,6 +77,7 @@ OP(LOG2,4,0) \
 OP(LOG3,5,0) \
 OP(LOG4,6,0) \
 OP(LT,2,1) \
+OP(MCOPY,3,0) \
 OP(MLOAD,1,1) \
 OP(MSIZE,0,1) \
 OP(MOD,2,1) \
@@ -156,6 +157,8 @@ OP(SWAP14,0,0) \
 OP(SWAP15,0,0) \
 OP(SWAP16,0,0) \
 OP(TIMESTAMP,0,1) \
+OP(TLOAD,1,1) \
+OP(TSTORE,2,0) \
 OP(XOR,2,1)
 
 
@@ -224,6 +227,9 @@ op_t opFromString(const char *str) {
         case '7PUD': return DUP7;
         case '8PUD': return DUP8;
         case '9PUD': return DUP9;
+        case 'POCM': return MCOPY;
+        case 'OTST': return TSTORE;
+        case 'AOLT': return TLOAD;
         case 'PAWS': 
             switch (*(uint16_t *)(str += 4)) {
                 case '1': return SWAP1;
@@ -492,6 +498,9 @@ op_t parseOp(const char *start, const char **endOut) {
         case '4GOL': *endOut = start + 4; return LOG4;
         case 'AOLM': *endOut = start + 5; return MLOAD;
         case 'ZISM': *endOut = start + 5; return MSIZE;
+        case 'POCM': *endOut = start + 5; return MCOPY;
+        case 'AOLT': *endOut = start + 5; return TLOAD;
+        case 'OTST': *endOut = start + 6; return TSTORE;
         case 'OTSM':
             switch (*(uint8_t *)(start + 6)) {
                 case '8': *endOut = start + 7; return MSTORE8;
