@@ -24,7 +24,7 @@ clean:
 again: clean all
 check: $(addprefix .pass/,$(TESTS) $(INTEGRATIONS))
 
-FNM=\([-+a-z_A-Z/]*\)
+FNM=\([-+a-z_A-Z0-9/]*\)
 .make/%.d: %.m
 	@mkdir -p $(@D)
 	@$(CC) -MM $(CCSTD) $(INCLUDE) $< -o $@
