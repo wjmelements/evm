@@ -1,3 +1,4 @@
+#include "evm.h"
 #include "scan.h"
 #include "disassemble.h"
 
@@ -5,6 +6,7 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 #define CONSTRUCTOR_OFFSET 0x1000
@@ -77,7 +79,28 @@ void disassemble(const char *contents) {
 }
 
 void execute(const char *contents) {
-    //evmCall(from, gas, to, value, contents);
+    evmInit();
+    size_t len = strlen(contents);
+    if (len & 1) {
+        fputs("odd-lengthed input", stderr);
+        _exit(1);
+    }
+    if (len > 2 && contents[0] == '0' && contents[1] == 'x') {
+        // allow 0x prefix
+        len -= 2;
+        contents += 2;
+    }
+    data_t input;
+    input.size = len / 2;
+    input.content = malloc(input.size);
+
+    // TODO support these eth_call parameters
+    address_t from;
+    uint64_t gas = 0xffffffffffffffff;
+    address_t *to = NULL;
+    val_t value;
+    evmCall(from, gas, to, value, input);
+    evmFinalize();
 }
 
 int main(int argc, char *const argv[]) {
@@ -129,7 +152,7 @@ int main(int argc, char *const argv[]) {
     } else if (optind == argc) {
         // read from stdin
         size_t bufferSize = 4;
-        size_t capacity = bufferSize;
+        size_t capacity = bufferSize - 1;
         char *input = calloc(1, bufferSize);
         char *pos = input;
         while (1) {
