@@ -14,9 +14,12 @@ op_t ops[PROGRAM_BUFFER_LENGTH];
 
 int wrapConstructor = 0;
 int inverse = 0;
+int runtime = 0;
+
 void assemble(const char *contents) {
     op_t *programStart = &ops[CONSTRUCTOR_OFFSET];
     uint32_t programLength = 0;
+    scanInit();
     for (; scanValid(&contents); programLength++) {
         if (programLength > (PROGRAM_BUFFER_LENGTH - CONSTRUCTOR_OFFSET)) {
             fprintf(stderr, "Program size exceeds limit; terminating");
@@ -62,6 +65,7 @@ void assemble(const char *contents) {
     }
 
     for (; programLength--;) printf("%02x", *programStart++);
+    putchar('\n');
 }
 
 void disassemble(const char *contents) {
@@ -72,16 +76,26 @@ void disassemble(const char *contents) {
     disassembleFinalize();
 }
 
+void execute(const char *contents) {
+    //evmCall(from, gas, to, value, contents);
+}
+
 int main(int argc, char *const argv[]) {
-    scanInit();
     int option;
-    while ((option = getopt (argc, argv, "cd")) != -1)
+    const char *contents = NULL;
+    while ((option = getopt (argc, argv, "cdo:x")) != -1)
         switch (option) {
             case 'c':
                 wrapConstructor = 1;
                 break;
             case 'd':
                 inverse = 1;
+                break;
+            case 'o':
+                contents = optarg;
+                break;
+            case 'x':
+                runtime = 1;
                 break;
             case '?':
                 fprintf(stderr, "Unknown evm option `-%c'.\n", optopt);
@@ -93,10 +107,58 @@ int main(int argc, char *const argv[]) {
         fputs("-c cannot be used with -d\n", stderr);
         return 1;
     }
-    if (optind == argc) {
-        // TODO read from stdin
+    if (runtime && wrapConstructor) {
+        fputs("-c cannot be used with -x\n", stderr);
+        return 1;
     }
-    for (int i = optind; i < argc; i++) {
+    if (inverse && runtime) {
+        fputs("-d cannot be used with -x\n", stderr);
+        return 1;
+    }
+    void (*subprogram)(const char*);
+    if (inverse) {
+        subprogram = disassemble;
+    } else if (runtime) {
+        subprogram = execute;
+    } else {
+        subprogram = assemble;
+    }
+    if (contents != NULL) {
+        // input is from the command line
+        subprogram(contents);
+    } else if (optind == argc) {
+        // read from stdin
+        size_t bufferSize = 4;
+        size_t capacity = bufferSize;
+        char *input = calloc(1, bufferSize);
+        char *pos = input;
+        while (1) {
+            ssize_t red = read(0, pos, capacity);
+            if (red == -1) {
+                perror("stdin");
+                return 1;
+            }
+            if (red == 0) {
+                // EOF
+                break;
+            }
+            capacity -= red;
+            if (capacity) {
+                pos += red;
+            } else {
+                char *next = calloc(1, bufferSize << 1);
+                memcpy(next, input, bufferSize);
+                pos = next + bufferSize;
+                capacity = bufferSize;
+                bufferSize <<= 1;
+                free(input);
+                input = next;
+            }
+        }
+        subprogram(input);
+        // free is redundant with program termination but makes valgrind happy
+        free(input);
+    } else for (int i = optind; i < argc; i++) {
         int fd = open(argv[i], O_RDONLY);
         if (fd == -1) {
             perror(argv[i]);
@@ -110,18 +172,12 @@ int main(int argc, char *const argv[]) {
             _exit(1);
         }
         
-        const char *contents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
+        contents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
         void *start = (void *)contents;
         if (contents == NULL) {
             perror(argv[i]);
         }
-        if (inverse) {
-            // TODO
-            disassemble(contents);
-        } else {
-            assemble(contents);
-            putchar('\n');
-        }
+        subprogram(contents);
         munmap(start, fstatus.st_size);
         close(fd);
     }
