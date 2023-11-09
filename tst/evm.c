@@ -99,37 +99,9 @@ void test_math() {
 
     assert(zero256(&result.status));
     assert(result.returnData.size == 32);
-    assert(result.returnData.content[0] == 0xff);
-    assert(result.returnData.content[1] == 0xff);
-    assert(result.returnData.content[2] == 0xff);
-    assert(result.returnData.content[3] == 0xff);
-    assert(result.returnData.content[4] == 0xff);
-    assert(result.returnData.content[5] == 0xff);
-    assert(result.returnData.content[6] == 0xff);
-    assert(result.returnData.content[7] == 0xff);
-    assert(result.returnData.content[8] == 0xff);
-    assert(result.returnData.content[9] == 0xff);
-    assert(result.returnData.content[10] == 0xff);
-    assert(result.returnData.content[11] == 0xff);
-    assert(result.returnData.content[12] == 0xff);
-    assert(result.returnData.content[13] == 0xff);
-    assert(result.returnData.content[14] == 0xff);
-    assert(result.returnData.content[15] == 0xff);
-    assert(result.returnData.content[16] == 0xff);
-    assert(result.returnData.content[17] == 0xff);
-    assert(result.returnData.content[18] == 0xff);
-    assert(result.returnData.content[19] == 0xff);
-    assert(result.returnData.content[20] == 0xff);
-    assert(result.returnData.content[21] == 0xff);
-    assert(result.returnData.content[22] == 0xff);
-    assert(result.returnData.content[23] == 0xff);
-    assert(result.returnData.content[24] == 0xff);
-    assert(result.returnData.content[25] == 0xff);
-    assert(result.returnData.content[26] == 0xff);
-    assert(result.returnData.content[27] == 0xff);
-    assert(result.returnData.content[28] == 0xff);
-    assert(result.returnData.content[29] == 0xff);
-    assert(result.returnData.content[30] == 0xff);
+    for (int i = 0; i < 31; i++) {
+        assert(result.returnData.content[i] == 0xff);
+    }
     assert(result.returnData.content[31] == 0xe9);
 }
 
@@ -175,10 +147,51 @@ void test_xorSwap() {
     assert(0 == memcmp(result.returnData.content + 32, program + 34, 32));
 }
 
+void test_spaghetti() {
+    evmInit();
+
+    address_t from;
+    uint64_t gas;
+    val_t value;
+    data_t input;
+
+    uint8_t program[] = {
+        PUSH0,
+        JUMPDEST,
+        DUP1, ISZERO, PUSH1, 0x19, JUMPI,
+        PC, MSIZE, MSTORE,
+        MSIZE, CALLDATASIZE, REVERT,
+        JUMPDEST,
+        PUSH1, 0x01, JUMPI,
+        JUMPDEST,
+        DUP1, PUSH1, 0x0d, JUMPI,
+        PUSH1, 0x01, ADD,
+        JUMPDEST,
+        DUP1, PUSH1, 0x02, GT,
+        PUSH1, 0x11, JUMPI,
+        STOP,
+    };
+
+    input.size = sizeof(program);
+    input.content = program;
+
+    result_t result = evmCreate(from, gas, value, input);
+    evmFinalize();
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(UPPER(LOWER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0);
+    assert(LOWER(LOWER(result.status)) == 0);
+    assert(result.returnData.size == 32);
+    for (int i = 0; i < 31; i++) {
+        assert(result.returnData.content[i] == 0);
+    }
+    assert(result.returnData.content[31] == 7);
+}
 int main() {
     test_stop();
     test_mstoreReturn();
     test_math();
     test_xorSwap();
+    test_spaghetti();
     return 0;
 }

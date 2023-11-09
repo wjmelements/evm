@@ -324,6 +324,16 @@ void xor256(uint256_t *number1, uint256_t *number2, uint256_t *target) {
     xor128(&LOWER_P(number1), &LOWER_P(number2), &LOWER_P(target));
 }
 
+void not128(uint128_t *number, uint128_t *target) {
+    UPPER_P(target) = ~UPPER_P(number);
+    LOWER_P(target) = ~LOWER_P(number);
+}
+
+void not256(uint256_t *number, uint256_t *target) {
+    not128(&UPPER_P(number), &UPPER_P(target));
+    not128(&LOWER_P(number), &LOWER_P(target));
+}
+
 void mul128(uint128_t *number1, uint128_t *number2, uint128_t *target) {
     uint64_t top[4] = {UPPER_P(number1) >> 32, UPPER_P(number1) & 0xffffffff,
                        LOWER_P(number1) >> 32, LOWER_P(number1) & 0xffffffff};

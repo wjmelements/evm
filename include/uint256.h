@@ -64,6 +64,8 @@ void and128(uint128_t *number1, uint128_t *number2, uint128_t *target);
 void and256(uint256_t *number1, uint256_t *number2, uint256_t *target);
 void xor128(uint128_t *number1, uint128_t *number2, uint128_t *target);
 void xor256(uint256_t *number1, uint256_t *number2, uint256_t *target);
+void not128(uint128_t *number, uint128_t *target);
+void not256(uint256_t *number, uint256_t *target);
 void mul128(uint128_t *number1, uint128_t *number2, uint128_t *target);
 void mul256(uint256_t *number1, uint256_t *number2, uint256_t *target);
 void divmod128(uint128_t *l, uint128_t *r, uint128_t *div, uint128_t *mod);

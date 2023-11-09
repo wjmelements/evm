@@ -203,6 +203,8 @@ static result_t doCall(context_t *callContext) {
                 memcpy(callContext->top - (op - DUP15), buffer, 32);
                 break;
             case POP:
+                // intentional fallthrough
+            case JUMPDEST:
                 break;
             case ADD:
                 add256(callContext->top, callContext->top - 1, callContext->top + 1);
@@ -233,13 +235,58 @@ static result_t doCall(context_t *callContext) {
             case AND:
                 and256(callContext->top, callContext->top - 1, callContext->top - 1);
                 break;
+            case NOT:
+                not256(callContext->top - 1, callContext->top - 1);
+                break;
+            case LT:
+                LOWER(LOWER_P((callContext->top - 1))) = gte256(callContext->top - 1, callContext->top);
+                bzero(callContext->top - 1, 24);
+                break;
+            case GT:
+                LOWER(LOWER_P((callContext->top - 1))) = gt256(callContext->top, callContext->top - 1);
+                bzero(callContext->top - 1, 24);
+                break;
+            case EQ:
+                LOWER(LOWER_P((callContext->top - 1))) = equal256(callContext->top, callContext->top - 1);
+                bzero(callContext->top - 1, 24);
+                break;
+            case ISZERO:
+                LOWER(LOWER_P((callContext->top - 1))) = zero256(callContext->top - 1);
+                bzero(callContext->top - 1, 24);
+                break;
+            case PC:
+                bzero(callContext->top - 1, 24);
+                LOWER(LOWER_P((callContext->top - 1))) = pc - 1;
+                break;
+            case JUMPI:
+                if (!zero256(callContext->top)) {
+                    break;
+                }
+                // intentional fallthorugh
+            case JUMP:
+                pc = LOWER(LOWER_P((callContext->top + (op - JUMP))));
+                if (pc >= callContext->code.size) {
+                    fprintf(stderr, "JUMP out of bounds %llu >= %lu\n", pc, callContext->code.size);
+                    result.returnData.size = 0;
+                    return result;
+                }
+                if (callContext->code.content[pc] != JUMPDEST) {
+                    fprintf(stderr, "JUMP to invalid destination %llu (%s)\n", pc, opString[callContext->code.content[pc]]);
+                    result.returnData.size = 0;
+                    return result;
+                }
+                break;
             default:
-                fprintf(stderr, "Unsupported opcode %u\n", op);
+                fprintf(stderr, "Unsupported opcode %u (%s)\n", op, opString[op]);
                 result.returnData.size = 0;
                 return result;
             case STOP:
                 LOWER(LOWER(result.status)) = 1;
                 return result;
+            case CALLDATASIZE:
+                bzero(callContext->top - 1, 24);
+                LOWER(LOWER_P((callContext->top - 1))) = callContext->callData.size;
+                break;
             case MSIZE:
                 clear256(callContext->top - 1);
                 uint64_t scratch = callContext->memory.num_uint8s;
