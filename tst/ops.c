@@ -14,15 +14,15 @@ int main() {
     assert(retCount[DUP16] == 1);
     assert(argCount[SELFDESTRUCT] == 1);
     assert(argCount[JUMPI] == 2);
-    #define OP(index,name,in,out) assert(opFromString(#name) == name);
+    #define OP(index,name,in,out,gas) assert(opFromString(#name) == name);
     OPS
     #undef OP
     const char *end;
     const char *start;
-    #define OP(index,name,in,out) start = #name; assert(name == parseOp(start, &end)); assert(strlen(#name) == end - start); start = #name "("; assert(name == parseOp(start, &end)); assert(strlen(#name) == end - start);
+    #define OP(index,name,in,out,gas) start = #name; assert(name == parseOp(start, &end)); assert(strlen(#name) == end - start); start = #name "("; assert(name == parseOp(start, &end)); assert(strlen(#name) == end - start);
     OPS
     #undef OP
-    #define OP(index,name,in,out) assert(0 == strcmp(opString[index],#name));
+    #define OP(index,name,in,out,gas) assert(0 == strcmp(opString[index],#name));
     OPS
     #undef OP
     return 0;
