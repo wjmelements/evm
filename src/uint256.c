@@ -41,23 +41,20 @@ void readu256BE(uint8_t *buffer, uint256_t *target) {
     readu128BE(buffer + 16, &LOWER_P(target));
 }
 
+static void dumpUint64BE(uint64_t source, uint8_t *target) {
+    target[0] = source >> 56;
+    target[1] = source >> 48;
+    target[2] = source >> 40;
+    target[3] = source >> 32;
+    target[4] = source >> 24;
+    target[5] = source >> 16;
+    target[6] = source >> 8;
+    target[7] = source;
+}
+
 void dumpu128BE(uint128_t *source, uint8_t *target) {
-    target[0] = UPPER_P(source) >> 56;
-    target[1] = UPPER_P(source) >> 48;
-    target[2] = UPPER_P(source) >> 40;
-    target[3] = UPPER_P(source) >> 32;
-    target[4] = UPPER_P(source) >> 24;
-    target[5] = UPPER_P(source) >> 16;
-    target[6] = UPPER_P(source) >> 8;
-    target[7] = UPPER_P(source);
-    target[8] = LOWER_P(source) >> 56;
-    target[9] = LOWER_P(source) >> 48;
-    target[10] = LOWER_P(source) >> 40;
-    target[11] = LOWER_P(source) >> 32;
-    target[12] = LOWER_P(source) >> 24;
-    target[13] = LOWER_P(source) >> 16;
-    target[14] = LOWER_P(source) >> 8;
-    target[15] = LOWER_P(source);
+    dumpUint64BE(UPPER_P(source), target);
+    dumpUint64BE(LOWER_P(source), target + 8);
 }
 
 void dumpu256BE(uint256_t *source, uint8_t *target) {
