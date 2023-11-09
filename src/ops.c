@@ -12,6 +12,11 @@ const uint8_t retCount[NUM_OPCODES] = {
     OPS
     #undef OP
 };
+const uint64_t gasCost[NUM_OPCODES] = {
+    #define OP(index,name,in,out,gas) gas,
+    OPS
+    #undef OP
+};
 
 
 
