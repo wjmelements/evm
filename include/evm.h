@@ -1,24 +1,29 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef char address_t[20];
-typedef char hash_t[32];
-typedef char val_t[80];
+#include "address.h"
+#include "uint256.h"
+
+typedef uint32_t val_t[3];
 
 typedef struct data {
     size_t size;
-    char *content;
+    uint8_t *content;
 } data_t;
 
 typedef struct callResult {
-    hash_t status;
     data_t returnData;
+    // status is the result pushed onto the stack
+    // for CREATE it is the address or zero on failure
+    // for CALL it is 1 on success and 0 on failure
+    uint256_t status;
 } result_t;
 
 
 void evmInit();
 void evmMockCall(address_t to, val_t value, data_t inputData, result_t result);
-void evmMockStorage(address_t to, hash_t key, hash_t storedValue);
+void evmMockStorage(address_t to, uint256_t key, uint256_t storedValue);
 void evmFinalize();
 
-result_t evmCall(address_t from, uint64_t gas, address_t *to, val_t value, data_t input);
+result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input);
+result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input);

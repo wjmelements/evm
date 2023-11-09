@@ -18,7 +18,7 @@ int wrapConstructor = 0;
 int inverse = 0;
 int runtime = 0;
 
-void assemble(const char *contents) {
+static void assemble(const char *contents) {
     op_t *programStart = &ops[CONSTRUCTOR_OFFSET];
     uint32_t programLength = 0;
     scanInit();
@@ -70,7 +70,7 @@ void assemble(const char *contents) {
     putchar('\n');
 }
 
-void disassemble(const char *contents) {
+static void disassemble(const char *contents) {
     disassembleInit();
     while (disassembleValid(&contents)) {
         disassembleNextOp(&contents);
@@ -78,7 +78,7 @@ void disassemble(const char *contents) {
     disassembleFinalize();
 }
 
-void execute(const char *contents) {
+static void execute(const char *contents) {
     evmInit();
     size_t len = strlen(contents);
     if (len & 1) {
@@ -97,7 +97,7 @@ void execute(const char *contents) {
     // TODO support these eth_call parameters
     address_t from;
     uint64_t gas = 0xffffffffffffffff;
-    address_t *to = NULL;
+    address_t to;
     val_t value;
     evmCall(from, gas, to, value, input);
     evmFinalize();
@@ -206,7 +206,3 @@ int main(int argc, char *const argv[]) {
     }
     return 0;
 }
-
-
-
-

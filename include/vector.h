@@ -26,6 +26,15 @@ static inline void vector ## _append(vector ## _t *vector, type ## _t type) {\
     }\
     vector->type ## s[vector->num_ ## type ## s++] = type;\
 }\
+static inline void vector ## _ensure(vector ## _t *vector, uint32_t capacity) {\
+    if (vector->buffer_size < capacity) {\
+        vector->buffer_size = capacity;\
+        type ## _t *buffer = calloc(capacity, sizeof(*buffer));\
+        memcpy(buffer, vector->type ## s, sizeof(*buffer) * (vector->buffer_size >> 1));\
+        free(vector->type ## s);\
+        vector->type ## s = buffer;\
+    }\
+}\
 static inline void vector ## _trimTo(vector ## _t *vector, uint16_t index) {\
     memmove(&vector->type ## s[0], &vector->type ## s[index], (vector->num_ ## type ## s - index) * sizeof(type ## _t));\
     vector->num_ ## type ## s -= index;\

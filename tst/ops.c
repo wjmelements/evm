@@ -9,6 +9,9 @@ int main() {
     assert(retCount[ADD] == 1);
     assert(argCount[ISZERO] == 1);
     assert(retCount[ISZERO] == 1);
+    assert(argCount[PUSH32] == 0);
+    assert(retCount[PUSH32] == 1);
+    assert(retCount[DUP16] == 1);
     assert(argCount[SELFDESTRUCT] == 1);
     assert(argCount[JUMPI] == 2);
     #define OP(index,name,in,out) assert(opFromString(#name) == name);
