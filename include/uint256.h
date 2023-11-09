@@ -27,10 +27,10 @@ typedef struct uint128_t { uint64_t elements[2]; } __attribute__((__packed__)) u
 
 typedef struct uint256_t { uint128_t elements[2]; } __attribute__((__packed__)) uint256_t;
 
-#define UPPER_P(x) x->elements[0]
-#define LOWER_P(x) x->elements[1]
-#define UPPER(x) x.elements[0]
-#define LOWER(x) x.elements[1]
+#define UPPER_P(x) (x)->elements[0]
+#define LOWER_P(x) (x)->elements[1]
+#define UPPER(x) (x).elements[0]
+#define LOWER(x) (x).elements[1]
 
 void readu128BE(uint8_t *buffer, uint128_t *target);
 void readu256BE(uint8_t *buffer, uint256_t *target);
