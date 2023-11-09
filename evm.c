@@ -171,7 +171,7 @@ int main(int argc, char *const argv[]) {
             } else {
                 char *next = calloc(1, bufferSize << 1);
                 memcpy(next, input, bufferSize);
-                pos = next + bufferSize;
+                pos = next + bufferSize - 1;
                 capacity = bufferSize;
                 bufferSize <<= 1;
                 free(input);
