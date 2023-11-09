@@ -106,7 +106,6 @@ static account_t *createNewAccount(address_t from, uint64_t nonce) {
 
 static result_t doCall(context_t *callContext) {
     result_t result;
-    uint8_t pushSize;
     uint64_t pc = 0;
     clear256(&result.status);
     uint256_t *src256;
@@ -114,6 +113,7 @@ static result_t doCall(context_t *callContext) {
     uint8_t buffer[32];
     while (1) {
         op_t op = callContext->code.content[pc++];
+        //dumpStack(callContext);
         //fprintf(stderr, "op %s\n", opString[op]);
         if (callContext->top < callContext->bottom + argCount[op]) {
             // stack underflow
@@ -155,8 +155,8 @@ static result_t doCall(context_t *callContext) {
             case PUSH30:
             case PUSH31:
             case PUSH32:
-                pushSize = op - PUSH0;
                 dst256 = callContext->top++;
+                uint8_t pushSize = op - PUSH0;
                 bzero(&buffer, 32 - pushSize);
                 memcpy(buffer + 32 - pushSize, callContext->code.content + pc, pushSize);
                 readu256BE(buffer, dst256);
@@ -185,6 +185,46 @@ static result_t doCall(context_t *callContext) {
             case POP:
                 callContext->top--;
                 break;
+            case ADD:
+                callContext->top -= 1;
+                add256(callContext->top, callContext->top - 1, callContext->top + 1);
+                copy256(callContext->top - 1, callContext->top + 1);
+                break;
+            case SUB:
+                callContext->top -= 1;
+                minus256(callContext->top, callContext->top - 1, callContext->top + 1);
+                copy256(callContext->top - 1, callContext->top + 1);
+                break;
+            case MUL:
+                callContext->top -= 1;
+                mul256(callContext->top, callContext->top - 1, callContext->top + 1);
+                copy256(callContext->top - 1, callContext->top + 1);
+                break;
+            case DIV:
+                callContext->top -= 1;
+                divmod256(callContext->top, callContext->top - 1, callContext->top + 1, callContext->top + 2);
+                copy256(callContext->top - 1, callContext->top + 1);
+                break;
+            case MOD:
+                callContext->top -= 1;
+                divmod256(callContext->top, callContext->top - 1, callContext->top + 2, callContext->top + 1);
+                copy256(callContext->top - 1, callContext->top + 1);
+                break;
+            case XOR:
+                callContext->top -= 1;
+                xor256(callContext->top, callContext->top - 1, callContext->top + 1);
+                copy256(callContext->top - 1, callContext->top + 1);
+                break;
+            case OR:
+                callContext->top -= 1;
+                or256(callContext->top, callContext->top - 1, callContext->top + 1);
+                copy256(callContext->top - 1, callContext->top + 1);
+                break;
+            case AND:
+                callContext->top -= 1;
+                and256(callContext->top, callContext->top - 1, callContext->top + 1);
+                copy256(callContext->top - 1, callContext->top + 1);
+                break;
             default:
                 fprintf(stderr, "Unsupported opcode %u\n", op);
                 result.returnData.size = 0;
@@ -192,6 +232,15 @@ static result_t doCall(context_t *callContext) {
             case STOP:
                 LOWER(LOWER(result.status)) = 1;
                 return result;
+            case MSIZE:
+                clear256(callContext->top);
+                uint64_t scratch = callContext->memory.buffer_size;
+                if (scratch % 32) {
+                    scratch += 32 - scratch % 32;
+                }
+                LOWER(LOWER_P(callContext->top)) = scratch;
+                callContext->top += 1;
+                break;
             case MSTORE:
                 ensureMemory(callContext, 32 + LOWER(LOWER_P((callContext->top - 1))));
                 uint8_t *loc = (callContext->memory.uint8s + LOWER(LOWER_P((callContext->top - 1))));
