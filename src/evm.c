@@ -63,6 +63,9 @@ static inline void dumpStack(context_t *context) {
 static inline void ensureMemory(context_t *callContext, uint64_t capacity) {
     // TODO gas from memory expansion
     memory_ensure(&callContext->memory, capacity);
+    if (callContext->memory.num_uint8s < capacity) {
+        callContext->memory.num_uint8s = capacity;
+    }
 }
 
 typedef struct {
@@ -108,8 +111,6 @@ static result_t doCall(context_t *callContext) {
     result_t result;
     uint64_t pc = 0;
     clear256(&result.status);
-    uint256_t *src256;
-    uint256_t *dst256;
     uint8_t buffer[32];
     while (1) {
         op_t op = callContext->code.content[pc++];
@@ -121,6 +122,7 @@ static result_t doCall(context_t *callContext) {
             result.returnData.size = 0;
             return result;
         }
+        callContext->top += retCount[op] - argCount[op];
         switch (op) {
             case PUSH0:
             case PUSH1:
@@ -155,11 +157,11 @@ static result_t doCall(context_t *callContext) {
             case PUSH30:
             case PUSH31:
             case PUSH32:
-                dst256 = callContext->top++;
+                ;
                 uint8_t pushSize = op - PUSH0;
-                bzero(&buffer, 32 - pushSize);
+                bzero(buffer, 32 - pushSize);
                 memcpy(buffer + 32 - pushSize, callContext->code.content + pc, pushSize);
-                readu256BE(buffer, dst256);
+                readu256BE(buffer, callContext->top - 1);
                 pc += pushSize;
                 break;
             case DUP1:
@@ -178,52 +180,58 @@ static result_t doCall(context_t *callContext) {
             case DUP14:
             case DUP15:
             case DUP16:
-                src256 = callContext->top - (op - PUSH32);
-                dst256 = (callContext->top++);
-                copy256(dst256, src256);
+                copy256(callContext->top - 1, callContext->top - (op - PUSH31));
+                break;
+            case SWAP1:
+            case SWAP2:
+            case SWAP3:
+            case SWAP4:
+            case SWAP5:
+            case SWAP6:
+            case SWAP7:
+            case SWAP8:
+            case SWAP9:
+            case SWAP10:
+            case SWAP11:
+            case SWAP12:
+            case SWAP13:
+            case SWAP14:
+            case SWAP15:
+            case SWAP16:
+                memcpy(buffer, callContext->top - 1, 32);
+                memcpy(callContext->top - 1, callContext->top - (op - DUP15), 32);
+                memcpy(callContext->top - (op - DUP15), buffer, 32);
                 break;
             case POP:
-                callContext->top--;
                 break;
             case ADD:
-                callContext->top -= 1;
                 add256(callContext->top, callContext->top - 1, callContext->top + 1);
                 copy256(callContext->top - 1, callContext->top + 1);
                 break;
             case SUB:
-                callContext->top -= 1;
                 minus256(callContext->top, callContext->top - 1, callContext->top + 1);
                 copy256(callContext->top - 1, callContext->top + 1);
                 break;
             case MUL:
-                callContext->top -= 1;
                 mul256(callContext->top, callContext->top - 1, callContext->top + 1);
                 copy256(callContext->top - 1, callContext->top + 1);
                 break;
             case DIV:
-                callContext->top -= 1;
                 divmod256(callContext->top, callContext->top - 1, callContext->top + 1, callContext->top + 2);
                 copy256(callContext->top - 1, callContext->top + 1);
                 break;
             case MOD:
-                callContext->top -= 1;
                 divmod256(callContext->top, callContext->top - 1, callContext->top + 2, callContext->top + 1);
                 copy256(callContext->top - 1, callContext->top + 1);
                 break;
             case XOR:
-                callContext->top -= 1;
-                xor256(callContext->top, callContext->top - 1, callContext->top + 1);
-                copy256(callContext->top - 1, callContext->top + 1);
+                xor256(callContext->top, callContext->top - 1, callContext->top - 1);
                 break;
             case OR:
-                callContext->top -= 1;
-                or256(callContext->top, callContext->top - 1, callContext->top + 1);
-                copy256(callContext->top - 1, callContext->top + 1);
+                or256(callContext->top, callContext->top - 1, callContext->top - 1);
                 break;
             case AND:
-                callContext->top -= 1;
-                and256(callContext->top, callContext->top - 1, callContext->top + 1);
-                copy256(callContext->top - 1, callContext->top + 1);
+                and256(callContext->top, callContext->top - 1, callContext->top - 1);
                 break;
             default:
                 fprintf(stderr, "Unsupported opcode %u\n", op);
@@ -233,32 +241,29 @@ static result_t doCall(context_t *callContext) {
                 LOWER(LOWER(result.status)) = 1;
                 return result;
             case MSIZE:
-                clear256(callContext->top);
-                uint64_t scratch = callContext->memory.buffer_size;
+                clear256(callContext->top - 1);
+                uint64_t scratch = callContext->memory.num_uint8s;
                 if (scratch % 32) {
                     scratch += 32 - scratch % 32;
                 }
-                LOWER(LOWER_P(callContext->top)) = scratch;
-                callContext->top += 1;
+                LOWER(LOWER_P((callContext->top - 1))) = scratch;
                 break;
             case MSTORE:
-                ensureMemory(callContext, 32 + LOWER(LOWER_P((callContext->top - 1))));
-                uint8_t *loc = (callContext->memory.uint8s + LOWER(LOWER_P((callContext->top - 1))));
-                callContext->top -= 2;
+                ensureMemory(callContext, 32 + LOWER(LOWER_P((callContext->top + 1))));
+                uint8_t *loc = (callContext->memory.uint8s + LOWER(LOWER_P((callContext->top + 1))));
                 dumpu256BE(callContext->top, loc);
                 break;
             case MLOAD:
                 ensureMemory(callContext, 32 + LOWER(LOWER_P((callContext->top - 1))));
-                readu256BE(callContext->memory.uint8s + LOWER(LOWER_P((callContext->top - 1))), callContext->top-2);
-                callContext->top--;
+                readu256BE(callContext->memory.uint8s + LOWER(LOWER_P((callContext->top - 1))), callContext->top - 1);
                 break;
             case RETURN:
                 LOWER(LOWER(result.status)) = 1;
                 // intentional fallthrough
             case REVERT:
-                ensureMemory(callContext, LOWER(LOWER_P((callContext->top - 1))) + LOWER(LOWER_P((callContext->top - 2))));
-                result.returnData.content = callContext->memory.uint8s + LOWER(LOWER_P((--callContext->top)));
-                result.returnData.size = LOWER(LOWER_P((--callContext->top)));
+                ensureMemory(callContext, LOWER(LOWER_P((callContext->top + 1))) + LOWER(LOWER_P(callContext->top)));
+                result.returnData.content = callContext->memory.uint8s + LOWER(LOWER_P((callContext->top + 1)));
+                result.returnData.size = LOWER(LOWER_P(callContext->top));
                 return result;
         }
     }
