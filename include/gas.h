@@ -23,10 +23,13 @@
 #define G_EXP 10
 #define G_EXPBYTE 50
 #define G_MEM 3
+#define G_QUADDIV 512
 #define G_TX 21000
 #define G_TXCREATE 32000
+#define G_INITCODEWORD 2
 #define G_CALLDATAZERO 4
 #define G_CALLDATA 16
+#define G_CALLDATANONZERO 12
 #define G_LOG 375
 #define G_LOGDATA 8
 #define G_LOGTOPIC 375

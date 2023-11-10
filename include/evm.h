@@ -17,6 +17,7 @@ typedef struct callResult {
     // for CREATE it is the address or zero on failure
     // for CALL it is 1 on success and 0 on failure
     uint256_t status;
+    uint64_t gasRemaining;
 } result_t;
 
 

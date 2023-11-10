@@ -47,6 +47,7 @@ typedef struct {
     data_t returnData;
     memory_t memory;
     data_t callData;
+    uint64_t gas;
 } context_t;
 
 // for debugging
@@ -60,11 +61,34 @@ static inline void dumpStack(context_t *context) {
     free(buf);
 }
 
-static inline void ensureMemory(context_t *callContext, uint64_t capacity) {
+static uint64_t memoryGasCost(uint64_t capacity) {
+    uint64_t words = (capacity + 31) >> 5;
+    return words * G_MEM + words * words / G_QUADDIV;
+}
+
+static inline bool ensureMemory(context_t *callContext, uint64_t capacity) {
     // TODO gas from memory expansion
     memory_ensure(&callContext->memory, capacity);
     if (callContext->memory.num_uint8s < capacity) {
+        uint64_t memoryGas = memoryGasCost(capacity) - memoryGasCost(callContext->memory.num_uint8s);
+        if (memoryGas > callContext->gas) {
+            return false;
+        }
+        callContext->gas -= memoryGas;
         callContext->memory.num_uint8s = capacity;
+    }
+    return true;
+}
+
+static inline void deductCalldataGas(context_t *callContext, const data_t *calldata, bool isCreate) {
+    callContext->gas -= G_CALLDATAZERO * calldata->size;
+    if (isCreate) {
+        callContext->gas -= G_INITCODEWORD * ((calldata->size + 31) >> 5); // EIP 3860: 2 gas per word
+    }
+    for (size_t i = 0; i < calldata->size; i++) {
+        if (calldata->content[i]) {
+            callContext->gas -= G_CALLDATANONZERO;
+        }
     }
 }
 
@@ -119,9 +143,16 @@ static result_t doCall(context_t *callContext) {
         if (callContext->top < callContext->bottom + argCount[op]) {
             // stack underflow
             fprintf(stderr, "Stack underflow at pc %llu op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom);
+            callContext->gas = 0;
             result.returnData.size = 0;
             return result;
         }
+        if (callContext->gas < gasCost[op]) {
+            fprintf(stderr, "Out of gas at pc %llu op %s", pc - 1, opString[op]);
+            result.returnData.size = 0;
+            return result;
+        }
+        callContext->gas -= gasCost[op];
         callContext->top += retCount[op] - argCount[op];
         switch (op) {
             case PUSH0:
@@ -239,53 +270,60 @@ static result_t doCall(context_t *callContext) {
                 not256(callContext->top - 1, callContext->top - 1);
                 break;
             case LT:
-                LOWER(LOWER_P((callContext->top - 1))) = gte256(callContext->top - 1, callContext->top);
+                LOWER(LOWER_P(callContext->top - 1)) = gte256(callContext->top - 1, callContext->top);
                 bzero(callContext->top - 1, 24);
                 break;
             case GT:
-                LOWER(LOWER_P((callContext->top - 1))) = gt256(callContext->top, callContext->top - 1);
+                LOWER(LOWER_P(callContext->top - 1)) = gt256(callContext->top, callContext->top - 1);
                 bzero(callContext->top - 1, 24);
                 break;
             case EQ:
-                LOWER(LOWER_P((callContext->top - 1))) = equal256(callContext->top, callContext->top - 1);
+                LOWER(LOWER_P(callContext->top - 1)) = equal256(callContext->top, callContext->top - 1);
                 bzero(callContext->top - 1, 24);
                 break;
             case ISZERO:
-                LOWER(LOWER_P((callContext->top - 1))) = zero256(callContext->top - 1);
+                LOWER(LOWER_P(callContext->top - 1)) = zero256(callContext->top - 1);
                 bzero(callContext->top - 1, 24);
                 break;
             case PC:
                 bzero(callContext->top - 1, 24);
-                LOWER(LOWER_P((callContext->top - 1))) = pc - 1;
+                LOWER(LOWER_P(callContext->top - 1)) = pc - 1;
                 break;
             case JUMPI:
-                if (!zero256(callContext->top)) {
+                if (zero256(callContext->top)) {
                     break;
                 }
                 // intentional fallthorugh
             case JUMP:
-                pc = LOWER(LOWER_P((callContext->top + (op - JUMP))));
+                pc = LOWER(LOWER_P(callContext->top + (op - JUMP)));
                 if (pc >= callContext->code.size) {
                     fprintf(stderr, "JUMP out of bounds %llu >= %lu\n", pc, callContext->code.size);
                     result.returnData.size = 0;
+                    callContext->gas = 0;
                     return result;
                 }
                 if (callContext->code.content[pc] != JUMPDEST) {
                     fprintf(stderr, "JUMP to invalid destination %llu (%s)\n", pc, opString[callContext->code.content[pc]]);
                     result.returnData.size = 0;
+                    callContext->gas = 0;
                     return result;
-                }
+                } // TODO else check for PUSH
                 break;
             default:
                 fprintf(stderr, "Unsupported opcode %u (%s)\n", op, opString[op]);
                 result.returnData.size = 0;
+                callContext->gas = 0;
                 return result;
             case STOP:
                 LOWER(LOWER(result.status)) = 1;
                 return result;
+            case GAS:
+                bzero(callContext->top - 1, 24);
+                LOWER(LOWER_P(callContext->top - 1)) = callContext->gas;
+                break;
             case CALLDATASIZE:
                 bzero(callContext->top - 1, 24);
-                LOWER(LOWER_P((callContext->top - 1))) = callContext->callData.size;
+                LOWER(LOWER_P(callContext->top - 1)) = callContext->callData.size;
                 break;
             case MSIZE:
                 clear256(callContext->top - 1);
@@ -293,23 +331,35 @@ static result_t doCall(context_t *callContext) {
                 if (scratch % 32) {
                     scratch += 32 - scratch % 32;
                 }
-                LOWER(LOWER_P((callContext->top - 1))) = scratch;
+                LOWER(LOWER_P(callContext->top - 1)) = scratch;
                 break;
             case MSTORE:
-                ensureMemory(callContext, 32 + LOWER(LOWER_P((callContext->top + 1))));
-                uint8_t *loc = (callContext->memory.uint8s + LOWER(LOWER_P((callContext->top + 1))));
+                if (!ensureMemory(callContext, 32 + LOWER(LOWER_P(callContext->top + 1)))) {
+                    fprintf(stderr, "Out of gas at pc %llu op %s", pc - 1, opString[op]);
+                    result.returnData.size = 0;
+                    return result;
+                }
+                uint8_t *loc = (callContext->memory.uint8s + LOWER(LOWER_P(callContext->top + 1)));
                 dumpu256BE(callContext->top, loc);
                 break;
             case MLOAD:
-                ensureMemory(callContext, 32 + LOWER(LOWER_P((callContext->top - 1))));
-                readu256BE(callContext->memory.uint8s + LOWER(LOWER_P((callContext->top - 1))), callContext->top - 1);
+                if (!ensureMemory(callContext, 32 + LOWER(LOWER_P(callContext->top - 1)))) {
+                    fprintf(stderr, "Out of gas at pc %llu op %s", pc - 1, opString[op]);
+                    result.returnData.size = 0;
+                    return result;
+                }
+                readu256BE(callContext->memory.uint8s + LOWER(LOWER_P(callContext->top - 1)), callContext->top - 1);
                 break;
             case RETURN:
                 LOWER(LOWER(result.status)) = 1;
                 // intentional fallthrough
             case REVERT:
-                ensureMemory(callContext, LOWER(LOWER_P((callContext->top + 1))) + LOWER(LOWER_P(callContext->top)));
-                result.returnData.content = callContext->memory.uint8s + LOWER(LOWER_P((callContext->top + 1)));
+                if (!ensureMemory(callContext, LOWER(LOWER_P(callContext->top + 1)) + LOWER(LOWER_P(callContext->top)))) {
+                    fprintf(stderr, "Out of gas at pc %llu op %s", pc - 1, opString[op]);
+                    result.returnData.size = 0;
+                    return result;
+                }
+                result.returnData.content = callContext->memory.uint8s + LOWER(LOWER_P(callContext->top + 1));
                 result.returnData.size = LOWER(LOWER_P(callContext->top));
                 return result;
         }
@@ -318,6 +368,20 @@ static result_t doCall(context_t *callContext) {
 
 result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input) {
     context_t *callContext = callstack.next;
+    callContext->gas = gas;
+    if (callstack.next == callstack.bottom) {
+        callContext->gas = gas - G_TX;
+        deductCalldataGas(callContext, &input, false);
+        if (gas < callContext->gas) {
+            // underflow indicates insufficient initial gas
+            fprintf(stderr, "Insufficient intrinsic gas %llu (need %llu)\n", gas, gas - callContext->gas);
+            result_t result;
+            result.gasRemaining = 0;
+            clear256(&result.status);
+            result.returnData.size = 0;
+            return result;
+        }
+    }
     callstack.next += 1;
 
     callContext->top = callContext->bottom;
@@ -330,12 +394,27 @@ result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t
     memory_init(&callContext->memory, 0);
 
     result_t result = doCall(callContext);
+    result.gasRemaining = callContext->gas;
 
     return result;
 }
 
 result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
     context_t *callContext = callstack.next;
+    callContext->gas = gas;
+    if (callstack.next == callstack.bottom) {
+        callContext->gas -= G_TXCREATE + G_TX;
+        deductCalldataGas(callContext, &input, true);
+        if (gas < callContext->gas) {
+            // underflow indicates insufficient initial gas
+            fprintf(stderr, "Insufficient intrinsic gas %llu (need %llu)\n", gas, gas - callContext->gas);
+            result_t result;
+            result.gasRemaining = 0;
+            clear256(&result.status);
+            result.returnData.size = 0;
+            return result;
+        }
+    }
     callstack.next += 1;
 
     callContext->top = callContext->bottom;
@@ -347,7 +426,20 @@ result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
     callContext->callData.size = 0;
     memory_init(&callContext->memory, 0);
 
+    //uint64_t startGas = callContext->gas;
     result_t result = doCall(callContext);
+    result.gasRemaining = callContext->gas;
+    //fprintf(stderr, "Gas Used %llu\n", startGas - result.gasRemaining);
+    if (!zero256(&result.status)) {
+        uint64_t codeGas = result.returnData.size * G_PER_CODEBYTE;
+        if (codeGas > callContext->gas) {
+            fprintf(stderr, "Insufficient gas\n");
+            LOWER(LOWER(result.status)) = 0;
+        } else {
+            // TODO insert code
+            result.gasRemaining -= codeGas;
+        }
+    }
 
     return result;
 }

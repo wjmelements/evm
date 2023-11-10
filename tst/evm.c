@@ -10,7 +10,7 @@ void test_stop() {
     evmInit();
 
     address_t from;
-    uint64_t gas;
+    uint64_t gas = 53006;
     val_t value;
     data_t input;
 
@@ -29,13 +29,14 @@ void test_stop() {
     assert(LOWER(UPPER(result.status)) == 0);
     assert(LOWER(LOWER(result.status)) == 1);
     assert(result.returnData.size == 0);
+    assert(result.gasRemaining == 0);
 }
 
 void test_mstoreReturn() {
     evmInit();
 
     address_t from;
-    uint64_t gas;
+    uint64_t gas = 60044;
     val_t value;
     data_t input;
 
@@ -69,7 +70,7 @@ void test_math() {
     evmInit();
 
     address_t from;
-    uint64_t gas;
+    uint64_t gas = 53332;
     val_t value;
     data_t input;
 
@@ -109,7 +110,7 @@ void test_xorSwap() {
     evmInit();
 
     address_t from;
-    uint64_t gas;
+    uint64_t gas = 67152;
     val_t value;
     data_t input;
 
@@ -151,10 +152,25 @@ void test_spaghetti() {
     evmInit();
 
     address_t from;
-    uint64_t gas;
+    uint64_t gas = 53690;
     val_t value;
     data_t input;
 
+    // 5f5b80156019575859525936fd5b6001565b80600d576001015b8060021160115700
+/*
+PUSH0
+1:
+JUMPI(25,ISZERO(DUP1))
+MSTORE(MSIZE,PC)
+REVERT(CALLDATASIZE,MSIZE)
+13:
+JUMP(1)
+17:
+ADD(1,JUMPI(13,DUP1))
+25:
+JUMPI(17,GT(2,DUP1))
+STOP
+*/
     uint8_t program[] = {
         PUSH0,
         JUMPDEST,
@@ -162,7 +178,7 @@ void test_spaghetti() {
         PC, MSIZE, MSTORE,
         MSIZE, CALLDATASIZE, REVERT,
         JUMPDEST,
-        PUSH1, 0x01, JUMPI,
+        PUSH1, 0x01, JUMP,
         JUMPDEST,
         DUP1, PUSH1, 0x0d, JUMPI,
         PUSH1, 0x01, ADD,
@@ -186,6 +202,7 @@ void test_spaghetti() {
         assert(result.returnData.content[i] == 0);
     }
     assert(result.returnData.content[31] == 7);
+    assert(result.gasRemaining == 0);
 }
 int main() {
     test_stop();
