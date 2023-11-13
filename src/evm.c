@@ -29,11 +29,20 @@ static inline void BalanceAdd(val_t to, val_t amount) {
 
 typedef uint256_t evmStack_t[1024];
 
+typedef struct storage {
+    uint256_t key;
+    uint256_t value;
+    uint256_t original;
+    uint64_t warm;
+    void *next;
+} storage_t;
+
 typedef struct account {
     address_t address;
     val_t balance;
     data_t code;
     uint64_t nonce;
+    storage_t *next;
 } account_t;
 
 VECTOR(uint8, memory);
@@ -102,10 +111,11 @@ callstack_t callstack;
 static account_t accounts[1024];
 static account_t *emptyAccount;
 static account_t const *dnfAccount = &accounts[1024];
-
+static uint64_t evmIteration = 0;
 void evmInit() {
     callstack.next = callstack.bottom;
     emptyAccount = accounts;
+    evmIteration++;
 }
 
 void evmFinalize() {
@@ -113,7 +123,7 @@ void evmFinalize() {
 
 static account_t *getAccount(const address_t address) {
     account_t *result = accounts;
-    while (result < emptyAccount && !AddressEqual(result->address, address)) result++;
+    while (result < emptyAccount && !AddressEqual(&result->address, &address)) result++;
     if (result == emptyAccount) {
         emptyAccount++;
         AddressCopy(result->address, address);
@@ -129,6 +139,33 @@ static account_t *createNewAccount(address_t from, uint64_t nonce) {
     AddressCopy(result->address, expected);
     bzero(result->balance, 10);
     return result;
+}
+
+static storage_t *getAccountStorage(account_t *account, uint256_t *key) {
+    storage_t **storage = &account->next;
+    while (*storage != NULL) {
+        if (equal256(&(*storage)->key, key)) {
+            return *storage;
+        }
+    }
+    *storage = calloc(1, sizeof(storage_t));
+    copy256(&(*storage)->key, key);
+    return *storage;
+}
+
+static storage_t *warmStorage(context_t *callContext, uint256_t *key) {
+    account_t *account = callContext->account;
+    storage_t *storage = getAccountStorage(account, key);
+    if (storage->warm != evmIteration) {
+        uint64_t gasCost = G_COLD_STORAGE;
+        if (callContext->gas < gasCost) {
+            return NULL;
+        }
+        callContext->gas -= gasCost;
+        storage->warm = evmIteration;
+        copy256(&storage->original, &storage->value);
+    }
+    return storage;
 }
 
 static result_t doCall(context_t *callContext) {
@@ -233,6 +270,12 @@ static result_t doCall(context_t *callContext) {
                 memcpy(callContext->top - 1, callContext->top - (op - DUP15), 32);
                 memcpy(callContext->top - (op - DUP15), buffer, 32);
                 break;
+            case ADDRESS:
+                AddressToUint256(callContext->top - 1, &callContext->account->address);
+                break;
+            case CALLER:
+                AddressToUint256(callContext->top - 1, &callContext->caller);
+                break;
             case POP:
                 // intentional fallthrough
             case JUMPDEST:
@@ -307,7 +350,7 @@ static result_t doCall(context_t *callContext) {
                     result.returnData.size = 0;
                     callContext->gas = 0;
                     return result;
-                } // TODO else check for PUSH
+                } // TODO static analysis for PUSH
                 break;
             default:
                 fprintf(stderr, "Unsupported opcode %u (%s)\n", op, opString[op]);
@@ -349,6 +392,59 @@ static result_t doCall(context_t *callContext) {
                     return result;
                 }
                 readu256BE(callContext->memory.uint8s + LOWER(LOWER_P(callContext->top - 1)), callContext->top - 1);
+                break;
+            case SSTORE:
+                {
+                    storage_t *storage = warmStorage(callContext, callContext->top + 1);
+                    if (storage == NULL) {
+                        fprintf(stderr, "Out of gas at pc %llu op %s", pc - 1, opString[op]);
+                        result.returnData.size = 0;
+                        return result;
+                    }
+                    // https://eips.ethereum.org/EIPS/eip-2200
+                    if (!equal256(&storage->value, callContext->top)) {
+                        if (equal256(&storage->value, &storage->original)) {
+                            uint64_t gasCost = zero256(&storage->original)
+                                ? G_SSET - G_ACCESS
+                                : G_SRESET - G_ACCESS - G_COLD_STORAGE
+                            ;
+                            if (gasCost > callContext->gas) {
+                                fprintf(stderr, "Out of gas at pc %llu op %s", pc - 1, opString[op]);
+                                result.returnData.size = 0;
+                                return result;
+                            }
+                            callContext->gas -= gasCost;
+                        } else {
+                            if (!zero256(&storage->original)) {
+                                if (zero256(&storage->value)) {
+                                    // TODO remove R_CLEAR to refund counter
+                                } else if (zero256(callContext->top)) {
+                                    // TODO add R_CLEAR to refund counter
+                                }
+                            }
+                            if (equal256(&storage->original, callContext->top)) {
+                                if (zero256(&storage->original)) {
+                                    // TODO add G_SSET - G_ACCESS to refund counter
+                                } else {
+                                    // TODO add G_SRESET - G_ACCESS to refund counter
+                                }
+                            }
+                        }
+                    }
+                    copy256(&storage->value, callContext->top);
+                    // TODO track state changes in callContext in case of REVERT or exception
+                }
+                break;
+            case SLOAD:
+                {
+                    storage_t *storage = warmStorage(callContext, callContext->top - 1);
+                    if (storage == NULL) {
+                        fprintf(stderr, "Out of gas at pc %llu op %s", pc - 1, opString[op]);
+                        result.returnData.size = 0;
+                        return result;
+                    }
+                    copy256(callContext->top - 1, &storage->value);
+                }
                 break;
             case RETURN:
                 LOWER(LOWER(result.status)) = 1;

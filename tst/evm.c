@@ -14,7 +14,7 @@ void test_stop() {
     val_t value;
     data_t input;
 
-    uint8_t program[] = {
+    op_t program[] = {
         STOP,
     };
 
@@ -40,7 +40,7 @@ void test_mstoreReturn() {
     val_t value;
     data_t input;
 
-    uint8_t program[] = {
+    op_t program[] = {
         PUSH32,
         0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
         0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe,
@@ -76,7 +76,7 @@ void test_math() {
     data_t input;
 
     // 0 - (3 * 7 + 4 / 2)
-    uint8_t program[] = {
+    op_t program[] = {
         PUSH1, 0x02,
         PUSH1, 0x04,
         DIV,
@@ -116,7 +116,7 @@ void test_xorSwap() {
     val_t value;
     data_t input;
 
-    uint8_t program[] = {
+    op_t program[] = {
         PUSH32, // b
         0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe,
         0xef, 0xcd, 0xab, 0x89, 0x67, 0x45, 0x23, 0x01,
@@ -160,21 +160,7 @@ void test_spaghetti() {
     data_t input;
 
     // 5f5b80156019575859525936fd5b6001565b80600d576001015b8060021160115700
-/*
-PUSH0
-1:
-JUMPI(25,ISZERO(DUP1))
-MSTORE(MSIZE,PC)
-REVERT(CALLDATASIZE,MSIZE)
-13:
-JUMP(1)
-17:
-ADD(1,JUMPI(13,DUP1))
-25:
-JUMPI(17,GT(2,DUP1))
-STOP
-*/
-    uint8_t program[] = {
+    op_t program[] = {
         PUSH0,
         JUMPDEST,
         DUP1, ISZERO, PUSH1, 0x19, JUMPI,
@@ -207,11 +193,43 @@ STOP
     assert(result.returnData.content[31] == 7);
     assert(result.gasRemaining == 0);
 }
+
+void test_sstore_sload() {
+    evmInit();
+
+    // 335f555f545952595ff3
+    op_t program[] = {
+        CALLER, PUSH0, SSTORE,
+        PUSH0, SLOAD, MSIZE, MSTORE,
+        MSIZE, PUSH0, RETURN,
+    };
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    uint64_t gas = 81780;
+    val_t value;
+    data_t input;
+    input.content = program;
+    input.size = sizeof(program);
+
+    result_t result = evmCreate(from, gas, value, input);
+    evmFinalize();
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(UPPER(LOWER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0);
+    assert(LOWER(LOWER(result.status)) == 1);
+    assert(result.returnData.size == 32);
+    for (int i = 0; i < 12; i++) {
+        assert(result.returnData.content[i] == 0);
+    }
+    assert(memcmp(result.returnData.content + 12, from.address, 20) == 0);
+    assert(result.gasRemaining == 0);
+}
+
 int main() {
     test_stop();
     test_mstoreReturn();
     test_math();
     test_xorSwap();
     test_spaghetti();
+    test_sstore_sload();
     return 0;
 }
