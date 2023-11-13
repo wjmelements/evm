@@ -22,7 +22,7 @@
 
 #include "uint256.h"
 
-static const char HEXDIGITS[] = "0123456789abcdef";
+static const char HEXDIGITS[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 
 static uint64_t readUint64BE(const uint8_t *buffer) {
     return (((uint64_t)buffer[0]) << 56) | (((uint64_t)buffer[1]) << 48) |
@@ -547,23 +547,22 @@ static inline void reverseString(char *str, uint32_t length) {
 
 bool tostring128(const uint128_t *number, uint32_t baseParam, char *out,
                  uint32_t outLength) {
+    if ((baseParam < 2) || (baseParam > 36)) {
+        return false;
+    }
     uint128_t rDiv;
     uint128_t rMod;
     uint128_t base;
     copy128(&rDiv, number);
-    clear128(&rMod);
     clear128(&base);
     LOWER(base) = baseParam;
     uint32_t offset = 0;
-    if ((baseParam < 2) || (baseParam > 16)) {
-        return false;
-    }
     do {
         if (offset > (outLength - 1)) {
             return false;
         }
         divmod128(&rDiv, &base, &rDiv, &rMod);
-        out[offset++] = HEXDIGITS[(uint8_t)LOWER(rMod)];
+        out[offset++] = HEXDIGITS[LOWER(rMod)];
     } while (!zero128(&rDiv));
     out[offset] = '\0';
     reverseString(out, offset);
@@ -572,24 +571,23 @@ bool tostring128(const uint128_t *number, uint32_t baseParam, char *out,
 
 bool tostring256(const uint256_t *number, uint32_t baseParam, char *out,
                  uint32_t outLength) {
+    if ((baseParam < 2) || (baseParam > 36)) {
+        return false;
+    }
     uint256_t rDiv;
     uint256_t rMod;
     uint256_t base;
     copy256(&rDiv, number);
-    clear256(&rMod);
     clear256(&base);
     UPPER(LOWER(base)) = 0;
     LOWER(LOWER(base)) = baseParam;
     uint32_t offset = 0;
-    if ((baseParam < 2) || (baseParam > 16)) {
-        return false;
-    }
     do {
         if (offset > (outLength - 1)) {
             return false;
         }
         divmod256(&rDiv, &base, &rDiv, &rMod);
-        out[offset++] = HEXDIGITS[(uint8_t)LOWER(LOWER(rMod))];
+        out[offset++] = HEXDIGITS[LOWER(LOWER(rMod))];
     } while (!zero256(&rDiv));
     out[offset] = '\0';
     reverseString(out, offset);
