@@ -82,7 +82,34 @@ void test_bitwise() {
 }
 
 void test_math() {
-    // TODO
+    uint256_t a, b, c, d, e;
+
+    LOWER(LOWER(a)) = 2ull;
+    UPPER(LOWER(a)) = 3ull;
+    LOWER(UPPER(a)) = 5ull;
+    UPPER(UPPER(a)) = 7ull;
+
+    LOWER(LOWER(b)) = 11ull;
+    UPPER(LOWER(b)) = 13ull;
+    LOWER(UPPER(b)) = 17ull;
+    UPPER(UPPER(b)) = 19ull;
+
+    add256(&a, &b, &d);
+    assert(LOWER(LOWER(d)) == 13ull);
+    assert(UPPER(LOWER(d)) == 16ull);
+    assert(LOWER(UPPER(d)) == 22ull);
+    assert(UPPER(UPPER(d)) == 26ull);
+
+    minus256(&d, &b, &c);
+    assert(equal256(&a, &c));
+
+    clear128(&UPPER(a));
+    clear128(&UPPER(b));
+    mul256(&a, &b, &d);
+    assert(!zero256(&d));
+    divmod256(&d, &b, &c, &e);
+    assert(zero256(&e));
+    assert(equal256(&c, &a));
 }
 
 
