@@ -65,6 +65,7 @@ void test_mstoreReturn() {
     assert(LOWER(LOWER(result.status)) == 1);
     assert(result.returnData.size == 32);
     assert(0 == memcmp(result.returnData.content, program + 1, 32));
+    assert(result.gasRemaining == 0);
 }
 void test_math() {
     evmInit();
@@ -104,6 +105,7 @@ void test_math() {
         assert(result.returnData.content[i] == 0xff);
     }
     assert(result.returnData.content[31] == 0xe9);
+    assert(result.gasRemaining == 0);
 }
 
 void test_xorSwap() {
@@ -146,6 +148,7 @@ void test_xorSwap() {
     assert(result.returnData.size == 64);
     assert(0 == memcmp(result.returnData.content, program + 1, 32));
     assert(0 == memcmp(result.returnData.content + 32, program + 34, 32));
+    assert(result.gasRemaining == 0);
 }
 
 void test_spaghetti() {
