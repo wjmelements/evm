@@ -1,4 +1,4 @@
-include/uint256.h and src/uint256.c are copied from https://github.com/LedgerHQ/app-zilliqa
+include/uint256.h and src/uint256.c are forked from https://github.com/LedgerHQ/app-zilliqa
 These are used, without permission, under the below MIT License.
 
 The MIT License (MIT)
