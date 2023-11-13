@@ -114,7 +114,17 @@ static account_t const *dnfAccount = &accounts[1024];
 static uint64_t evmIteration = 0;
 void evmInit() {
     callstack.next = callstack.bottom;
-    emptyAccount = accounts;
+    if (emptyAccount <= accounts) {
+        emptyAccount = accounts;
+    } else while (emptyAccount --> accounts) {
+        storage_t *storage = emptyAccount->next;
+        while (storage != NULL) {
+            void *toFree = storage;
+            storage = storage->next;
+            free(toFree);
+        }
+        emptyAccount->next = NULL;
+    }
     evmIteration++;
 }
 
