@@ -224,6 +224,65 @@ void test_sstore_sload() {
     assert(result.gasRemaining == 0);
 }
 
+void test_sstore_refund() {
+    evmInit();
+
+    // 5f5f5560015f555f5f5500
+    op_t program[] = {
+        PUSH0, PUSH0, SSTORE,
+        PUSH1, 0x01, PUSH0, SSTORE,
+        PUSH0, PUSH0, SSTORE,
+        STOP,
+    };
+    address_t from;
+    uint64_t gas = 77680;
+    val_t value;
+    data_t input;
+    input.content = program;
+    input.size = sizeof(program);
+
+    result_t result = evmCreate(from, gas, value, input);
+    evmFinalize();
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(UPPER(LOWER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0);
+    assert(LOWER(LOWER(result.status)) == 1);
+    assert(result.returnData.size == 0);
+    assert(result.gasRemaining == 17296);
+}
+
+void test_sstore_gauntlet() {
+    evmInit();
+
+    // 5f5f5560015f5560025f555f5f5560015f55600160015560026001555f60015500
+    op_t program[] = {
+        PUSH0, PUSH0, SSTORE,
+        PUSH1, 0x01, PUSH0, SSTORE,
+        PUSH1, 0x02, PUSH0, SSTORE,
+        PUSH0, PUSH0, SSTORE,
+        PUSH1, 0x01, PUSH0, SSTORE,
+        PUSH1, 0x01, PUSH1, 0x01, SSTORE,
+        PUSH1, 0x02, PUSH1, 0x01, SSTORE,
+        PUSH0, PUSH1, 0x01, SSTORE,
+        STOP,
+    };
+    address_t from;
+    uint64_t gas = 120461;
+    val_t value;
+    data_t input;
+    input.content = program;
+    input.size = sizeof(program);
+
+    result_t result = evmCreate(from, gas, value, input);
+    evmFinalize();
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(UPPER(LOWER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0);
+    assert(LOWER(LOWER(result.status)) == 1);
+    assert(result.returnData.size == 0);
+    assert(result.gasRemaining == 25853);
+}
+
 int main() {
     test_stop();
     test_mstoreReturn();
@@ -231,5 +290,7 @@ int main() {
     test_xorSwap();
     test_spaghetti();
     test_sstore_sload();
+    test_sstore_refund();
+    test_sstore_gauntlet();
     return 0;
 }
