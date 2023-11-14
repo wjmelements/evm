@@ -283,6 +283,46 @@ void test_sstore_gauntlet() {
     assert(result.gasRemaining == 25853);
 }
 
+void test_selfbalance() {
+    evmInit();
+
+    // 30315952475952595ff3
+    op_t program[] = {
+        ADDRESS, BALANCE, MSIZE, MSTORE,
+        SELFBALANCE, MSIZE, MSTORE,
+        MSIZE, PUSH0, RETURN,
+    };
+    address_t from;
+    uint64_t gas = 66089;
+    val_t value;
+    value[0] = 0xdd;
+    value[1] = 0xee;
+    value[2] = 0xff;
+    data_t input;
+    input.content = program;
+    input.size = sizeof(program);
+
+    result_t result = evmCreate(from, gas, value, input);
+    evmFinalize();
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(UPPER(LOWER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0);
+    assert(LOWER(LOWER(result.status)) == 1);
+    assert(result.returnData.size == 64);
+    for (int i = 0; i < 63; i++) {
+        if (i % 32 == 31) {
+            assert(result.returnData.content[i] == 0xff);
+        } else if (i % 32 == 27) {
+            assert(result.returnData.content[i] == 0xee);
+        } else if (i % 32 == 23) {
+            assert(result.returnData.content[i] == 0xdd);
+        } else {
+            assert(result.returnData.content[i] == 0x00);
+        }
+    }
+    assert(result.gasRemaining == 0);
+}
+
 int main() {
     test_stop();
     test_mstoreReturn();
@@ -292,5 +332,6 @@ int main() {
     test_sstore_sload();
     test_sstore_refund();
     test_sstore_gauntlet();
+    test_selfbalance();
     return 0;
 }

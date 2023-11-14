@@ -42,6 +42,7 @@ typedef struct account {
     val_t balance;
     data_t code;
     uint64_t nonce;
+    uint64_t warm;
     storage_t *next;
 } account_t;
 
@@ -148,8 +149,21 @@ static account_t *createNewAccount(address_t from, uint64_t nonce) {
     account_t *result = emptyAccount++;
     address_t expected; // TODO
     AddressCopy(result->address, expected);
-    bzero(result->balance, 10);
+    bzero(result->balance, 12);
     return result;
+}
+
+static account_t *warmAccount(context_t *callContext, const address_t address) {
+    account_t *account = getAccount(address);
+    if (account->warm != evmIteration) {
+        uint64_t gasCost = G_COLD_ACCOUNT;
+        if (callContext->gas < gasCost) {
+            return NULL;
+        }
+        callContext->gas -= gasCost;
+        account->warm = evmIteration;
+    }
+    return account;
 }
 
 static storage_t *getAccountStorage(account_t *account, uint256_t *key) {
@@ -469,6 +483,26 @@ static result_t doCall(context_t *callContext) {
                     copy256(callContext->top - 1, &storage->value);
                 }
                 break;
+            case SELFBALANCE:
+                UPPER(UPPER_P(callContext->top - 1)) = 0;
+                LOWER(UPPER_P(callContext->top - 1)) = 0;
+                UPPER(LOWER_P(callContext->top - 1)) = callContext->account->balance[0];
+                LOWER(LOWER_P(callContext->top - 1)) = callContext->account->balance[2] | ((uint64_t) callContext->account->balance[1] << 32);
+                break;
+            case BALANCE:
+                {
+                    account_t *account = warmAccount(callContext, AddressFromUint256(callContext->top - 1));
+                    if (account == NULL) {
+                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
+                        result.returnData.size = 0;
+                        return result;
+                    }
+                    UPPER(UPPER_P(callContext->top - 1)) = 0;
+                    LOWER(UPPER_P(callContext->top - 1)) = 0;
+                    UPPER(LOWER_P(callContext->top - 1)) = account->balance[0];
+                    LOWER(LOWER_P(callContext->top - 1)) = account->balance[2] | ((uint64_t) account->balance[1] << 32);
+                }
+                break;
             case RETURN:
                 LOWER(LOWER(result.status)) = 1;
                 // intentional fallthrough
@@ -542,6 +576,9 @@ result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
     AddressCopy(callContext->caller, from);
     account_t *fromAccount = getAccount(from);
     callContext->account = createNewAccount(from, fromAccount->nonce);
+    fromAccount->warm = evmIteration;
+    callContext->account->warm = evmIteration;
+    BalanceAdd(callContext->account->balance, value);
     callContext->code = input;
     callContext->callData.size = 0;
     memory_init(&callContext->memory, 0);
@@ -551,7 +588,7 @@ result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
     if (!zero256(&result.status)) {
         uint64_t codeGas = result.returnData.size * G_PER_CODEBYTE;
         if (codeGas > callContext->gas) {
-            fprintf(stderr, "Insufficient gas\n");
+            fprintf(stderr, "Insufficient gas to insert code\n");
             LOWER(LOWER(result.status)) = 0;
         } else {
             // TODO insert code
