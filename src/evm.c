@@ -149,6 +149,11 @@ void evmInit() {
             free(toFree);
         }
         emptyAccount->next = NULL;
+        op_t *code = emptyAccount->code.content;
+        if (code != NULL) {
+            free(code);
+        }
+        emptyAccount->code.content = NULL;
     }
     emptyAccount = accounts;
     evmIteration++;
@@ -695,6 +700,7 @@ static result_t doCall(context_t *callContext) {
                         outSize = callContext->returnData.size;
                     }
                     memcpy(callContext->memory.uint8s + dst, callResult.returnData.content, outSize);
+                    copy256(callContext->top - 1, &callResult.status);
                 }
                 break;
             case RETURN:
@@ -799,9 +805,11 @@ result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
             fprintf(stderr, "Insufficient gas to insert code\n");
             LOWER(LOWER(result.status)) = 0;
         } else {
-            // TODO insert code
             result.gasRemaining -= codeGas;
             AddressToUint256(&result.status, &callContext->account->address);
+            callContext->account->code.size = result.returnData.size;
+            callContext->account->code.content = malloc(result.returnData.size);
+            memcpy(callContext->account->code.content, result.returnData.content, result.returnData.size);
         }
     }
     uint64_t gasUsed = gas - result.gasRemaining;
