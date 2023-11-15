@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include "address.h"
+#include "keccak.h"
 #include "uint256.h"
 
 typedef uint32_t val_t[3];

@@ -1,4 +1,5 @@
 #include "evm.h"
+#include "keccak.h"
 #include "ops.h"
 #include "vector.h"
 
@@ -180,10 +181,57 @@ void evmMockBalance(address_t from, val_t balance) {
     account->balance[2] = balance[2];
 }
 
+typedef struct hashResult {
+    val_t top96;
+    address_t bottom160;
+} __attribute((__packed__)) addressHashResult_t;
+
 static account_t *createNewAccount(account_t *from) {
     uint64_t nonce = from->nonce++;
-    address_t expected; // TODO
-    account_t *result = getAccount(expected);
+    uint8_t inputBuffer[28];
+    if (nonce < 1) {
+        // d6 94 address20 80
+        inputBuffer[0] = 0xd6;
+        inputBuffer[22] = 0x80;
+    } else if (nonce < 0x80) {
+        // d6 94 address20 nonce1
+        inputBuffer[0] = 0xd6;
+        inputBuffer[22] = nonce;
+    } else if (nonce < 0x100) {
+        // d7 94 address20 81 nonce1
+        inputBuffer[0] = 0xd7;
+        inputBuffer[22] = 0x81;
+        inputBuffer[23] = nonce;
+    } else if (nonce < 0x10000) {
+        // d8 94 address20 82 nonce2
+        inputBuffer[0] = 0xd8;
+        inputBuffer[22] = 0x82;
+        inputBuffer[23] = nonce >> 8;
+        inputBuffer[24] = nonce;
+    } else if (nonce < 0x1000000) {
+        // d9 94 address20 83 nonce3
+        inputBuffer[0] = 0xd9;
+        inputBuffer[22] = 0x83;
+        inputBuffer[23] = nonce >> 16;
+        inputBuffer[24] = nonce >> 8;
+        inputBuffer[25] = nonce;
+    } else if (nonce < 0x100000000) {
+        // da 94 address20 84 nonce4
+        inputBuffer[0] = 0xda;
+        inputBuffer[22] = 0x84;
+        inputBuffer[23] = nonce >> 24;
+        inputBuffer[24] = nonce >> 16;
+        inputBuffer[25] = nonce >> 8;
+        inputBuffer[26] = nonce;
+    } else {
+        fprintf(stderr, "Unsupported nonce %llu\n", nonce);
+        return NULL;
+    }
+    inputBuffer[1] = 0x94;
+    memcpy(inputBuffer + 2, from->address.address, 20);
+    addressHashResult_t hashResult;
+    keccak_256((uint8_t *)&hashResult, sizeof(hashResult), inputBuffer, inputBuffer[0] - 0xbf);
+    account_t *result = getAccount(hashResult.bottom160);
     return result;
 }
 
