@@ -39,3 +39,7 @@
 #define G_COPY 3
 #define G_BLOCKHASH 20
 #define MAX_REFUND_DIVISOR 5
+
+static inline uint64_t L(uint64_t gas) {
+    return gas - gas / 64;
+}

@@ -27,6 +27,27 @@ static inline void BalanceAdd(val_t to, val_t amount) {
     }
 }
 
+static inline bool BalanceSub(val_t from, val_t amount) {
+    uint32_t borrow = 0;
+    uint8_t i = 3;
+    val_t result;
+    while (i --> 0) {
+        result[i] = from[i] - amount[i] - borrow;
+        if (result[i] > from[i]) {
+            borrow = 1;
+        } else {
+            borrow = 0;
+        }
+    }
+    if (borrow) {
+        return false;
+    }
+    from[0] = result[0];
+    from[1] = result[1];
+    from[2] = result[2];
+    return true;
+}
+
 typedef uint256_t evmStack_t[1024];
 
 typedef struct storage {
@@ -45,6 +66,10 @@ typedef struct account {
     uint64_t warm;
     storage_t *next;
 } account_t;
+
+static bool AccountDead(account_t *account) {
+    return !(account->balance[0] || account->balance[1] || account->balance[2] || account->code.size || account->nonce);
+}
 
 VECTOR(uint8, memory);
 typedef struct {
@@ -141,15 +166,24 @@ static account_t *getAccount(const address_t address) {
         AddressCopy(result->address, address);
         result->code.size = 0;
         result->nonce = 0;
+        result->balance[0] = 0;
+        result->balance[1] = 0;
+        result->balance[2] = 0;
     }
     return result;
 }
 
-static account_t *createNewAccount(address_t from, uint64_t nonce) {
-    account_t *result = emptyAccount++;
+void evmMockBalance(address_t from, val_t balance) {
+    account_t *account = getAccount(from);
+    account->balance[0] = balance[0];
+    account->balance[1] = balance[1];
+    account->balance[2] = balance[2];
+}
+
+static account_t *createNewAccount(account_t *from) {
+    uint64_t nonce = from->nonce++;
     address_t expected; // TODO
-    AddressCopy(result->address, expected);
-    bzero(result->balance, 12);
+    account_t *result = getAccount(expected);
     return result;
 }
 
@@ -200,7 +234,12 @@ static result_t doCall(context_t *callContext) {
     clear256(&result.status);
     uint8_t buffer[32];
     while (1) {
-        op_t op = callContext->code.content[pc++];
+        op_t op;
+        if (pc < callContext->code.size) {
+            op = callContext->code.content[pc++];
+        } else {
+            op = STOP;
+        }
         //dumpStack(callContext);
         //fprintf(stderr, "op %s\n", opString[op]);
         if (callContext->top < callContext->bottom + argCount[op]) {
@@ -395,6 +434,10 @@ static result_t doCall(context_t *callContext) {
                 bzero(callContext->top - 1, 24);
                 LOWER(LOWER_P(callContext->top - 1)) = callContext->callData.size;
                 break;
+            case CODESIZE:
+                bzero(callContext->top - 1, 24);
+                LOWER(LOWER_P(callContext->top - 1)) = callContext->code.size;
+                break;
             case MSIZE:
                 clear256(callContext->top - 1);
                 uint64_t scratch = callContext->memory.num_uint8s;
@@ -419,6 +462,43 @@ static result_t doCall(context_t *callContext) {
                     return result;
                 }
                 readu256BE(callContext->memory.uint8s + LOWER(LOWER_P(callContext->top - 1)), callContext->top - 1);
+                break;
+            case CODECOPY:
+                {
+                    uint64_t size = LOWER(LOWER_P(callContext->top));
+                    uint64_t dst = LOWER(LOWER_P(callContext->top + 2));
+                    if (
+                        UPPER(LOWER_P(callContext->top + 2)) || LOWER(UPPER_P(callContext->top + 2)) || UPPER(UPPER_P(callContext->top + 2))
+                        || (UPPER(LOWER_P(callContext->top)) || LOWER(UPPER_P(callContext->top)) || UPPER(UPPER_P(callContext->top)))
+                        || dst + size < dst
+                        || !ensureMemory(callContext, dst + size)
+                    ) {
+                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
+                        result.returnData.size = 0;
+                        return result;
+                    }
+                    uint64_t words = (size + 31) / 32;
+                    uint64_t gasCost = G_COPY * words;
+                    if (gasCost > callContext->gas) {
+                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
+                        result.returnData.size = 0;
+                        return result;
+                    }
+                    callContext->gas -= gasCost;
+                    uint64_t start = LOWER(LOWER_P(callContext->top + 1));
+                    if (
+                            UPPER(LOWER_P(callContext->top + 1)) || LOWER(UPPER_P(callContext->top + 1)) || UPPER(UPPER_P(callContext->top + 1))
+                            || start > callContext->code.size
+                        ) {
+                        bzero(callContext->memory.uint8s + dst, size);
+                    } else if (start + size > callContext->code.size) {
+                        uint64_t copySize = callContext->code.size - start;
+                        memcpy(callContext->memory.uint8s + dst, callContext->code.content + start, copySize);
+                        bzero(callContext->memory.uint8s + dst + copySize, size - copySize);
+                    } else {
+                        memcpy(callContext->memory.uint8s + dst, callContext->code.content + start, size);
+                    }
+                }
                 break;
             case SSTORE:
                 {
@@ -483,6 +563,13 @@ static result_t doCall(context_t *callContext) {
                     copy256(callContext->top - 1, &storage->value);
                 }
                 break;
+            case CALLVALUE:
+                UPPER(UPPER_P(callContext->top - 1)) = 0;
+                LOWER(UPPER_P(callContext->top - 1)) = 0;
+                UPPER(LOWER_P(callContext->top - 1)) = callContext->callValue[0];
+                LOWER(LOWER_P(callContext->top - 1)) = callContext->callValue[2] | ((uint64_t) callContext->callValue[1] << 32);
+
+                break;
             case SELFBALANCE:
                 UPPER(UPPER_P(callContext->top - 1)) = 0;
                 LOWER(UPPER_P(callContext->top - 1)) = 0;
@@ -501,6 +588,66 @@ static result_t doCall(context_t *callContext) {
                     LOWER(UPPER_P(callContext->top - 1)) = 0;
                     UPPER(LOWER_P(callContext->top - 1)) = account->balance[0];
                     LOWER(LOWER_P(callContext->top - 1)) = account->balance[2] | ((uint64_t) account->balance[1] << 32);
+                }
+                break;
+            case CALL:
+                {
+                    data_t input;
+                    input.size = LOWER(LOWER_P(callContext->top + 1));
+                    uint64_t src = LOWER(LOWER_P(callContext->top + 2));
+                    input.content = callContext->memory.uint8s + src;
+                    uint64_t dst = LOWER(LOWER_P(callContext->top));
+                    uint64_t gas = LOWER(LOWER_P(callContext->top + 5));
+                    val_t value;
+                    value[0] = UPPER(LOWER_P(callContext->top + 3));
+                    value[1] = LOWER(LOWER_P(callContext->top + 3)) >> 32;
+                    value[2] = LOWER(LOWER_P(callContext->top + 3));
+                    uint64_t outSize = LOWER(LOWER_P(callContext->top - 1));
+                    if (!ensureMemory(callContext, src + input.size)) {
+                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
+                        result.returnData.size = 0;
+                        return result;
+                    }
+                    if (!ensureMemory(callContext, dst + outSize)) {
+                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
+                        result.returnData.size = 0;
+                        return result;
+                    }
+                    // C_EXTRA
+                    address_t to = AddressFromUint256(callContext->top + 4);
+                    account_t *toAccount = warmAccount(callContext, to);
+                    if (toAccount == NULL) {
+                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
+                        result.returnData.size = 0;
+                        return result;
+                    }
+                    uint64_t gasCost = 0;
+                    if (value[0] || value[1] || value[2]) {
+                        gasCost += G_CALLVALUE;
+                    }
+                    if (AccountDead(toAccount)) {
+                        gasCost += G_NEWACCOUNT;
+                    }
+                    if (gasCost > callContext->gas) {
+                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
+                        result.returnData.size = 0;
+                        return result;
+                    }
+                    callContext->gas -= gasCost;
+                    if (UPPER(UPPER_P(callContext->top + 5)) || LOWER(UPPER_P(callContext->top + 5)) || UPPER(LOWER_P(callContext->top + 5)) || gas > L(callContext->gas)) {
+                        gas = L(callContext->gas);
+                    }
+                    callContext->gas -= gas;
+                    if (value[0] || value[1] || value[2]) {
+                        gas += G_CALLSTIPEND;
+                    }
+                    result_t callResult = evmCall(callContext->account->address, gas, to, value, input);
+                    callContext->gas += callResult.gasRemaining;
+                    callContext->returnData = callResult.returnData;
+                    if (callContext->returnData.size < outSize) {
+                        outSize = callContext->returnData.size;
+                    }
+                    memcpy(callContext->memory.uint8s + dst, callResult.returnData.content, outSize);
                 }
                 break;
             case RETURN:
@@ -535,7 +682,6 @@ result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t
             return result;
         }
     }
-    callstack.next += 1;
 
     callContext->top = callContext->bottom;
     BalanceCopy(callContext->callValue, value);
@@ -543,9 +689,17 @@ result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t
     callContext->account = getAccount(to);
     callContext->code = callContext->account->code;
     callContext->callData = input;
+    if (!BalanceSub(getAccount(from)->balance, value)) {
+        result_t result;
+        result.gasRemaining = 0;
+        clear256(&result.status);
+        result.returnData.size = 0;
+        return result;
+    }
     BalanceAdd(callContext->account->balance, value);
     memory_init(&callContext->memory, 0);
 
+    callstack.next += 1;
     result_t result = doCall(callContext);
     callstack.next -= 1;
     result.gasRemaining = callContext->gas;
@@ -575,7 +729,7 @@ result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
     BalanceCopy(callContext->callValue, value);
     AddressCopy(callContext->caller, from);
     account_t *fromAccount = getAccount(from);
-    callContext->account = createNewAccount(from, fromAccount->nonce);
+    callContext->account = createNewAccount(fromAccount);
     fromAccount->warm = evmIteration;
     callContext->account->warm = evmIteration;
     BalanceAdd(callContext->account->balance, value);

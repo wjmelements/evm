@@ -22,6 +22,7 @@ typedef struct callResult {
 
 
 void evmInit();
+void evmMockBalance(address_t to, val_t balance);
 void evmMockCall(address_t to, val_t value, data_t inputData, result_t result);
 void evmMockStorage(address_t to, uint256_t key, uint256_t storedValue);
 void evmFinalize();

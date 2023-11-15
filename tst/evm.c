@@ -302,6 +302,8 @@ void test_selfbalance() {
     input.content = program;
     input.size = sizeof(program);
 
+
+    evmMockBalance(from, value);
     result_t result = evmCreate(from, gas, value, input);
     evmFinalize();
     assert(UPPER(UPPER(result.status)) == 0);
@@ -322,6 +324,79 @@ void test_selfbalance() {
     }
     assert(result.gasRemaining == 0);
 }
+void test_callEmpty() {
+    // 70a082310000000000000000000000004a6f6b9ff1fc974096f9063a45fd12bd5b928ad1
+    evmInit();
+    op_t callData[] = {
+        0x70, 0xa0, 0x82, 0x31,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x4a, 0x6f, 0x6b, 0x9f, 0xf1,
+        0xfc, 0x97, 0x40, 0x96, 0xf9,
+        0x06, 0x3a, 0x45, 0xfd, 0x12,
+        0xbd, 0x5b, 0x92, 0x8a, 0xd1,
+    };
+    address_t from;
+    address_t to = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    uint64_t gas = 21432;
+    val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
+    data_t input;
+    input.content = callData;
+    input.size = sizeof(callData);
+
+    result_t result = evmCall(from, gas, to, value, input);
+    evmFinalize();
+
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(UPPER(LOWER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0);
+    assert(LOWER(LOWER(result.status)) == 1);
+    assert(result.returnData.size == 0);
+    assert(result.gasRemaining == 0);
+}
+void test_callBounce() {
+    evmInit();
+
+    // 385f5f394759525959595f34335af16015573d5ffd5b475952595ff3
+    op_t program[] = {
+        CODESIZE, PUSH0, PUSH0, CODECOPY,
+        SELFBALANCE, MSIZE, MSTORE,
+        MSIZE, MSIZE, MSIZE, PUSH0, CALLVALUE, CALLER, GAS, CALL,
+        PUSH1, 0x15, JUMPI,
+        RETURNDATASIZE, PUSH0, REVERT,
+        JUMPDEST,
+        SELFBALANCE, MSIZE, MSTORE,
+        MSIZE, PUSH0, RETURN,
+    };
+    address_t from;
+    uint64_t gas = 92329;
+    val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0xff;
+
+    evmMockBalance(from, value);
+
+    data_t input;
+    input.content = program;
+    input.size = sizeof(program);
+
+    result_t result = evmCreate(from, gas, value, input);
+    evmFinalize();
+    assert(result.returnData.size == 160);
+    assert(memcmp(result.returnData.content, program, 28) == 0);
+    for (int i = 28; i < 63; i++) {
+        assert(result.returnData.content[i] == 0x00);
+    }
+    assert(result.returnData.content[63] == 0xff);
+    for (int i = 64; i < 160; i++) {
+        assert(result.returnData.content[i] == 0x00);
+    }
+    assert(result.gasRemaining == 0);
+}
 
 int main() {
     test_stop();
@@ -333,5 +408,7 @@ int main() {
     test_sstore_refund();
     test_sstore_gauntlet();
     test_selfbalance();
+    test_callEmpty();
+    test_callBounce();
     return 0;
 }
