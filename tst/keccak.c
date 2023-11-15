@@ -34,5 +34,5 @@ void test_empty() {
 
 int main() {
     test_empty();
-	return 0;
+    return 0;
 }

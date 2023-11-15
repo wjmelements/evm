@@ -1,5 +1,4 @@
 #include "evm.h"
-#include "keccak.h"
 #include "ops.h"
 #include "vector.h"
 
