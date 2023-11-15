@@ -9,7 +9,7 @@
 void test_stop() {
     evmInit();
 
-    address_t from;
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 53006;
     val_t value;
     data_t input;
@@ -23,11 +23,10 @@ void test_stop() {
 
     result_t result = evmCreate(from, gas, value, input);
     evmFinalize();
-    // TODO result.status should instead be the return address
     assert(UPPER(UPPER(result.status)) == 0);
-    assert(UPPER(LOWER(result.status)) == 0);
-    assert(LOWER(UPPER(result.status)) == 0);
-    assert(LOWER(LOWER(result.status)) == 1);
+    assert(LOWER(UPPER(result.status)) == 0x80d9b122);
+    assert(UPPER(LOWER(result.status)) == 0xdc3a16fdc41f96cf);
+    assert(LOWER(LOWER(result.status)) == 0x010ffe7e38d227c3);
     assert(result.returnData.size == 0);
     assert(result.gasRemaining == 0);
 }
@@ -35,7 +34,7 @@ void test_stop() {
 void test_mstoreReturn() {
     evmInit();
 
-    address_t from;
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 60044;
     val_t value;
     data_t input;
@@ -60,9 +59,9 @@ void test_mstoreReturn() {
     evmFinalize();
     // TODO result.status should instead be the return address
     assert(UPPER(UPPER(result.status)) == 0);
-    assert(UPPER(LOWER(result.status)) == 0);
-    assert(LOWER(UPPER(result.status)) == 0);
-    assert(LOWER(LOWER(result.status)) == 1);
+    assert(LOWER(UPPER(result.status)) == 0x80d9b122);
+    assert(UPPER(LOWER(result.status)) == 0xdc3a16fdc41f96cf);
+    assert(LOWER(LOWER(result.status)) == 0x010ffe7e38d227c3);
     assert(result.returnData.size == 32);
     assert(0 == memcmp(result.returnData.content, program + 1, 32));
     assert(result.gasRemaining == 0);
@@ -70,7 +69,7 @@ void test_mstoreReturn() {
 void test_math() {
     evmInit();
 
-    address_t from;
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 53332;
     val_t value;
     data_t input;
@@ -111,7 +110,7 @@ void test_math() {
 void test_xorSwap() {
     evmInit();
 
-    address_t from;
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 67152;
     val_t value;
     data_t input;
@@ -142,9 +141,9 @@ void test_xorSwap() {
     evmFinalize();
     // TODO result.status should instead be the return address
     assert(UPPER(UPPER(result.status)) == 0);
-    assert(UPPER(LOWER(result.status)) == 0);
-    assert(LOWER(UPPER(result.status)) == 0);
-    assert(LOWER(LOWER(result.status)) == 1);
+    assert(LOWER(UPPER(result.status)) == 0x80d9b122);
+    assert(UPPER(LOWER(result.status)) == 0xdc3a16fdc41f96cf);
+    assert(LOWER(LOWER(result.status)) == 0x010ffe7e38d227c3);
     assert(result.returnData.size == 64);
     assert(0 == memcmp(result.returnData.content, program + 1, 32));
     assert(0 == memcmp(result.returnData.content + 32, program + 34, 32));
@@ -154,7 +153,7 @@ void test_xorSwap() {
 void test_spaghetti() {
     evmInit();
 
-    address_t from;
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 53690;
     val_t value;
     data_t input;
@@ -213,9 +212,9 @@ void test_sstore_sload() {
     result_t result = evmCreate(from, gas, value, input);
     evmFinalize();
     assert(UPPER(UPPER(result.status)) == 0);
-    assert(UPPER(LOWER(result.status)) == 0);
-    assert(LOWER(UPPER(result.status)) == 0);
-    assert(LOWER(LOWER(result.status)) == 1);
+    assert(LOWER(UPPER(result.status)) == 0x80d9b122);
+    assert(UPPER(LOWER(result.status)) == 0xdc3a16fdc41f96cf);
+    assert(LOWER(LOWER(result.status)) == 0x010ffe7e38d227c3);
     assert(result.returnData.size == 32);
     for (int i = 0; i < 12; i++) {
         assert(result.returnData.content[i] == 0);
@@ -234,7 +233,7 @@ void test_sstore_refund() {
         PUSH0, PUSH0, SSTORE,
         STOP,
     };
-    address_t from;
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 77680;
     val_t value;
     data_t input;
@@ -244,9 +243,9 @@ void test_sstore_refund() {
     result_t result = evmCreate(from, gas, value, input);
     evmFinalize();
     assert(UPPER(UPPER(result.status)) == 0);
-    assert(UPPER(LOWER(result.status)) == 0);
-    assert(LOWER(UPPER(result.status)) == 0);
-    assert(LOWER(LOWER(result.status)) == 1);
+    assert(LOWER(UPPER(result.status)) == 0x80d9b122);
+    assert(UPPER(LOWER(result.status)) == 0xdc3a16fdc41f96cf);
+    assert(LOWER(LOWER(result.status)) == 0x010ffe7e38d227c3);
     assert(result.returnData.size == 0);
     assert(result.gasRemaining == 17296);
 }
@@ -266,7 +265,7 @@ void test_sstore_gauntlet() {
         PUSH0, PUSH1, 0x01, SSTORE,
         STOP,
     };
-    address_t from;
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 120461;
     val_t value;
     data_t input;
@@ -276,9 +275,9 @@ void test_sstore_gauntlet() {
     result_t result = evmCreate(from, gas, value, input);
     evmFinalize();
     assert(UPPER(UPPER(result.status)) == 0);
-    assert(UPPER(LOWER(result.status)) == 0);
-    assert(LOWER(UPPER(result.status)) == 0);
-    assert(LOWER(LOWER(result.status)) == 1);
+    assert(LOWER(UPPER(result.status)) == 0x80d9b122);
+    assert(UPPER(LOWER(result.status)) == 0xdc3a16fdc41f96cf);
+    assert(LOWER(LOWER(result.status)) == 0x010ffe7e38d227c3);
     assert(result.returnData.size == 0);
     assert(result.gasRemaining == 25853);
 }
@@ -292,7 +291,7 @@ void test_selfbalance() {
         SELFBALANCE, MSIZE, MSTORE,
         MSIZE, PUSH0, RETURN,
     };
-    address_t from;
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 66089;
     val_t value;
     value[0] = 0xdd;
@@ -307,9 +306,9 @@ void test_selfbalance() {
     result_t result = evmCreate(from, gas, value, input);
     evmFinalize();
     assert(UPPER(UPPER(result.status)) == 0);
-    assert(UPPER(LOWER(result.status)) == 0);
-    assert(LOWER(UPPER(result.status)) == 0);
-    assert(LOWER(LOWER(result.status)) == 1);
+    assert(LOWER(UPPER(result.status)) == 0x80d9b122);
+    assert(UPPER(LOWER(result.status)) == 0xdc3a16fdc41f96cf);
+    assert(LOWER(LOWER(result.status)) == 0x010ffe7e38d227c3);
     assert(result.returnData.size == 64);
     for (int i = 0; i < 63; i++) {
         if (i % 32 == 31) {
@@ -336,7 +335,7 @@ void test_callEmpty() {
         0x06, 0x3a, 0x45, 0xfd, 0x12,
         0xbd, 0x5b, 0x92, 0x8a, 0xd1,
     };
-    address_t from;
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     address_t to = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 21432;
     val_t value;
@@ -351,8 +350,8 @@ void test_callEmpty() {
     evmFinalize();
 
     assert(UPPER(UPPER(result.status)) == 0);
-    assert(UPPER(LOWER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0);
+    assert(UPPER(LOWER(result.status)) == 0);
     assert(LOWER(LOWER(result.status)) == 1);
     assert(result.returnData.size == 0);
     assert(result.gasRemaining == 0);
@@ -371,7 +370,7 @@ void test_callBounce() {
         SELFBALANCE, MSIZE, MSTORE,
         MSIZE, PUSH0, RETURN,
     };
-    address_t from;
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 92329;
     val_t value;
     value[0] = 0;
@@ -386,6 +385,10 @@ void test_callBounce() {
 
     result_t result = evmCreate(from, gas, value, input);
     evmFinalize();
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0x80d9b122);
+    assert(UPPER(LOWER(result.status)) == 0xdc3a16fdc41f96cf);
+    assert(LOWER(LOWER(result.status)) == 0x010ffe7e38d227c3);
     assert(result.returnData.size == 160);
     assert(memcmp(result.returnData.content, program, 28) == 0);
     for (int i = 28; i < 63; i++) {

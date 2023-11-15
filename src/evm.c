@@ -736,7 +736,14 @@ result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t
     callContext->account = getAccount(to);
     callContext->code = callContext->account->code;
     callContext->callData = input;
-    if (!BalanceSub(getAccount(from)->balance, value)) {
+
+    account_t *fromAccount = getAccount(from);
+    if (!BalanceSub(fromAccount->balance, value)) {
+        fprintf(stderr, "Insufficient intrinsic value [0x%08x%08x%08x] (need [0x%08x%08x%08x])\n",
+            fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
+            value[0], value[1], value[2]
+        );
+
         result_t result;
         result.gasRemaining = 0;
         clear256(&result.status);
@@ -794,6 +801,7 @@ result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
         } else {
             // TODO insert code
             result.gasRemaining -= codeGas;
+            AddressToUint256(&result.status, &callContext->account->address);
         }
     }
     uint64_t gasUsed = gas - result.gasRemaining;
