@@ -21,7 +21,7 @@ void test_stop() {
     input.size = sizeof(program);
     input.content = program;
 
-    result_t result = evmCreate(from, gas, value, input);
+    result_t result = txCreate(from, gas, value, input);
     evmFinalize();
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0x80d9b122);
@@ -55,9 +55,8 @@ void test_mstoreReturn() {
     input.size = sizeof(program);
     input.content = program;
 
-    result_t result = evmCreate(from, gas, value, input);
+    result_t result = txCreate(from, gas, value, input);
     evmFinalize();
-    // TODO result.status should instead be the return address
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0x80d9b122);
     assert(UPPER(LOWER(result.status)) == 0xdc3a16fdc41f96cf);
@@ -95,7 +94,7 @@ void test_math() {
     input.size = sizeof(program);
     input.content = program;
 
-    result_t result = evmCreate(from, gas, value, input);
+    result_t result = txCreate(from, gas, value, input);
     evmFinalize();
 
     assert(zero256(&result.status));
@@ -137,9 +136,8 @@ void test_xorSwap() {
     input.size = sizeof(program);
     input.content = program;
 
-    result_t result = evmCreate(from, gas, value, input);
+    result_t result = txCreate(from, gas, value, input);
     evmFinalize();
-    // TODO result.status should instead be the return address
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0x80d9b122);
     assert(UPPER(LOWER(result.status)) == 0xdc3a16fdc41f96cf);
@@ -179,7 +177,7 @@ void test_spaghetti() {
     input.size = sizeof(program);
     input.content = program;
 
-    result_t result = evmCreate(from, gas, value, input);
+    result_t result = txCreate(from, gas, value, input);
     evmFinalize();
     assert(UPPER(UPPER(result.status)) == 0);
     assert(UPPER(LOWER(result.status)) == 0);
@@ -209,7 +207,7 @@ void test_sstore_sload() {
     input.content = program;
     input.size = sizeof(program);
 
-    result_t result = evmCreate(from, gas, value, input);
+    result_t result = txCreate(from, gas, value, input);
     evmFinalize();
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0x80d9b122);
@@ -240,7 +238,7 @@ void test_sstore_refund() {
     input.content = program;
     input.size = sizeof(program);
 
-    result_t result = evmCreate(from, gas, value, input);
+    result_t result = txCreate(from, gas, value, input);
     evmFinalize();
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0x80d9b122);
@@ -272,7 +270,7 @@ void test_sstore_gauntlet() {
     input.content = program;
     input.size = sizeof(program);
 
-    result_t result = evmCreate(from, gas, value, input);
+    result_t result = txCreate(from, gas, value, input);
     evmFinalize();
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0x80d9b122);
@@ -303,7 +301,7 @@ void test_selfbalance() {
 
 
     evmMockBalance(from, value);
-    result_t result = evmCreate(from, gas, value, input);
+    result_t result = txCreate(from, gas, value, input);
     evmFinalize();
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0x80d9b122);
@@ -346,7 +344,7 @@ void test_callEmpty() {
     input.content = callData;
     input.size = sizeof(callData);
 
-    result_t result = evmCall(from, gas, to, value, input);
+    result_t result = txCall(from, gas, to, value, input);
     evmFinalize();
 
     assert(UPPER(UPPER(result.status)) == 0);
@@ -383,7 +381,7 @@ void test_callBounce() {
     input.content = program;
     input.size = sizeof(program);
 
-    result_t result = evmCreate(from, gas, value, input);
+    result_t result = txCreate(from, gas, value, input);
     evmFinalize();
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0x80d9b122);
@@ -428,7 +426,7 @@ void test_extcodecopy() {
     input.content = createEcho;
     input.size = sizeof(createEcho);
 
-    result_t createResult = evmCreate(from, gas, value, input);
+    result_t createResult = txCreate(from, gas, value, input);
     assert(UPPER(UPPER(createResult.status)) == 0);
     assert(LOWER(UPPER(createResult.status)) == 0x80d9b122);
     assert(UPPER(LOWER(createResult.status)) == 0xdc3a16fdc41f96cf);
@@ -456,24 +454,27 @@ void test_extcodecopy() {
 #undef PROGRAM_EXTCODECOPY
     input.size = sizeof(createExtCodeCopy);
     input.content = createExtCodeCopy;
-    result_t secondCreateResult = evmCreate(from, gas, value, input);
+    result_t secondCreateResult = txCreate(from, gas, value, input);
     assert(memcmp(secondCreateResult.returnData.content, extcodecopy, sizeof(extcodecopy)) == 0);
     assert(UPPER(UPPER(secondCreateResult.status)) == 0);
-    assert(LOWER(LOWER(secondCreateResult.status)));
-    assert(LOWER(UPPER(secondCreateResult.status)) != 0x80d9b122);
-    assert(UPPER(LOWER(secondCreateResult.status)) != 0xdc3a16fdc41f96cf);
-    assert(LOWER(LOWER(secondCreateResult.status)) != 0x010ffe7e38d227c3);
+    assert(LOWER(UPPER(secondCreateResult.status)) == 0x47784b21);
+    assert(UPPER(LOWER(secondCreateResult.status)) == 0x780d1e1d5efcd005);
+    assert(LOWER(LOWER(secondCreateResult.status)) == 0xc5fe542813b6d71e);
     assert(secondCreateResult.gasRemaining == 0);
 
-    address_t echoAddress = AddressFromUint256(&createResult.status);
-    address_t extcodecopyAddress = AddressFromUint256(&secondCreateResult.status);
+    // ensure upper bytes of upcoming calldata are zero
+    address_t locations[4];
+    bzero(locations, sizeof(locations));
+    address_t echoAddress = locations[1] = AddressFromUint256(&createResult.status);
+    address_t extcodecopyAddress = locations[3] = AddressFromUint256(&secondCreateResult.status);
 
     address_t to = extcodecopyAddress;
 
     input.size = 32;
 
-    input.content = echoAddress.address - 12;
-    result_t examineFirstAccount = evmCall(from, gas, to, value, input);
+    gas = 24117;
+    input.content = locations[1].address - 12;
+    result_t examineFirstAccount = txCall(from, gas, to, value, input);
     assert(UPPER(UPPER(examineFirstAccount.status)) == 0);
     assert(LOWER(UPPER(examineFirstAccount.status)) == 0);
     assert(UPPER(LOWER(examineFirstAccount.status)) == 0);
@@ -491,9 +492,11 @@ void test_extcodecopy() {
     for (int i = 64 + sizeof(echo); i < 96; i++) {
         assert(examineFirstAccount.returnData.content[i] == 0);
     }
+    assert(examineFirstAccount.gasRemaining == 0);
 
-    input.content = extcodecopyAddress.address - 12;
-    result_t examineSecondAccount = evmCall(from, gas, to, value, input);
+    gas = 21617;
+    input.content = locations[3].address - 12;
+    result_t examineSecondAccount = txCall(from, gas, to, value, input);
     assert(UPPER(UPPER(examineSecondAccount.status)) == 0);
     assert(LOWER(UPPER(examineSecondAccount.status)) == 0);
     assert(UPPER(LOWER(examineSecondAccount.status)) == 0);
@@ -511,6 +514,7 @@ void test_extcodecopy() {
     for (int i = 64 + sizeof(extcodecopy); i < 96; i++) {
         assert(examineSecondAccount.returnData.content[i] == 0);
     }
+    assert(examineSecondAccount.gasRemaining == 0);
 
     evmFinalize();
 }

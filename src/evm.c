@@ -96,6 +96,13 @@ static inline void dumpStack(context_t *context) {
     free(buf);
 }
 
+static inline void dumpCallData(context_t *context) {
+    for (uint32_t i = 0; i < context->callData.size; i++) {
+        fprintf(stderr, "%02x", context->callData.content[i]);
+    }
+    fputc('\n', stderr);
+}
+
 static inline void dumpMemory(memory_t *memory) {
     for (uint32_t i = 0; i < memory->num_uint8s; i++) {
         fprintf(stderr, "%02x", memory->uint8s[i]);
@@ -165,6 +172,8 @@ void evmInit() {
             free(toFree);
         }
         emptyAccount->next = NULL;
+        emptyAccount->warm = 0;
+        bzero(emptyAccount->address.address, 20);
         op_t *code = emptyAccount->code.content;
         if (code != NULL) {
             free(code);
@@ -252,13 +261,14 @@ static account_t *createNewAccount(account_t *from) {
     addressHashResult_t hashResult;
     keccak_256((uint8_t *)&hashResult, sizeof(hashResult), inputBuffer, inputBuffer[0] - 0xbf);
     account_t *result = getAccount(hashResult.bottom160);
+    result->warm = evmIteration;
     return result;
 }
 
 static account_t *warmAccount(context_t *callContext, const address_t address) {
     account_t *account = getAccount(address);
     if (account->warm != evmIteration) {
-        uint64_t gasCost = G_COLD_ACCOUNT;
+        uint64_t gasCost = G_COLD_ACCOUNT - G_ACCESS;
         if (callContext->gas < gasCost) {
             return NULL;
         }
@@ -297,6 +307,7 @@ static storage_t *warmStorage(context_t *callContext, uint256_t *key) {
 }
 
 static result_t doCall(context_t *callContext) {
+    //dumpCallData(callContext);
     result_t result;
     uint64_t pc = 0;
     clear256(&result.status);
@@ -310,7 +321,7 @@ static result_t doCall(context_t *callContext) {
         }
         //dumpStack(callContext);
         //dumpMemory(&callContext->memory);
-        //fprintf(stderr, "op %s\n", opString[op]);
+        //fprintf(stderr, "gas %llu op %s\n", callContext->gas, opString[op]);
         if (callContext->top < callContext->bottom + argCount[op]) {
             // stack underflow
             fprintf(stderr, "Stack underflow at pc %llu op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom);
@@ -750,6 +761,7 @@ static result_t doCall(context_t *callContext) {
 result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input) {
     context_t *callContext = callstack.next;
     callContext->gas = gas;
+    account_t *fromAccount = getAccount(from);
     if (callstack.next == callstack.bottom) {
         callContext->gas = gas - G_TX;
         deductCalldataGas(callContext, &input, false);
@@ -762,6 +774,9 @@ result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t
             result.returnData.size = 0;
             return result;
         }
+        fromAccount->warm = evmIteration;
+        account_t *toAccount = getAccount(to);
+        toAccount->warm = evmIteration;
     }
 
     callContext->top = callContext->bottom;
@@ -771,7 +786,6 @@ result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t
     callContext->code = callContext->account->code;
     callContext->callData = input;
 
-    account_t *fromAccount = getAccount(from);
     if (!BalanceSub(fromAccount->balance, value)) {
         fprintf(stderr, "Insufficient intrinsic value [0x%08x%08x%08x] (need [0x%08x%08x%08x])\n",
             fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
@@ -798,6 +812,7 @@ result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t
 result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
     context_t *callContext = callstack.next;
     callContext->gas = gas;
+    account_t *fromAccount = getAccount(from);
     if (callstack.next == callstack.bottom) {
         callContext->gas -= G_TXCREATE + G_TX;
         deductCalldataGas(callContext, &input, true);
@@ -810,15 +825,14 @@ result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
             result.returnData.size = 0;
             return result;
         }
+        fromAccount->warm = evmIteration;
     }
     callstack.next += 1;
 
     callContext->top = callContext->bottom;
     BalanceCopy(callContext->callValue, value);
     AddressCopy(callContext->caller, from);
-    account_t *fromAccount = getAccount(from);
     callContext->account = createNewAccount(fromAccount);
-    fromAccount->warm = evmIteration;
     callContext->account->warm = evmIteration;
     BalanceAdd(callContext->account->balance, value);
     callContext->code = input;
@@ -852,5 +866,20 @@ result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
         refundCounter = 0;
     }
 
+    return result;
+}
+
+result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input) {
+    account_t *fromAccount = getAccount(from);
+    fromAccount->warm = evmIteration;
+    result_t result = evmCall(from, gas, to, value, input);
+    evmIteration++;
+    getAccount(from)->nonce++;
+    return result;
+}
+
+result_t txCreate(address_t from, uint64_t gas, val_t value, data_t input) {
+    result_t result = evmCreate(from, gas, value, input);
+    evmIteration++;
     return result;
 }

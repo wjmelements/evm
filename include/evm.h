@@ -30,3 +30,6 @@ void evmFinalize();
 
 result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input);
 result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input);
+// TODO gasPrice
+result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input);
+result_t txCreate(address_t from, uint64_t gas, val_t value, data_t input);
