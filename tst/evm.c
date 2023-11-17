@@ -400,6 +400,120 @@ void test_callBounce() {
     }
     assert(result.gasRemaining == 0);
 }
+void test_extcodecopy() {
+    evmInit();
+
+
+    // 363d3d37363df3
+#define PROGRAM_ECHO \
+        CALLDATASIZE, RETURNDATASIZE, RETURNDATASIZE, CALLDATACOPY, \
+        CALLDATASIZE, RETURNDATASIZE, RETURN
+    op_t echo[] = {
+        PROGRAM_ECHO
+    };
+    // 66363d3d37363df33d5260076019f3
+    op_t createEcho[] = {
+        PUSH7, PROGRAM_ECHO, RETURNDATASIZE, MSTORE,
+        PUSH1, 7, PUSH1, 25, RETURN
+    };
+#undef PROGRAM_ECHO
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    uint64_t gas = 54659;
+    val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
+
+    data_t input;
+    input.content = createEcho;
+    input.size = sizeof(createEcho);
+
+    result_t createResult = evmCreate(from, gas, value, input);
+    assert(UPPER(UPPER(createResult.status)) == 0);
+    assert(LOWER(UPPER(createResult.status)) == 0x80d9b122);
+    assert(UPPER(LOWER(createResult.status)) == 0xdc3a16fdc41f96cf);
+    assert(LOWER(LOWER(createResult.status)) == 0x010ffe7e38d227c3);
+    assert(createResult.returnData.size == sizeof(echo));
+    assert(memcmp(createResult.returnData.content, echo, sizeof(echo)) == 0);
+    assert(createResult.gasRemaining == 0);
+
+    gas = 57035;
+    // 385952385f59395f353b5f595f353c595ff3
+#define PROGRAM_EXTCODECOPY \
+    CODESIZE, MSIZE, MSTORE, \
+    CODESIZE, PUSH0, MSIZE, CODECOPY, \
+    PUSH0, CALLDATALOAD, EXTCODESIZE, PUSH0, MSIZE, PUSH0, CALLDATALOAD, EXTCODECOPY, \
+    MSIZE, PUSH0, RETURN
+    op_t extcodecopy[] = {
+        PROGRAM_EXTCODECOPY
+    };
+    // 71385952385f59395f353b5f595f353c595ff33d526012600ef3
+    op_t createExtCodeCopy[] = {
+        PUSH18, PROGRAM_EXTCODECOPY,
+        RETURNDATASIZE, MSTORE,
+        PUSH1, 18, PUSH1, 14, RETURN
+    };
+#undef PROGRAM_EXTCODECOPY
+    input.size = sizeof(createExtCodeCopy);
+    input.content = createExtCodeCopy;
+    result_t secondCreateResult = evmCreate(from, gas, value, input);
+    assert(memcmp(secondCreateResult.returnData.content, extcodecopy, sizeof(extcodecopy)) == 0);
+    assert(UPPER(UPPER(secondCreateResult.status)) == 0);
+    assert(LOWER(LOWER(secondCreateResult.status)));
+    assert(LOWER(UPPER(secondCreateResult.status)) != 0x80d9b122);
+    assert(UPPER(LOWER(secondCreateResult.status)) != 0xdc3a16fdc41f96cf);
+    assert(LOWER(LOWER(secondCreateResult.status)) != 0x010ffe7e38d227c3);
+    assert(secondCreateResult.gasRemaining == 0);
+
+    address_t echoAddress = AddressFromUint256(&createResult.status);
+    address_t extcodecopyAddress = AddressFromUint256(&secondCreateResult.status);
+
+    address_t to = extcodecopyAddress;
+
+    input.size = 32;
+
+    input.content = echoAddress.address - 12;
+    result_t examineFirstAccount = evmCall(from, gas, to, value, input);
+    assert(UPPER(UPPER(examineFirstAccount.status)) == 0);
+    assert(LOWER(UPPER(examineFirstAccount.status)) == 0);
+    assert(UPPER(LOWER(examineFirstAccount.status)) == 0);
+    assert(LOWER(LOWER(examineFirstAccount.status)) == 1);
+    assert(examineFirstAccount.returnData.size == 96);
+    for (int i = 0; i < 31; i++) {
+        assert(examineFirstAccount.returnData.content[i] == 0);
+    }
+    assert(examineFirstAccount.returnData.content[31] == sizeof(extcodecopy));
+    assert(memcmp(examineFirstAccount.returnData.content+32, extcodecopy, sizeof(extcodecopy)) == 0);
+    for (int i = 32 + sizeof(extcodecopy); i < 64; i++) {
+        assert(examineFirstAccount.returnData.content[i] == 0);
+    }
+    assert(memcmp(examineFirstAccount.returnData.content+64, echo, sizeof(echo)) == 0);
+    for (int i = 64 + sizeof(echo); i < 96; i++) {
+        assert(examineFirstAccount.returnData.content[i] == 0);
+    }
+
+    input.content = extcodecopyAddress.address - 12;
+    result_t examineSecondAccount = evmCall(from, gas, to, value, input);
+    assert(UPPER(UPPER(examineSecondAccount.status)) == 0);
+    assert(LOWER(UPPER(examineSecondAccount.status)) == 0);
+    assert(UPPER(LOWER(examineSecondAccount.status)) == 0);
+    assert(LOWER(LOWER(examineSecondAccount.status)) == 1);
+    assert(examineSecondAccount.returnData.size == 96);
+    for (int i = 0; i < 31; i++) {
+        assert(examineSecondAccount.returnData.content[i] == 0);
+    }
+    assert(examineSecondAccount.returnData.content[31] == sizeof(extcodecopy));
+    assert(memcmp(examineSecondAccount.returnData.content+32, extcodecopy, sizeof(extcodecopy)) == 0);
+    for (int i = 32 + sizeof(extcodecopy); i < 64; i++) {
+        assert(examineSecondAccount.returnData.content[i] == 0);
+    }
+    assert(memcmp(examineSecondAccount.returnData.content+64, extcodecopy, sizeof(extcodecopy)) == 0);
+    for (int i = 64 + sizeof(extcodecopy); i < 96; i++) {
+        assert(examineSecondAccount.returnData.content[i] == 0);
+    }
+
+    evmFinalize();
+}
 
 int main() {
     test_stop();
@@ -413,5 +527,6 @@ int main() {
     test_selfbalance();
     test_callEmpty();
     test_callBounce();
+    test_extcodecopy();
     return 0;
 }

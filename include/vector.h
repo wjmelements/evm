@@ -30,7 +30,7 @@ static inline void vector ## _ensure(vector ## _t *vector, uint32_t capacity) {\
     if (vector->buffer_size < capacity) {\
         vector->buffer_size = capacity;\
         type ## _t *buffer = calloc(capacity, sizeof(*buffer));\
-        memcpy(buffer, vector->type ## s, sizeof(*buffer) * (vector->buffer_size >> 1));\
+        memcpy(buffer, vector->type ## s, sizeof(*buffer) * vector->num_ ## type ## s);\
         free(vector->type ## s);\
         vector->type ## s = buffer;\
     }\

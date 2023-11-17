@@ -96,6 +96,22 @@ static inline void dumpStack(context_t *context) {
     free(buf);
 }
 
+static inline void dumpMemory(memory_t *memory) {
+    for (uint32_t i = 0; i < memory->num_uint8s; i++) {
+        fprintf(stderr, "%02x", memory->uint8s[i]);
+        if (i % 32 == 31) {
+            fputc('\n', stderr);
+        }
+    }
+    if (memory->num_uint8s % 32 == 0) {
+        return;
+    }
+    for (uint32_t i = 32 - memory->num_uint8s % 32; i --> 0;) {
+        fputs("00", stderr);
+    }
+    fputc('\n', stderr);
+}
+
 static uint64_t memoryGasCost(uint64_t capacity) {
     uint64_t words = (capacity + 31) >> 5;
     return words * G_MEM + words * words / G_QUADDIV;
@@ -106,11 +122,11 @@ static inline bool ensureMemory(context_t *callContext, uint64_t capacity) {
     memory_ensure(&callContext->memory, capacity);
     if (callContext->memory.num_uint8s < capacity) {
         uint64_t memoryGas = memoryGasCost(capacity) - memoryGasCost(callContext->memory.num_uint8s);
+        callContext->memory.num_uint8s = capacity;
         if (memoryGas > callContext->gas) {
             return false;
         }
         callContext->gas -= memoryGas;
-        callContext->memory.num_uint8s = capacity;
     }
     return true;
 }
@@ -293,6 +309,7 @@ static result_t doCall(context_t *callContext) {
             op = STOP;
         }
         //dumpStack(callContext);
+        //dumpMemory(&callContext->memory);
         //fprintf(stderr, "op %s\n", opString[op]);
         if (callContext->top < callContext->bottom + argCount[op]) {
             // stack underflow
