@@ -301,10 +301,12 @@ static result_t doCall(context_t *callContext) {
             result.returnData.size = 0;
             return result;
         }
+#define OUT_OF_GAS \
+            fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);\
+            result.returnData.size = 0; \
+            return result
         if (callContext->gas < gasCost[op]) {
-            fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
-            result.returnData.size = 0;
-            return result;
+            OUT_OF_GAS;
         }
         callContext->gas -= gasCost[op];
         callContext->top += retCount[op] - argCount[op];
@@ -494,9 +496,7 @@ static result_t doCall(context_t *callContext) {
                 {
                     account_t *account = warmAccount(callContext, AddressFromUint256(callContext->top - 1));
                     if (account == NULL) {
-                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
-                        result.returnData.size = 0;
-                        return result;
+                        OUT_OF_GAS;
                     }
                     bzero(callContext->top - 1, 24);
                     LOWER(LOWER_P(callContext->top - 1)) = account->code.size;
@@ -516,23 +516,17 @@ static result_t doCall(context_t *callContext) {
                 break;
             case MSTORE:
                 if (!ensureMemory(callContext, 32 + LOWER(LOWER_P(callContext->top + 1)))) {
-                    fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
-                    result.returnData.size = 0;
-                    return result;
+                    OUT_OF_GAS;
                 }
                 uint8_t *loc = (callContext->memory.uint8s + LOWER(LOWER_P(callContext->top + 1)));
                 dumpu256BE(callContext->top, loc);
                 break;
             case MLOAD:
                 if (UPPER(LOWER_P(callContext->top - 1)) || LOWER(UPPER_P(callContext->top - 1)) || UPPER(UPPER_P(callContext->top - 1))) {
-                    fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
-                    result.returnData.size = 0;
-                    return result;
+                    OUT_OF_GAS;
                 }
                 if (!ensureMemory(callContext, 32 + LOWER(LOWER_P(callContext->top - 1)))) {
-                    fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
-                    result.returnData.size = 0;
-                    return result;
+                    OUT_OF_GAS;
                 }
                 readu256BE(callContext->memory.uint8s + LOWER(LOWER_P(callContext->top - 1)), callContext->top - 1);
                 break;
@@ -554,16 +548,12 @@ static result_t doCall(context_t *callContext) {
                         || dst + size < dst
                         || !ensureMemory(callContext, dst + size)
                     ) {
-                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
-                        result.returnData.size = 0;
-                        return result;
+                        OUT_OF_GAS;
                     }
                     uint64_t words = (size + 31) / 32;
                     uint64_t gasCost = G_COPY * words;
                     if (gasCost > callContext->gas) {
-                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
-                        result.returnData.size = 0;
-                        return result;
+                        OUT_OF_GAS;
                     }
                     callContext->gas -= gasCost;
                     uint64_t start = LOWER(LOWER_P(callContext->top + 1));
@@ -584,15 +574,11 @@ static result_t doCall(context_t *callContext) {
             case SSTORE:
                 {
                     if (callContext->gas <= G_CALLSTIPEND - G_ACCESS) {
-                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
-                        result.returnData.size = 0;
-                        return result;
+                        OUT_OF_GAS;
                     }
                     storage_t *storage = warmStorage(callContext, callContext->top + 1);
                     if (storage == NULL) {
-                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
-                        result.returnData.size = 0;
-                        return result;
+                        OUT_OF_GAS;
                     }
                     // https://eips.ethereum.org/EIPS/eip-2200
                     if (!equal256(&storage->value, callContext->top)) {
@@ -607,9 +593,7 @@ static result_t doCall(context_t *callContext) {
                                 }
                             }
                             if (gasCost > callContext->gas) {
-                                fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
-                                result.returnData.size = 0;
-                                return result;
+                                OUT_OF_GAS;
                             }
                             callContext->gas -= gasCost;
                         } else {
@@ -637,9 +621,7 @@ static result_t doCall(context_t *callContext) {
                 {
                     storage_t *storage = warmStorage(callContext, callContext->top - 1);
                     if (storage == NULL) {
-                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
-                        result.returnData.size = 0;
-                        return result;
+                        OUT_OF_GAS;
                     }
                     copy256(callContext->top - 1, &storage->value);
                 }
@@ -661,9 +643,7 @@ static result_t doCall(context_t *callContext) {
                 {
                     account_t *account = warmAccount(callContext, AddressFromUint256(callContext->top - 1));
                     if (account == NULL) {
-                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
-                        result.returnData.size = 0;
-                        return result;
+                        OUT_OF_GAS;
                     }
                     UPPER(UPPER_P(callContext->top - 1)) = 0;
                     LOWER(UPPER_P(callContext->top - 1)) = 0;
@@ -685,22 +665,16 @@ static result_t doCall(context_t *callContext) {
                     value[2] = LOWER(LOWER_P(callContext->top + 3));
                     uint64_t outSize = LOWER(LOWER_P(callContext->top - 1));
                     if (!ensureMemory(callContext, src + input.size)) {
-                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
-                        result.returnData.size = 0;
-                        return result;
+                        OUT_OF_GAS;
                     }
                     if (!ensureMemory(callContext, dst + outSize)) {
-                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
-                        result.returnData.size = 0;
-                        return result;
+                        OUT_OF_GAS;
                     }
                     // C_EXTRA
                     address_t to = AddressFromUint256(callContext->top + 4);
                     account_t *toAccount = warmAccount(callContext, to);
                     if (toAccount == NULL) {
-                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
-                        result.returnData.size = 0;
-                        return result;
+                        OUT_OF_GAS;
                     }
                     uint64_t gasCost = 0;
                     if (value[0] || value[1] || value[2]) {
@@ -710,9 +684,7 @@ static result_t doCall(context_t *callContext) {
                         gasCost += G_NEWACCOUNT;
                     }
                     if (gasCost > callContext->gas) {
-                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
-                        result.returnData.size = 0;
-                        return result;
+                        OUT_OF_GAS;
                     }
                     callContext->gas -= gasCost;
                     if (UPPER(UPPER_P(callContext->top + 5)) || LOWER(UPPER_P(callContext->top + 5)) || UPPER(LOWER_P(callContext->top + 5)) || gas > L(callContext->gas)) {
@@ -737,15 +709,14 @@ static result_t doCall(context_t *callContext) {
                 // intentional fallthrough
             case REVERT:
                 if (!ensureMemory(callContext, LOWER(LOWER_P(callContext->top + 1)) + LOWER(LOWER_P(callContext->top)))) {
-                    fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
-                    result.returnData.size = 0;
-                    return result;
+                    OUT_OF_GAS;
                 }
                 result.returnData.content = callContext->memory.uint8s + LOWER(LOWER_P(callContext->top + 1));
                 result.returnData.size = LOWER(LOWER_P(callContext->top));
                 return result;
         }
     }
+#undef OUT_OF_GAS
 }
 
 result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input) {
