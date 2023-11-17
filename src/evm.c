@@ -538,8 +538,19 @@ static result_t doCall(context_t *callContext) {
                 // TODO handle intersecting calldatasize boundary
                 readu256BE(callContext->callData.content + LOWER(LOWER_P(callContext->top - 1)), callContext->top - 1);
                 break;
+            case EXTCODECOPY:
             case CODECOPY:
                 {
+                    const data_t *code;
+                    if (op == EXTCODECOPY) {
+                        account_t *account = warmAccount(callContext, AddressFromUint256(callContext->top + 3));
+                        if (account == NULL) {
+                            OUT_OF_GAS;
+                        }
+                        code = &account->code;
+                    } else {
+                        code = &callContext->code;
+                    }
                     uint64_t size = LOWER(LOWER_P(callContext->top));
                     uint64_t dst = LOWER(LOWER_P(callContext->top + 2));
                     if (
@@ -559,15 +570,15 @@ static result_t doCall(context_t *callContext) {
                     uint64_t start = LOWER(LOWER_P(callContext->top + 1));
                     if (
                             UPPER(LOWER_P(callContext->top + 1)) || LOWER(UPPER_P(callContext->top + 1)) || UPPER(UPPER_P(callContext->top + 1))
-                            || start > callContext->code.size
+                            || start > code->size
                         ) {
                         bzero(callContext->memory.uint8s + dst, size);
-                    } else if (start + size > callContext->code.size) {
-                        uint64_t copySize = callContext->code.size - start;
-                        memcpy(callContext->memory.uint8s + dst, callContext->code.content + start, copySize);
+                    } else if (start + size > code->size) {
+                        uint64_t copySize = code->size - start;
+                        memcpy(callContext->memory.uint8s + dst, code->content + start, copySize);
                         bzero(callContext->memory.uint8s + dst + copySize, size - copySize);
                     } else {
-                        memcpy(callContext->memory.uint8s + dst, callContext->code.content + start, size);
+                        memcpy(callContext->memory.uint8s + dst, code->content + start, size);
                     }
                 }
                 break;
