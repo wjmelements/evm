@@ -482,9 +482,25 @@ static result_t doCall(context_t *callContext) {
                 bzero(callContext->top - 1, 24);
                 LOWER(LOWER_P(callContext->top - 1)) = callContext->gas;
                 break;
+            case RETURNDATASIZE:
+                bzero(callContext->top - 1, 24);
+                LOWER(LOWER_P(callContext->top - 1)) = callContext->returnData.size;
+                break;
             case CALLDATASIZE:
                 bzero(callContext->top - 1, 24);
                 LOWER(LOWER_P(callContext->top - 1)) = callContext->callData.size;
+                break;
+            case EXTCODESIZE:
+                {
+                    account_t *account = warmAccount(callContext, AddressFromUint256(callContext->top - 1));
+                    if (account == NULL) {
+                        fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
+                        result.returnData.size = 0;
+                        return result;
+                    }
+                    bzero(callContext->top - 1, 24);
+                    LOWER(LOWER_P(callContext->top - 1)) = account->code.size;
+                }
                 break;
             case CODESIZE:
                 bzero(callContext->top - 1, 24);
@@ -508,12 +524,25 @@ static result_t doCall(context_t *callContext) {
                 dumpu256BE(callContext->top, loc);
                 break;
             case MLOAD:
+                if (UPPER(LOWER_P(callContext->top - 1)) || LOWER(UPPER_P(callContext->top - 1)) || UPPER(UPPER_P(callContext->top - 1))) {
+                    fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
+                    result.returnData.size = 0;
+                    return result;
+                }
                 if (!ensureMemory(callContext, 32 + LOWER(LOWER_P(callContext->top - 1)))) {
                     fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);
                     result.returnData.size = 0;
                     return result;
                 }
                 readu256BE(callContext->memory.uint8s + LOWER(LOWER_P(callContext->top - 1)), callContext->top - 1);
+                break;
+            case CALLDATALOAD:
+                if (UPPER(LOWER_P(callContext->top - 1)) || LOWER(UPPER_P(callContext->top - 1)) || UPPER(UPPER_P(callContext->top - 1)) || LOWER(LOWER_P(callContext->top - 1)) >= callContext->callData.size) {
+                    clear256(callContext->top - 1);
+                    break;
+                }
+                // TODO handle intersecting calldatasize boundary
+                readu256BE(callContext->callData.content + LOWER(LOWER_P(callContext->top - 1)), callContext->top - 1);
                 break;
             case CODECOPY:
                 {
