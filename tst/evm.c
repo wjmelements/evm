@@ -519,6 +519,73 @@ void test_extcodecopy() {
     evmFinalize();
 }
 
+void test_deepCall() {
+    evmInit();
+    // 3d3580600757005b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01805952590259595f34305af1603c57595ffd5b595ff3
+#define PROGRAM_DIVE \
+    RETURNDATASIZE, CALLDATALOAD, \
+    DUP1, PUSH1, 0x07, JUMPI, STOP, JUMPDEST, \
+    PUSH32, \
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, \
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, \
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, \
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, \
+    ADD, \
+    DUP1, MSIZE, MSTORE, \
+    MSIZE, MUL, MSIZE, MSIZE, PUSH0, CALLVALUE, ADDRESS, GAS, CALL, \
+    PUSH1, 60, JUMPI, \
+    MSIZE, PUSH0, REVERT, \
+    JUMPDEST, \
+    MSIZE, PUSH0, RETURN
+
+    op_t dive[] = {
+        PROGRAM_DIVE
+    };
+    // 60408060093d393df33d3580600757005b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01805952590259595f34305af1603c57595ffd5b595ff3
+    op_t createDive[] = {
+        PUSH1, 0x40, DUP1, PUSH1, 0x09, RETURNDATASIZE, CODECOPY, RETURNDATASIZE, RETURN,
+        PROGRAM_DIVE
+    };
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    uint64_t gas = 66990;
+    val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
+
+    data_t input;
+    input.content = createDive;
+    input.size = sizeof(createDive);
+    result_t createResult = txCreate(from, gas, value, input);
+    assert(UPPER(UPPER(createResult.status)) == 0);
+    assert(LOWER(UPPER(createResult.status)) == 0x80d9b122);
+    assert(UPPER(LOWER(createResult.status)) == 0xdc3a16fdc41f96cf);
+    assert(LOWER(LOWER(createResult.status)) == 0x010ffe7e38d227c3);
+    assert(createResult.returnData.size == sizeof(dive));
+    assert(memcmp(createResult.returnData.content, dive, sizeof(dive)) == 0);
+    assert(createResult.gasRemaining == 0);
+
+    uint8_t param[32];
+    bzero(param, 32);
+    param[30] = 0x01;
+    param[31] = 0xc8;
+    address_t to = AddressFromUint256(&createResult.status);
+    gas = 29968466;
+
+    input.content = param;
+    input.size = sizeof(param);
+    result_t diveResult = txCall(from, gas, to, value, input);
+
+    assert(UPPER(UPPER(diveResult.status)) == 0);
+    assert(LOWER(UPPER(diveResult.status)) == 0);
+    assert(UPPER(LOWER(diveResult.status)) == 0);
+    assert(LOWER(LOWER(diveResult.status)) == 1);
+    assert(diveResult.gasRemaining == 29494085);
+
+    evmFinalize();
+}
+
 int main() {
     test_stop();
     test_mstoreReturn();
@@ -532,5 +599,6 @@ int main() {
     test_callEmpty();
     test_callBounce();
     test_extcodecopy();
+    test_deepCall();
     return 0;
 }

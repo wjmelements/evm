@@ -23,10 +23,17 @@ typedef struct callResult {
 
 
 void evmInit();
+void evmFinalize();
+
+#define EVM_DEBUG_STACK 1
+#define EVM_DEBUG_MEMORY 2
+#define EVM_DEBUG_OPS 4
+#define EVM_DEBUG_GAS (EVM_DEBUG_OPS + 8)
+void evmSetDebug(uint64_t flags);
+
 void evmMockBalance(address_t to, val_t balance);
 void evmMockCall(address_t to, val_t value, data_t inputData, result_t result);
 void evmMockStorage(address_t to, uint256_t key, uint256_t storedValue);
-void evmFinalize();
 
 result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input);
 result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input);

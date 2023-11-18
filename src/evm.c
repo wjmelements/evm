@@ -162,6 +162,17 @@ static account_t *emptyAccount;
 static account_t const *dnfAccount = &accounts[1024];
 static uint64_t evmIteration = 0;
 static uint64_t refundCounter = 0;
+static uint64_t debugFlags = 0;
+
+void evmSetDebug(uint64_t flags) {
+    debugFlags = flags;
+}
+
+#define SHOW_STACK (debugFlags & EVM_DEBUG_STACK)
+#define SHOW_MEMORY (debugFlags & EVM_DEBUG_MEMORY)
+#define SHOW_OPS (debugFlags & EVM_DEBUG_OPS)
+#define SHOW_GAS (debugFlags & EVM_DEBUG_GAS)
+
 void evmInit() {
     callstack.next = callstack.bottom;
     while (emptyAccount --> accounts) {
@@ -319,9 +330,19 @@ static result_t doCall(context_t *callContext) {
         } else {
             op = STOP;
         }
-        //dumpStack(callContext);
-        //dumpMemory(&callContext->memory);
-        //fprintf(stderr, "gas %llu op %s\n", callContext->gas, opString[op]);
+
+        if (SHOW_STACK) {
+            dumpStack(callContext);
+        }
+        if (SHOW_MEMORY) {
+            dumpMemory(&callContext->memory);
+        }
+        if (SHOW_OPS) {
+            if (SHOW_GAS) {
+                fprintf(stderr, "gas %llu ", callContext->gas);
+            }
+            fprintf(stderr, "op %s\n", opString[op]);
+        }
         if (callContext->top < callContext->bottom + argCount[op]) {
             // stack underflow
             fprintf(stderr, "Stack underflow at pc %llu op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom);
@@ -695,7 +716,6 @@ static result_t doCall(context_t *callContext) {
                     data_t input;
                     input.size = LOWER(LOWER_P(callContext->top + 1));
                     uint64_t src = LOWER(LOWER_P(callContext->top + 2));
-                    input.content = callContext->memory.uint8s + src;
                     uint64_t dst = LOWER(LOWER_P(callContext->top));
                     uint64_t gas = LOWER(LOWER_P(callContext->top + 5));
                     val_t value;
@@ -709,6 +729,7 @@ static result_t doCall(context_t *callContext) {
                     if (!ensureMemory(callContext, dst + outSize)) {
                         OUT_OF_GAS;
                     }
+                    input.content = callContext->memory.uint8s + src;
                     // C_EXTRA
                     address_t to = AddressFromUint256(callContext->top + 4);
                     account_t *toAccount = warmAccount(callContext, to);
