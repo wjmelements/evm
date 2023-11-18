@@ -582,6 +582,21 @@ void test_deepCall() {
     assert(UPPER(LOWER(diveResult.status)) == 0);
     assert(LOWER(LOWER(diveResult.status)) == 1);
     assert(diveResult.gasRemaining == 29494085);
+    assert(diveResult.returnData.size == 32 * 0x1c8);
+
+    uint256_t expected;
+    readu256BE(param, &expected);
+    uint256_t one;
+    clear256(&one);
+    LOWER(LOWER(one)) = 1;
+    uint256_t actual;
+    uint8_t *current = diveResult.returnData.content;
+    while (!zero256(&expected)) {
+        minus256(&expected, &one, &expected);
+        readu256BE(current, &actual);
+        assert(equal256(&expected, &actual));
+        current += 32;
+    }
 
     evmFinalize();
 }
