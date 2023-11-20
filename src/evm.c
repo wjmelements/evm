@@ -587,6 +587,7 @@ static result_t doCall(context_t *callContext) {
                 // TODO handle intersecting calldatasize boundary
                 readu256BE(callContext->callData.content + LOWER(LOWER_P(callContext->top - 1)), callContext->top - 1);
                 break;
+            case CALLDATACOPY:
             case EXTCODECOPY:
             case CODECOPY:
                 {
@@ -597,6 +598,8 @@ static result_t doCall(context_t *callContext) {
                             OUT_OF_GAS;
                         }
                         code = &account->code;
+                    } else if (op == CALLDATACOPY) {
+                        code = &callContext->callData;
                     } else {
                         code = &callContext->code;
                     }
@@ -806,6 +809,7 @@ result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t
     callContext->account = getAccount(to);
     callContext->code = callContext->account->code;
     callContext->callData = input;
+    callContext->returnData.size = 0;
 
     if (!BalanceSub(fromAccount->balance, value)) {
         fprintf(stderr, "Insufficient intrinsic value [0x%08x%08x%08x] (need [0x%08x%08x%08x])\n",
@@ -859,6 +863,7 @@ result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
     callContext->code = input;
     callContext->callData.size = 0;
     memory_init(&callContext->memory, 0);
+    callContext->returnData.size = 0;
 
     result_t result = doCall(callContext);
     result.gasRemaining = callContext->gas;
