@@ -686,6 +686,66 @@ void test_revertStorage() {
     evmFinalize();
 }
 
+void test_revertSload() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    uint64_t gas = 62464;
+    val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
+
+#define PROGRAM_REVERTSLOAD \
+        CALLER, ADDRESS, XOR, PUSH1, 13, JUMPI, \
+        PUSH0, SLOAD, MSIZE, MSTORE, \
+        MSIZE, PUSH0, REVERT, \
+        JUMPDEST, \
+        PUSH1, 32, MSIZE, PUSH0, PUSH0, PUSH0, ADDRESS, GAS, CALL, MSIZE, MSTORE, \
+        PUSH1, 32, MSIZE, PUSH0, PUSH0, PUSH0, ADDRESS, GAS, CALL, MSIZE, MSTORE, \
+        PUSH0, SLOAD, MSIZE, MSTORE, \
+        MSIZE, PUSH0, RETURN
+    // 333018600d575f545952595ffd5b6020595f5f5f305af159526020595f5f5f305af159525f545952595ff3
+    op_t revertTest[] = {
+        PROGRAM_REVERTSLOAD
+    };
+    // 602b8060093d393df3333018600d575f545952595ffd5b6020595f5f5f305af159526020595f5f5f305af159525f545952595ff3
+    op_t createRevertTest[] = {
+        PUSH1, 43, DUP1, PUSH1, 0x09, RETURNDATASIZE, CODECOPY, RETURNDATASIZE, RETURN,
+        PROGRAM_REVERTSLOAD
+    };
+#undef PROGRAM_REVERTSLOAD
+    data_t input;
+    input.content = createRevertTest;
+    input.size = sizeof(createRevertTest);
+    result_t createResult = txCreate(from, gas, value, input);
+    assert(UPPER(UPPER(createResult.status)) == 0);
+    assert(LOWER(UPPER(createResult.status)) == 0x80d9b122);
+    assert(UPPER(LOWER(createResult.status)) == 0xdc3a16fdc41f96cf);
+    assert(LOWER(LOWER(createResult.status)) == 0x010ffe7e38d227c3);
+    assert(createResult.returnData.size == sizeof(revertTest));
+    assert(memcmp(createResult.returnData.content, revertTest, sizeof(revertTest)) == 0);
+    assert(createResult.gasRemaining == 0);
+
+    input.size = 0;
+
+    gas = 27655;
+    address_t to = AddressFromUint256(&createResult.status);
+
+    result_t sloadRevertResult = txCall(from, gas, to, value, input);
+    assert(UPPER(UPPER(sloadRevertResult.status)) == 0);
+    assert(LOWER(UPPER(sloadRevertResult.status)) == 0);
+    assert(UPPER(LOWER(sloadRevertResult.status)) == 0);
+    assert(LOWER(LOWER(sloadRevertResult.status)) == 1);
+    assert(sloadRevertResult.returnData.size == 160);
+    for (int i = 0; i < 160; i++) {
+        assert(sloadRevertResult.returnData.content[i] == 0);
+    }
+    assert(sloadRevertResult.gasRemaining == 0);
+
+    evmFinalize();
+}
+
 int main() {
     test_stop();
     test_mstoreReturn();
@@ -701,5 +761,6 @@ int main() {
     test_extcodecopy();
     test_deepCall();
     test_revertStorage();
+    test_revertSload();
     return 0;
 }

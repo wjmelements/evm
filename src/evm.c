@@ -707,11 +707,21 @@ static result_t doCall(context_t *callContext) {
                 break;
             case SLOAD:
                 {
+                    uint64_t warmBefore = getAccountStorage(callContext->account, callContext->top + 1)->warm;
                     storage_t *storage = warmStorage(callContext, callContext->top - 1, G_COLD_STORAGE - G_ACCESS);
                     if (storage == NULL) {
                         OUT_OF_GAS;
                     }
                     copy256(callContext->top - 1, &storage->value);
+                    // track access list changes in result in case of REVERT or exception
+                    stateChanges_t *changes = getCurrentAccountStateChanges(&result, callContext);
+                    storageChanges_t *change = malloc(sizeof(storageChanges_t));
+                    copy256(&change->key, &storage->key);
+                    copy256(&change->before, &storage->value);
+                    copy256(&change->after, &storage->value);
+                    change->warm = warmBefore;
+                    change->prev = changes->storageChanges;
+                    changes->storageChanges = change;
                 }
                 break;
             case CALLVALUE:
