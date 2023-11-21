@@ -9,7 +9,7 @@ OCFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) -fmodules
 MKDIRS=lib bin tst/bin .pass .pass/tst/bin .make .make/bin .make/tst/bin .make/lib .pass/tst/in
 INCLUDE=$(addprefix -I,include)
 EXECS=$(addprefix bin/,evm)
-TESTS=$(addprefix tst/bin/,hex label ops scanstack scan vector)
+TESTS=$(addprefix tst/bin/,address evm hex keccak label ops scanstack scan uint256 vector)
 SRC=$(wildcard src/*.cpp) $(wildcard src/*.m)
 LIBS=$(patsubst src/%.cpp, lib/%.o, $(wildcard src/*.cpp)) $(patsubst src/%.m, lib/%.o, $(wildcard src/*.m))
 INTEGRATIONS=$(addprefix tst/in/,$(shell ls tst/in))
@@ -24,7 +24,7 @@ clean:
 again: clean all
 check: $(addprefix .pass/,$(TESTS) $(INTEGRATIONS))
 
-FNM=\([-+a-z_A-Z/]*\)
+FNM=\([-+a-z_A-Z0-9/]*\)
 .make/%.d: %.m
 	@mkdir -p $(@D)
 	@$(CC) -MM $(CCSTD) $(INCLUDE) $< -o $@

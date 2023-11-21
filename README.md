@@ -27,6 +27,9 @@ MSTORE(RETURNDATASIZE,ADD(CALLDATALOAD(RETURNDATASIZE),CALLDATALOAD(32)))
 RETURN(RETURNDATASIZE,0x20)
 $ evm add.evm
 6020353d35013d5260203df3
+# Can read from stdin
+$ cat add.evm | evm
+6020353d35013d5260203df3
 ```
 
 More examples can be found in the `tst/in` directory.
@@ -38,7 +41,32 @@ $ cat selfdestruct.out
 # Outputs valid assembly
 $ evm -d selfdestruct.out
 SELFDESTRUCT(CALLER)
+# Can read from stdin
+$ cat selfdestruct.out | evm -d
+SELFDESTRUCT(CALLER)
 ```
+
+### EVM Execution
+```sh
+$ cat quine.evm
+CODECOPY(
+    RETURNDATASIZE,
+    RETURNDATASIZE,
+    CODESIZE
+)
+RETURN(
+    RETURNDATASIZE,
+    CODESIZE
+)
+# Executes the code and outputs the returndata
+$ evm -c quine.evm | evm -x
+383d3d39383df3
+$ evm -c quine.evm | evm -x | evm -d
+CODECOPY(RETURNDATASIZE,RETURNDATASIZE,CODESIZE)
+RETURN(RETURNDATASIZE,CODESIZE)
+```
+EVM execution should mostly work but may not implement every opcode and corner-case.
+If you find a bug that disrupts you, please file an issue with its impact to you and code that reproduces it and I may find time to fix it, or alternatively you can submit a pull request.
 
 ## Roadmap
 ### Assembler
@@ -47,6 +75,9 @@ SELFDESTRUCT(CALLER)
 * Explicit Constructor
 ### Disassembler
 * Label JUMPDEST in JUMPI and JUMP args
+### Execution
+* Flags to include gas, status, and/or state changes in a full JSON report
+* Mock code, balance, storage before execution
 
 # Contributing
 Please use camelCase for methods and variables but snake\_case for types.

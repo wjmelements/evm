@@ -3,12 +3,17 @@
 #include <stdio.h>
 
 const uint8_t argCount[NUM_OPCODES] = {
-    #define OP(index,name,in,out) in,
+    #define OP(index,name,in,out,gas) in,
     OPS
     #undef OP
 };
 const uint8_t retCount[NUM_OPCODES] = {
-    #define OP(index,name,in,out) out,
+    #define OP(index,name,in,out,gas) out,
+    OPS
+    #undef OP
+};
+const uint64_t gasCost[NUM_OPCODES] = {
+    #define OP(index,name,in,out,gas) gas,
     OPS
     #undef OP
 };
@@ -163,7 +168,7 @@ OP(XOR,2,1)
 
 
 const char *opString[NUM_OPCODES] = {
-        #define OP(index,name,in,out) #name,
+        #define OP(index,name,in,out,gas) #name,
         OPS
         #undef OP
 };

@@ -35,9 +35,7 @@ static inline uint8_t hexString8ToUint8(const uint8_t hexString8) {
 	if ('A' <= hexString8 && hexString8 <= 'F') {
 		return hexString8 - 'A' + 0xa;
 	}
-    fputs("hexString8ToUint8: unexpected hex string", stderr);
-    fputc(hexString8, stderr);
-    fputc('\n', stderr);
+    fprintf(stderr, "hexString8ToUint8: unexpected hex string %u (%c)\n", hexString8, hexString8);
     return 0xff;
 }
 static inline uint8_t hexString16ToUint8(const char *hexString16) {
