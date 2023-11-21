@@ -58,6 +58,7 @@ RETURN(
     RETURNDATASIZE,
     CODESIZE
 )
+# Executes the code and outputs the returndata
 $ evm -c quine.evm | evm -x
 383d3d39383df3
 $ evm -c quine.evm | evm -x | evm -d
@@ -75,7 +76,8 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 ### Disassembler
 * Label JUMPDEST in JUMPI and JUMP args
 ### Execution
-* Flags to include gas and status in a full JSON report
+* Flags to include gas, status, and/or state changes in a full JSON report
+* Mock code, balance, storage before execution
 
 # Contributing
 Please use camelCase for methods and variables but snake\_case for types.
