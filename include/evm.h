@@ -12,6 +12,26 @@ typedef struct data {
     uint8_t *content;
 } data_t;
 
+typedef struct storageChanges {
+    uint256_t key;
+    uint256_t before;
+    uint256_t after;
+    uint64_t warm;
+    struct storageChanges *prev;
+} storageChanges_t;
+
+// state changes are reverted on failure and returned on success
+typedef struct stateChanges {
+    address_t account;
+    // TODO balance change
+    // TODO code change
+    // TODO selfdestruct
+    // TODO nonce
+    // TODO warm
+    storageChanges_t *storageChanges; // LIFO
+    struct stateChanges *next;
+} stateChanges_t;
+
 typedef struct callResult {
     data_t returnData;
     // status is the result pushed onto the stack
@@ -19,6 +39,7 @@ typedef struct callResult {
     // for CALL it is 1 on success and 0 on failure
     uint256_t status;
     uint64_t gasRemaining;
+    stateChanges_t *stateChanges;
 } result_t;
 
 

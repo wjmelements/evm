@@ -2,6 +2,7 @@
 #include "ops.h"
 #include "vector.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -84,6 +85,20 @@ typedef struct {
     data_t callData;
     uint64_t gas;
 } context_t;
+
+stateChanges_t *getCurrentAccountStateChanges(result_t *result, context_t *context) {
+    stateChanges_t **stateChanges = &result->stateChanges;
+    while (*stateChanges != NULL) {
+        if (AddressEqual(&(*stateChanges)->account, &context->account->address)) {
+            return *stateChanges;
+        }
+        stateChanges = &(*stateChanges)->next;
+    }
+    // DNF
+    *stateChanges = malloc(sizeof(stateChanges_t));
+    AddressCopy(&(*stateChanges)->account, &context->account->address);
+    return *stateChanges;
+}
 
 // for debugging
 static inline void dumpStack(context_t *context) {
@@ -302,15 +317,15 @@ static storage_t *getAccountStorage(account_t *account, uint256_t *key) {
     return *storage;
 }
 
-static storage_t *warmStorage(context_t *callContext, uint256_t *key) {
+// you might expect the marginal cost of warming a slot is constant but actually it is 100 cheaper if you do it in SLOAD.
+static storage_t *warmStorage(context_t *callContext, uint256_t *key, uint64_t warmGasCost) {
     account_t *account = callContext->account;
     storage_t *storage = getAccountStorage(account, key);
     if (storage->warm != evmIteration) {
-        uint64_t gasCost = G_COLD_STORAGE;
-        if (callContext->gas < gasCost) {
+        if (callContext->gas < warmGasCost) {
             return NULL;
         }
-        callContext->gas -= gasCost;
+        callContext->gas -= warmGasCost;
         storage->warm = evmIteration;
         copy256(&storage->original, &storage->value);
     }
@@ -320,8 +335,9 @@ static storage_t *warmStorage(context_t *callContext, uint256_t *key) {
 static result_t doCall(context_t *callContext) {
     //dumpCallData(callContext);
     result_t result;
-    uint64_t pc = 0;
+    result.stateChanges = NULL;
     clear256(&result.status);
+    uint64_t pc = 0;
     uint8_t buffer[32];
     while (1) {
         op_t op;
@@ -639,7 +655,8 @@ static result_t doCall(context_t *callContext) {
                     if (callContext->gas <= G_CALLSTIPEND - G_ACCESS) {
                         OUT_OF_GAS;
                     }
-                    storage_t *storage = warmStorage(callContext, callContext->top + 1);
+                    uint64_t warmBefore = getAccountStorage(callContext->account, callContext->top + 1)->warm;
+                    storage_t *storage = warmStorage(callContext, callContext->top + 1, G_COLD_STORAGE);
                     if (storage == NULL) {
                         OUT_OF_GAS;
                     }
@@ -676,13 +693,21 @@ static result_t doCall(context_t *callContext) {
                             }
                         }
                     }
+                    // track state changes in result in case of REVERT or exception
+                    stateChanges_t *changes = getCurrentAccountStateChanges(&result, callContext);
+                    storageChanges_t *change = malloc(sizeof(storageChanges_t));
+                    copy256(&change->key, &storage->key);
+                    copy256(&change->before, &storage->value);
+                    copy256(&change->after, callContext->top);
+                    change->warm = warmBefore;
+                    change->prev = changes->storageChanges;
+                    changes->storageChanges = change;
                     copy256(&storage->value, callContext->top);
-                    // TODO track state changes in callContext in case of REVERT or exception
                 }
                 break;
             case SLOAD:
                 {
-                    storage_t *storage = warmStorage(callContext, callContext->top - 1);
+                    storage_t *storage = warmStorage(callContext, callContext->top - 1, G_COLD_STORAGE - G_ACCESS);
                     if (storage == NULL) {
                         OUT_OF_GAS;
                     }
@@ -782,6 +807,32 @@ static result_t doCall(context_t *callContext) {
 #undef OUT_OF_GAS
 }
 
+static void evmRevertStorageChanges(account_t *account, storageChanges_t **changes) {
+    if (*changes == NULL) {
+        return;
+    }
+    storage_t *storage = getAccountStorage(account, &(*changes)->key);
+    assert(equal256(&storage->value, &(*changes)->after));
+    copy256(&storage->value, &(*changes)->before);
+    storage->warm = (*changes)->warm;
+
+    evmRevertStorageChanges(account, &(*changes)->prev);
+    free(*changes);
+    *changes = NULL;
+}
+
+static void evmRevert(stateChanges_t **changes) {
+    if (*changes == NULL) {
+        return;
+    }
+    account_t *account = getAccount((*changes)->account);
+    evmRevertStorageChanges(account, &(*changes)->storageChanges);
+
+    evmRevert(&(*changes)->next);
+    free(*changes);
+    *changes = NULL;
+}
+
 result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input) {
     context_t *callContext = callstack.next;
     callContext->gas = gas;
@@ -830,6 +881,9 @@ result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t
     result_t result = doCall(callContext);
     callstack.next -= 1;
     result.gasRemaining = callContext->gas;
+    if (zero256(&result.status)) {
+        evmRevert(&result.stateChanges);
+    }
 
     return result;
 }
@@ -879,6 +933,9 @@ result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
             callContext->account->code.content = malloc(result.returnData.size);
             memcpy(callContext->account->code.content, result.returnData.content, result.returnData.size);
         }
+    }
+    if (zero256(&result.status)) {
+        evmRevert(&result.stateChanges);
     }
     uint64_t gasUsed = gas - result.gasRemaining;
     callstack.next -= 1;

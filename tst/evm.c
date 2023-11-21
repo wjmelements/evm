@@ -601,6 +601,91 @@ void test_deepCall() {
     evmFinalize();
 }
 
+void test_revertStorage() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    uint64_t gas = 67656;
+    val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0xffeeeedd;
+
+    evmMockBalance(from, value);
+
+#define PROGRAM_REVERTSSTORE \
+        CALLER, ADDRESS, XOR, PUSH1, 15, JUMPI, \
+        PUSH1, 32, CALLDATALOAD, PUSH0, CALLDATALOAD, SSTORE, \
+        PUSH0, PUSH0, REVERT, \
+        JUMPDEST, \
+        CALLDATASIZE, PUSH0, PUSH0, CALLDATACOPY, \
+        PUSH0, PUSH0, MSIZE, PUSH0, PUSH0, ADDRESS, GAS, CALL, MSIZE, MSTORE, \
+        SELFBALANCE, MSIZE, MSTORE, \
+        PUSH0, PUSH0, MSIZE, PUSH0, CALLVALUE, ADDRESS, GAS, CALL, MSIZE, MSTORE, \
+        SELFBALANCE, MSIZE, MSTORE, \
+        PUSH0, PUSH0, MSIZE, PUSH0, SELFBALANCE, ADDRESS, GAS, CALL, MSIZE, MSTORE, \
+        SELFBALANCE, MSIZE, MSTORE, \
+        PUSH0, CALLDATALOAD, SLOAD, MSIZE, MSTORE, \
+        MSIZE, PUSH0, RETURN
+    // 333018600f576020355f35555f5ffd5b365f5f375f5f595f5f305af159524759525f5f595f34305af159524759525f5f595f47305af159524759525f35545952595ff3
+    op_t revertTest[] = {
+        PROGRAM_REVERTSSTORE
+    };
+    // 60438060093d393df3333018600f576020355f35555f5ffd5b365f5f375f5f595f5f305af159524759525f5f595f34305af159524759525f5f595f47305af159524759525f35545952595ff3
+    op_t createRevertTest[] = {
+        PUSH1, 67, DUP1, PUSH1, 0x09, RETURNDATASIZE, CODECOPY, RETURNDATASIZE, RETURN,
+        PROGRAM_REVERTSSTORE
+    };
+#undef PROGRAM_REVERTSSTORE
+    data_t input;
+    input.content = createRevertTest;
+    input.size = sizeof(createRevertTest);
+    result_t createResult = txCreate(from, gas, value, input);
+    assert(UPPER(UPPER(createResult.status)) == 0);
+    assert(LOWER(UPPER(createResult.status)) == 0x80d9b122);
+    assert(UPPER(LOWER(createResult.status)) == 0xdc3a16fdc41f96cf);
+    assert(LOWER(LOWER(createResult.status)) == 0x010ffe7e38d227c3);
+    assert(createResult.returnData.size == sizeof(revertTest));
+    assert(memcmp(createResult.returnData.content, revertTest, sizeof(revertTest)) == 0);
+    assert(createResult.gasRemaining == 0);
+
+    value[1] = 0x22;
+    value[2] = 0;
+    evmMockBalance(from, value);
+
+    input.size = 64;
+    input.content = calloc(1, 64);
+    input.content[63] = 0x01;
+
+    gas = 103640;
+    address_t to = AddressFromUint256(&createResult.status);
+
+    result_t sstoreRevertResult = txCall(from, gas, to, value, input);
+    assert(UPPER(UPPER(sstoreRevertResult.status)) == 0);
+    assert(LOWER(UPPER(sstoreRevertResult.status)) == 0);
+    assert(UPPER(LOWER(sstoreRevertResult.status)) == 0);
+    assert(LOWER(LOWER(sstoreRevertResult.status)) == 1);
+    assert(sstoreRevertResult.returnData.size == 288);
+    assert(memcmp(input.content, sstoreRevertResult.returnData.content, input.size) == 0);
+    for (int j = 0; j < 3; j++) {
+        int i, k = j * 64;
+        for (i = 64 + k; i < 123 + k; i++) {
+            assert(sstoreRevertResult.returnData.content[i] == 0);
+        }
+        assert(sstoreRevertResult.returnData.content[i++] == 0x22);
+        assert(sstoreRevertResult.returnData.content[i++] == 0xff);
+        assert(sstoreRevertResult.returnData.content[i++] == 0xee);
+        assert(sstoreRevertResult.returnData.content[i++] == 0xee);
+        assert(sstoreRevertResult.returnData.content[i++] == 0xdd);
+    }
+    for (int i = 256; i < 288; i++) {
+        assert(sstoreRevertResult.returnData.content[i] == 0);
+    }
+    assert(sstoreRevertResult.gasRemaining == 0);
+
+    evmFinalize();
+}
+
 int main() {
     test_stop();
     test_mstoreReturn();
@@ -615,5 +700,6 @@ int main() {
     test_callBounce();
     test_extcodecopy();
     test_deepCall();
+    test_revertStorage();
     return 0;
 }
