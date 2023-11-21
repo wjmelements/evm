@@ -81,7 +81,7 @@ static void disassemble(const char *contents) {
 static void execute(const char *contents) {
     evmInit();
     size_t len = strlen(contents);
-    if (len & 1) {
+    if (len & 1 && contents[len - 1] != '\n') {
         fputs("odd-lengthed input", stderr);
         _exit(1);
     }
@@ -94,13 +94,29 @@ static void execute(const char *contents) {
     input.size = len / 2;
     input.content = malloc(input.size);
 
+    for (size_t i = 0; i < input.size; i++) {
+        input.content[i] = hexString16ToUint8(contents + i * 2);
+    }
+
     // TODO support these eth_call parameters
     address_t from;
     uint64_t gas = 0xffffffffffffffff;
-    address_t to;
     val_t value;
-    evmCall(from, gas, to, value, input);
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
+    result_t result;
+    if (false) {
+        address_t to; // TODO support this parameter
+        result = txCall(from, gas, to, value, input);
+    } else {
+        result = txCreate(from, gas, value, input);
+    }
     evmFinalize();
+
+    for (;result.returnData.size--;) printf("%02x", *result.returnData.content++);
+    putchar('\n');
+
 }
 
 int main(int argc, char *const argv[]) {
