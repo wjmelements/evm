@@ -76,7 +76,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 ### Disassembler
 * Label JUMPDEST in JUMPI and JUMP args
 ### Execution
-* Flags to include gas, status, and/or state changes in a full JSON report
+* Flags to include state changes in JSON
 * Mock code, balance, storage before execution
 
 # Contributing
