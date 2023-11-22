@@ -14,9 +14,12 @@
 op_t ops[PROGRAM_BUFFER_LENGTH];
 
 
-int wrapConstructor = 0;
-int inverse = 0;
-int runtime = 0;
+static int wrapConstructor = 0;
+static int inverse = 0;
+static int runtime = 0;
+#define outputJson (includeGas || includeStatus)
+static int includeGas = 0;
+static int includeStatus = 0;
 
 static void assemble(const char *contents) {
     op_t *programStart = &ops[CONSTRUCTOR_OFFSET];
@@ -114,15 +117,36 @@ static void execute(const char *contents) {
     }
     evmFinalize();
 
+    if (outputJson) {
+        fputs("{\"", stdout);
+        if (includeGas) {
+            printf("gasUsed\":%llu,\"", gas - result.gasRemaining);
+        }
+        if (includeStatus) {
+            printf(
+                "status\":\"0x%08llx%08llx%08llx%08llx\",\"",
+                UPPER(UPPER(result.status)),
+                LOWER(UPPER(result.status)),
+                UPPER(LOWER(result.status)),
+                LOWER(LOWER(result.status))
+            );
+        }
+        fputs("returnData\":\"0x", stdout);
+    }
     for (;result.returnData.size--;) printf("%02x", *result.returnData.content++);
+    if (outputJson) {
+        fputs("\"}", stdout);
+    }
     putchar('\n');
 
 }
 
+#define USAGE fputs("usage: evm [ [-x [-g] [-s] ] | [-c] | [-d] ] [-o input] [file...]\n", stderr)
+
 int main(int argc, char *const argv[]) {
     int option;
     const char *contents = NULL;
-    while ((option = getopt (argc, argv, "cdo:x")) != -1)
+    while ((option = getopt (argc, argv, "cdgo:sx")) != -1)
         switch (option) {
             case 'c':
                 wrapConstructor = 1;
@@ -136,22 +160,30 @@ int main(int argc, char *const argv[]) {
             case 'x':
                 runtime = 1;
                 break;
+            case 'g':
+                includeGas = 1;
+                break;
+            case 's':
+                includeStatus = 1;
+                break;
             case '?':
-                fprintf(stderr, "Unknown evm option `-%c'.\n", optopt);
-                return 1;
             default:
+                USAGE;
                 return 1;
         }
     if (inverse && wrapConstructor) {
         fputs("-c cannot be used with -d\n", stderr);
+        USAGE;
         return 1;
     }
     if (runtime && wrapConstructor) {
         fputs("-c cannot be used with -x\n", stderr);
+        USAGE;
         return 1;
     }
     if (inverse && runtime) {
         fputs("-d cannot be used with -x\n", stderr);
+        USAGE;
         return 1;
     }
     void (*subprogram)(const char*);
