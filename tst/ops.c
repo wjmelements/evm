@@ -14,9 +14,6 @@ int main() {
     assert(retCount[DUP16] == 1);
     assert(argCount[SELFDESTRUCT] == 1);
     assert(argCount[JUMPI] == 2);
-    #define OP(index,name,in,out,gas) assert(opFromString(#name) == name);
-    OPS
-    #undef OP
     const char *end;
     const char *start;
     #define OP(index,name,in,out,gas) start = #name; assert(name == parseOp(start, &end)); assert(strlen(#name) == end - start); start = #name "("; assert(name == parseOp(start, &end)); assert(strlen(#name) == end - start);
