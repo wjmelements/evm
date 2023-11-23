@@ -108,6 +108,7 @@ void test_applyConfig_balance() {
 
     evmFinalize();
 }
+
 int main() {
     test_applyConfig_code();
     test_applyConfig_storage();

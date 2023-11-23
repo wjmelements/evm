@@ -62,9 +62,14 @@ typedef struct entry {
     storageEntry_t *storage;
 } entry_t;
 
+
 static void applyEntry(entry_t *entry) {
     if (entry->address == NULL) {
-        // TODO set to arbitrary new unique address
+        entry->address = calloc(1, sizeof(address_t));
+        entry->address->address[0] = 0xaa;
+        entry->address->address[1] = 0xbb;
+        static uint32_t anonymousId;
+        *(uint32_t *)(&entry->address->address[15]) = anonymousId++;
     }
     evmMockCode(*entry->address, entry->code);
     evmMockNonce(*entry->address, entry->nonce);

@@ -65,6 +65,24 @@ $ evm -c quine.evm | evm -x | evm -d
 CODECOPY(RETURNDATASIZE,RETURNDATASIZE,CODESIZE)
 RETURN(RETURNDATASIZE,CODESIZE)
 ```
+#### Configuration
+By using `-w config.json`, you can define the precondition state before execution.
+```json
+[
+    {
+        "address": "0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3",
+        "nonce": "0x",
+        "code": "0x383d3d39383df3",
+        "storage": {
+            "0x00" : "0xf1ecf98489fa9ed60a664fc4998db699cfa39d40",
+            "0x01" : "0x01"
+        }
+    }
+]
+```
+Account configuration fields are optional and default to zero.
+If you exclude address, one will be generated for you.
+#### Warning
 EVM execution should mostly work but may not implement every opcode and corner-case.
 If you find a bug that disrupts you, please file an issue with its impact to you and code that reproduces it and I may find time to fix it, or alternatively you can submit a pull request.
 
@@ -77,7 +95,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 * Label JUMPDEST in JUMPI and JUMP args
 ### Execution
 * Flags to include state changes in JSON
-* Mock code, balance, storage before execution
+* Mock calls via `-w` config
 
 # Contributing
 Please use camelCase for methods and variables but snake\_case for types.
