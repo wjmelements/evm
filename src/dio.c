@@ -48,22 +48,33 @@ static const char *jsonScanStr(const char **iter) {
     return start;
 }
 
+typedef struct storageEntry {
+    uint256_t key;
+    uint256_t value;
+    struct storageEntry *prev;
+} storageEntry_t;
 
 typedef struct entry {
     address_t *address;
     val_t balance;
     uint64_t nonce;
     data_t code;
-    // TODO storage
+    storageEntry_t *storage;
 } entry_t;
 
-static void applyEntry(const entry_t *entry) {
+static void applyEntry(entry_t *entry) {
     if (entry->address == NULL) {
         // TODO set to arbitrary new unique address
     }
     evmMockCode(*entry->address, entry->code);
     evmMockNonce(*entry->address, entry->nonce);
     evmMockBalance(*entry->address, entry->balance);
+    while (entry->storage != NULL) {
+        storageEntry_t *prev = entry->storage;
+        evmMockStorage(*entry->address, &prev->key, &prev->value);
+        entry->storage = prev->prev;
+        free(prev);
+    }
     // TODO evmMockStorage
 }
 
@@ -114,6 +125,44 @@ static void jsonScanEntry(const char **iter) {
                         start += 2;
                     }
                 }
+                break;
+            case 'rots':
+                // storage
+                jsonScanChar(iter, '{');
+                do {
+                    storageEntry_t *storageEntry = malloc(sizeof(storageEntry_t));
+                    storageEntry->prev = entry.storage;
+                    entry.storage = storageEntry;
+                    jsonScanChar(iter, '"');
+                    jsonSkipExpectedChar(iter, '0');
+                    jsonSkipExpectedChar(iter, 'x');
+                    clear256(&storageEntry->key);
+                    while (**iter != '"') {
+                        shiftl256(&storageEntry->key, 4, &storageEntry->key);
+                        LOWER(LOWER(storageEntry->key)) |= hexString8ToUint8(**iter);
+                        (*iter)++;
+                    }
+                    jsonSkipExpectedChar(iter, '"');
+                    jsonScanChar(iter, ':');
+                    jsonScanChar(iter, '"');
+                    jsonSkipExpectedChar(iter, '0');
+                    jsonSkipExpectedChar(iter, 'x');
+                    clear256(&storageEntry->value);
+                    while (**iter != '"') {
+                        shiftl256(&storageEntry->value, 4, &storageEntry->value);
+                        LOWER(LOWER(storageEntry->value)) |= hexString8ToUint8(**iter);
+                        (*iter)++;
+                    }
+                    jsonSkipExpectedChar(iter, '"');
+                    if (**iter == ',') {
+                        jsonSkipExpectedChar(iter, ',');
+                        jsonScanWaste(iter);
+                        continue;
+                    } else {
+                        break;
+                    }
+                } while (1);
+                jsonScanChar(iter, '}');
                 break;
             default:
                 fprintf(stderr, "Unexpected entry heading: %04x\n", *(uint32_t *)heading);
