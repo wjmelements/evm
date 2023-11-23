@@ -75,7 +75,6 @@ static void applyEntry(entry_t *entry) {
         entry->storage = prev->prev;
         free(prev);
     }
-    // TODO evmMockStorage
 }
 
 static void jsonScanEntry(const char **iter) {
@@ -96,6 +95,23 @@ static void jsonScanEntry(const char **iter) {
                 for (unsigned int i = 0; i < 20; i++) {
                     entry.address->address[i] = hexString16ToUint8(*iter);
                     (*iter) += 2;
+                }
+                jsonSkipExpectedChar(iter, '"');
+                break;
+            case 'alab':
+                // balance
+                // TODO support decimal integer
+                jsonSkipExpectedChar(iter, '"');
+                jsonSkipExpectedChar(iter, '0');
+                jsonSkipExpectedChar(iter, 'x');
+                while (**iter != '"') {
+                    entry.balance[0] <<= 4;
+                    entry.balance[0] |= entry.balance[1] >> 28;
+                    entry.balance[1] <<= 4;
+                    entry.balance[1] |= entry.balance[2] >> 28;
+                    entry.balance[2] <<= 4;
+                    entry.balance[2] |= hexString8ToUint8(**iter);
+                    (*iter)++;
                 }
                 jsonSkipExpectedChar(iter, '"');
                 break;
