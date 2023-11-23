@@ -12,5 +12,9 @@ int main() {
     for (char a = '0'; a <= '9'; a++) {
         assert(isHex(a));
     }
+
+    const char thirtySix[] = "24";
+    uint8_t parsedThirtySix = hexString16ToUint8(thirtySix);
+    assert(parsedThirtySix == 36);
     return 0;
 }

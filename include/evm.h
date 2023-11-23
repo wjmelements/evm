@@ -3,6 +3,7 @@
 
 #include "address.h"
 #include "keccak.h"
+#include "ops.h"
 #include "uint256.h"
 
 typedef uint32_t val_t[3];
@@ -52,9 +53,11 @@ void evmFinalize();
 #define EVM_DEBUG_GAS (EVM_DEBUG_OPS + 8)
 void evmSetDebug(uint64_t flags);
 
-void evmMockBalance(address_t to, val_t balance);
+void evmMockBalance(address_t to, const val_t balance);
 void evmMockCall(address_t to, val_t value, data_t inputData, result_t result);
-void evmMockStorage(address_t to, uint256_t key, uint256_t storedValue);
+void evmMockStorage(address_t to, const uint256_t *key, const uint256_t *storedValue);
+void evmMockNonce(address_t to, uint64_t nonce);
+void evmMockCode(address_t to, data_t code);
 
 result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input);
 result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input);

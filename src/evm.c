@@ -1,5 +1,4 @@
 #include "evm.h"
-#include "ops.h"
 #include "vector.h"
 
 #include <assert.h>
@@ -229,11 +228,19 @@ static account_t *getAccount(const address_t address) {
     return result;
 }
 
-void evmMockBalance(address_t from, val_t balance) {
+void evmMockBalance(address_t from, const val_t balance) {
     account_t *account = getAccount(from);
     account->balance[0] = balance[0];
     account->balance[1] = balance[1];
     account->balance[2] = balance[2];
+}
+
+void evmMockCode(address_t to, data_t code) {
+    getAccount(to)->code = code;
+}
+
+void evmMockNonce(address_t to, uint64_t nonce) {
+    getAccount(to)->nonce = nonce;
 }
 
 typedef struct hashResult {
@@ -304,7 +311,7 @@ static account_t *warmAccount(context_t *callContext, const address_t address) {
     return account;
 }
 
-static storage_t *getAccountStorage(account_t *account, uint256_t *key) {
+static storage_t *getAccountStorage(account_t *account, const uint256_t *key) {
     storage_t **storage = &account->next;
     while (*storage != NULL) {
         if (equal256(&(*storage)->key, key)) {
@@ -315,6 +322,12 @@ static storage_t *getAccountStorage(account_t *account, uint256_t *key) {
     *storage = calloc(1, sizeof(storage_t));
     copy256(&(*storage)->key, key);
     return *storage;
+}
+
+void evmMockStorage(address_t to, const uint256_t *key, const uint256_t *storedValue) {
+    account_t *account = getAccount(to);
+    storage_t *storage = getAccountStorage(account, key);
+    copy256(&storage->value, storedValue);
 }
 
 // you might expect the marginal cost of warming a slot is constant but actually it is 100 cheaper if you do it in SLOAD.
