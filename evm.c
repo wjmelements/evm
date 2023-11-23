@@ -20,6 +20,7 @@ static int runtime = 0;
 #define outputJson (includeGas || includeStatus)
 static int includeGas = 0;
 static int includeStatus = 0;
+static const char *configFile = NULL;
 
 static void assemble(const char *contents) {
     op_t *programStart = &ops[CONSTRUCTOR_OFFSET];
@@ -83,6 +84,26 @@ static void disassemble(const char *contents) {
 
 static void execute(const char *contents) {
     evmInit();
+
+    if (configFile != NULL) {
+        int fd = open(configFile, O_RDONLY);
+        if (fd == -1) {
+            perror(configFile);
+            _exit(1);
+        }
+
+        struct stat fstatus;
+        int fstatSuccess = fstat(fd, &fstatus);
+        if (fstatSuccess == -1) {
+            perror(configFile);
+            _exit(1);
+        }
+        char *configContents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
+        applyConfig(configContents);
+        munmap(configContents, fstatus.st_size);
+        close(fd);
+    }
+
     size_t len = strlen(contents);
     if (len & 1 && contents[len - 1] != '\n') {
         fputs("odd-lengthed input", stderr);
@@ -145,8 +166,8 @@ static void execute(const char *contents) {
 
 int main(int argc, char *const argv[]) {
     int option;
-    const char *contents = NULL;
-    while ((option = getopt (argc, argv, "cdgo:sx")) != -1)
+    char *contents = NULL;
+    while ((option = getopt (argc, argv, "cdgo:sw:x")) != -1)
         switch (option) {
             case 'c':
                 wrapConstructor = 1;
@@ -165,6 +186,9 @@ int main(int argc, char *const argv[]) {
                 break;
             case 's':
                 includeStatus = 1;
+                break;
+            case 'w':
+                configFile = optarg;
                 break;
             case '?':
             default:
@@ -244,12 +268,11 @@ int main(int argc, char *const argv[]) {
         }
         
         contents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
-        void *start = (void *)contents;
         if (contents == NULL) {
             perror(argv[i]);
         }
         subprogram(contents);
-        munmap(start, fstatus.st_size);
+        munmap(contents, fstatus.st_size);
         close(fd);
     }
     return 0;
