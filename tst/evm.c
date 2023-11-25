@@ -746,6 +746,139 @@ void test_revertSload() {
     evmFinalize();
 }
 
+
+// 0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3
+#define ACCOUNT0 0x80, 0xd9, 0xb1, 0x22, 0xdc, 0x3a, 0x16, 0xfd, 0xc4, 0x1f, 0x96, 0xcf, 0x01, 0x0f, 0xfe, 0x7e, 0x38, 0xd2, 0x27, 0xc3
+// 0x47784b21780d1e1d5efcd005c5fe542813b6d71e
+#define ACCOUNT1 0x47, 0x78, 0x4b, 0x21, 0x78, 0x0d, 0x1e, 0x1d, 0x5e, 0xfc, 0xd0, 0x05, 0xc5, 0xfe, 0x54, 0x28, 0x13, 0xb6, 0xd7, 0x1e
+
+void test_staticcallSstore() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    uint64_t gas = 58103;
+    val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
+
+
+    // 60213610600e576020355f3555005b5f35545f52595ff3
+#define PROGRAM_STORAGE \
+        PUSH1, 33, CALLDATASIZE, LT, PUSH1, 14, JUMPI, \
+        PUSH1, 32, CALLDATALOAD, PUSH0, CALLDATALOAD, SSTORE, \
+        STOP, \
+        JUMPDEST, \
+        PUSH0, CALLDATALOAD, SLOAD, PUSH0, MSTORE, \
+        MSIZE, PUSH0, RETURN
+    op_t storageTester[] = {
+        PROGRAM_STORAGE
+    };
+
+    // 7660213610600e576020355f3555005b5f35545f52595ff33d5260176009f3
+    op_t constructStorageTester[] = {
+        PUSH23, PROGRAM_STORAGE, RETURNDATASIZE, MSTORE,
+        PUSH1, 23, PUSH1, 9, RETURN
+    };
+#undef PROGRAM_STORAGE
+
+    data_t input;
+    input.size = sizeof(constructStorageTester);
+    input.content = constructStorageTester;
+
+    result_t result = txCreate(from, gas, value, input);
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0x80d9b122);
+    assert(UPPER(LOWER(result.status)) == 0xdc3a16fdc41f96cf);
+    assert(LOWER(LOWER(result.status)) == 0x010ffe7e38d227c3);
+    assert(result.returnData.size == sizeof(storageTester));
+    assert(memcmp(result.returnData.content, storageTester, sizeof(storageTester)) == 0);
+    assert(result.gasRemaining == 0);
+
+    address_t storageTest = AddressFromUint256(&result.status);
+
+    // 365f5f37595f365f7380d9b122dc3a16fdc41f96cf010ffe7e38d227c35afa602557595ffd5b595ff3
+#define PROGRAM_STATICCALL \
+        CALLDATASIZE, PUSH0, PUSH0, CALLDATACOPY, \
+        MSIZE, PUSH0, CALLDATASIZE, PUSH0, PUSH20, ACCOUNT0, GAS, STATICCALL, \
+        PUSH1, 37, JUMPI, \
+        MSIZE, PUSH0, REVERT, \
+        JUMPDEST, MSIZE, PUSH0, RETURN
+
+    op_t staticCaller[] = {
+        PROGRAM_STATICCALL
+    };
+    // 60298060093d393df3365f5f37595f365f7380d9b122dc3a16fdc41f96cf010ffe7e38d227c35afa602557595ffd5b595ff3
+    op_t createStaticCaller[] = {
+        PUSH1, 41, DUP1, PUSH1, 9, RETURNDATASIZE, CODECOPY, RETURNDATASIZE, RETURN,
+        PROGRAM_STATICCALL
+    };
+
+    input.size = sizeof(createStaticCaller);
+    input.content = createStaticCaller;
+    gas = 0xf250;
+    result = txCreate(from, gas, value, input);
+    // 0x47784b21780d1e1d5efcd005c5fe542813b6d71e
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0x47784b21);
+    assert(UPPER(LOWER(result.status)) == 0x780d1e1d5efcd005);
+    assert(LOWER(LOWER(result.status)) == 0xc5fe542813b6d71e);
+    assert(result.returnData.size == sizeof(staticCaller));
+    assert(memcmp(result.returnData.content, staticCaller, sizeof(staticCaller)) == 0);
+    assert(result.gasRemaining == 0);
+
+    address_t staticCall = AddressFromUint256(&result.status);
+    op_t params[64];
+    bzero(params, 64);
+    input.content = params;
+
+    // STATICCALL into SLOAD, returning 0
+    input.size = 0;
+    gas = 0x64c2;
+    result = txCall(from, gas, staticCall, value, input);
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0);
+    assert(UPPER(LOWER(result.status)) == 0);
+    assert(LOWER(LOWER(result.status)) == 1);
+    assert(result.returnData.size == 0);
+    assert(result.gasRemaining == 15);
+
+    // STATICCALL into SLOAD, returning 32
+    input.size = 32;
+    gas = 25928;
+    result = txCall(from, gas, staticCall, value, input);
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0);
+    assert(UPPER(LOWER(result.status)) == 0);
+    assert(LOWER(LOWER(result.status)) == 1);
+    assert(result.returnData.size == 32);
+    assert(memcmp(result.returnData.content, params, result.returnData.size) == 0);
+    assert(result.gasRemaining == 15);
+
+    // SSTORE directly; success
+    input.size = 64;
+    gas = 23589;
+    result = txCall(from, gas, storageTest, value, input);
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0);
+    assert(UPPER(LOWER(result.status)) == 0);
+    assert(LOWER(LOWER(result.status)) == 1);
+    assert(result.returnData.size == 0);
+    assert(result.gasRemaining == 101);
+
+    // STATICCALL into SSTORE; forbidden
+    gas = 0x10000;
+    result = txCall(from, gas, staticCall, value, input);
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0);
+    assert(UPPER(LOWER(result.status)) == 0);
+    assert(LOWER(LOWER(result.status)) == 0);
+    assert(result.returnData.size == 64);
+    assert(result.gasRemaining == 633);
+
+    evmFinalize();
+}
+
 int main() {
     test_stop();
     test_mstoreReturn();
@@ -762,5 +895,11 @@ int main() {
     test_deepCall();
     test_revertStorage();
     test_revertSload();
+
+    // These last tests will write to stderr; usually we want this to be hushed
+    close(2);
+
+    test_staticcallSstore();
+
     return 0;
 }

@@ -83,6 +83,7 @@ typedef struct {
     memory_t memory;
     data_t callData;
     uint64_t gas;
+    bool readonly;
 } context_t;
 
 stateChanges_t *getCurrentAccountStateChanges(result_t *result, context_t *context) {
@@ -345,6 +346,8 @@ static storage_t *warmStorage(context_t *callContext, uint256_t *key, uint64_t w
     return storage;
 }
 
+static result_t evmStaticCall(address_t from, uint64_t gas, address_t to, data_t input);
+
 static result_t doCall(context_t *callContext) {
     //dumpCallData(callContext);
     result_t result;
@@ -383,8 +386,22 @@ static result_t doCall(context_t *callContext) {
             fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);\
             result.returnData.size = 0; \
             return result
-        if (callContext->gas < gasCost[op]) {
-            OUT_OF_GAS;
+        switch (op) {
+        case CALL:
+            if (zero256((callContext->top-3))) {
+                break;
+            }
+            // intentional fallthrough
+        case SSTORE:
+            if (callContext->readonly) {
+                fprintf(stderr, "Attempted %s inside STATICCALL\n", opString[op]);
+                callContext->gas = 0;
+                result.returnData.size = 0;
+                return result;\
+            }
+            if (callContext->gas < gasCost[op]) {
+                OUT_OF_GAS;
+            }
         }
         callContext->gas -= gasCost[op];
         callContext->top += retCount[op] - argCount[op];
@@ -815,6 +832,49 @@ static result_t doCall(context_t *callContext) {
                     copy256(callContext->top - 1, &callResult.status);
                 }
                 break;
+            case STATICCALL:
+                {
+                    data_t input;
+                    input.size = LOWER(LOWER_P(callContext->top + 1));
+                    uint64_t src = LOWER(LOWER_P(callContext->top + 2));
+                    uint64_t dst = LOWER(LOWER_P(callContext->top));
+                    uint64_t gas = LOWER(LOWER_P(callContext->top + 4));
+                    uint64_t outSize = LOWER(LOWER_P(callContext->top - 1));
+                    if (!ensureMemory(callContext, src + input.size)) {
+                        OUT_OF_GAS;
+                    }
+                    if (!ensureMemory(callContext, dst + outSize)) {
+                        OUT_OF_GAS;
+                    }
+                    input.content = callContext->memory.uint8s + src;
+                    // C_EXTRA
+                    address_t to = AddressFromUint256(callContext->top + 3);
+                    account_t *toAccount = warmAccount(callContext, to);
+                    if (toAccount == NULL) {
+                        OUT_OF_GAS;
+                    }
+                    uint64_t gasCost = 0;
+                    if (AccountDead(toAccount)) {
+                        gasCost += G_NEWACCOUNT;
+                    }
+                    if (gasCost > callContext->gas) {
+                        OUT_OF_GAS;
+                    }
+                    callContext->gas -= gasCost;
+                    if (UPPER(UPPER_P(callContext->top + 4)) || LOWER(UPPER_P(callContext->top + 4)) || UPPER(LOWER_P(callContext->top + 4)) || gas > L(callContext->gas)) {
+                        gas = L(callContext->gas);
+                    }
+                    callContext->gas -= gas;
+                    result_t callResult = evmStaticCall(callContext->account->address, gas, to, input);
+                    callContext->gas += callResult.gasRemaining;
+                    callContext->returnData = callResult.returnData;
+                    if (callContext->returnData.size < outSize) {
+                        outSize = callContext->returnData.size;
+                    }
+                    memcpy(callContext->memory.uint8s + dst, callResult.returnData.content, outSize);
+                    copy256(callContext->top - 1, &callResult.status);
+                }
+                break;
             case RETURN:
                 LOWER(LOWER(result.status)) = 1;
                 // intentional fallthrough
@@ -856,11 +916,39 @@ static void evmRevert(stateChanges_t **changes) {
     *changes = NULL;
 }
 
+static result_t evmStaticCall(address_t from, uint64_t gas, address_t to, data_t input) {
+    context_t *callContext = callstack.next;
+    callContext->gas = gas;
+    account_t *fromAccount = getAccount(from);
+
+    callContext->top = callContext->bottom;
+    callContext->readonly = true;
+    callContext->callValue[0] = callContext->callValue[1] = callContext->callValue[2] = 0;
+    AddressCopy(callContext->caller, from);
+    callContext->account = getAccount(to);
+    callContext->code = callContext->account->code;
+    callContext->callData = input;
+    callContext->returnData.size = 0;
+
+    memory_init(&callContext->memory, 0);
+
+    callstack.next += 1;
+    result_t result = doCall(callContext);
+    callstack.next -= 1;
+    result.gasRemaining = callContext->gas;
+    if (zero256(&result.status)) {
+        evmRevert(&result.stateChanges);
+    }
+
+    return result;
+}
+
 result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input) {
     context_t *callContext = callstack.next;
     callContext->gas = gas;
     account_t *fromAccount = getAccount(from);
     if (callstack.next == callstack.bottom) {
+        callContext->readonly = false;
         callContext->gas = gas - G_TX;
         deductCalldataGas(callContext, &input, false);
         if (gas < callContext->gas) {
@@ -875,6 +963,8 @@ result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t
         fromAccount->warm = evmIteration;
         account_t *toAccount = getAccount(to);
         toAccount->warm = evmIteration;
+    } else {
+        callContext->readonly = callContext[-1].readonly;
     }
 
     callContext->top = callContext->bottom;
@@ -929,7 +1019,7 @@ result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
         }
         fromAccount->warm = evmIteration;
     }
-    callstack.next += 1;
+    callContext->readonly = false;
 
     callContext->top = callContext->bottom;
     BalanceCopy(callContext->callValue, value);
@@ -942,7 +1032,9 @@ result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
     memory_init(&callContext->memory, 0);
     callContext->returnData.size = 0;
 
+    callstack.next += 1;
     result_t result = doCall(callContext);
+    callstack.next -= 1;
     result.gasRemaining = callContext->gas;
     if (!zero256(&result.status)) {
         uint64_t codeGas = result.returnData.size * G_PER_CODEBYTE;
@@ -961,7 +1053,6 @@ result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
         evmRevert(&result.stateChanges);
     }
     uint64_t gasUsed = gas - result.gasRemaining;
-    callstack.next -= 1;
     if (callstack.next == callstack.bottom) {
         // Apply refund
         uint64_t refund = gasUsed / MAX_REFUND_DIVISOR;
