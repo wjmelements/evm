@@ -2,6 +2,20 @@ EVM
 ========
 Fast assembler and disassembler for the Ethereum Virtual Machine (EVM) supporting expressive syntax.
 
+## Installation
+```sh
+# Build from source
+git clone https://github.com/wjmelements/evm.git
+cd evm
+make bin/evm
+# Append bin/ to your $PATH
+export PATH=$PATH:$pwd/bin
+# Install
+echo -n PATH='$PATH:' >> ~/.bashrc
+echo $pwd/bin' >> ~/.bashrc
+source ~/.bashrc
+```
+
 ## Usage
 ### Assembler
 ```sh
