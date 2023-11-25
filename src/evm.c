@@ -386,12 +386,22 @@ static result_t doCall(context_t *callContext) {
             fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);\
             result.returnData.size = 0; \
             return result
+        // Check staticcall
         switch (op) {
         case CALL:
             if (zero256((callContext->top-3))) {
+                // CALL is permitted without CALLVALUE
                 break;
             }
             // intentional fallthrough
+        case LOG0:
+        case LOG1:
+        case LOG2:
+        case LOG3:
+        case LOG4:
+        case CREATE:
+        case CREATE2:
+        case SELFDESTRUCT:
         case SSTORE:
             if (callContext->readonly) {
                 fprintf(stderr, "Attempted %s inside STATICCALL\n", opString[op]);
@@ -399,9 +409,11 @@ static result_t doCall(context_t *callContext) {
                 result.returnData.size = 0;
                 return result;\
             }
-            if (callContext->gas < gasCost[op]) {
-                OUT_OF_GAS;
-            }
+        default:
+            break;
+        }
+        if (callContext->gas < gasCost[op]) {
+            OUT_OF_GAS;
         }
         callContext->gas -= gasCost[op];
         callContext->top += retCount[op] - argCount[op];

@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include "ops.h"
 #include "evm.h"
