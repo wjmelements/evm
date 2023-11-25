@@ -3,4 +3,5 @@ bin/
 *.swo
 *.swp
 .make/
+make/.ops.out
 .pass
