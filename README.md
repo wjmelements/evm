@@ -2,6 +2,20 @@ EVM
 ========
 Fast assembler and disassembler for the Ethereum Virtual Machine (EVM) supporting expressive syntax.
 
+## Installation
+```sh
+# Build from source
+git clone https://github.com/wjmelements/evm.git
+cd evm
+make bin/evm
+# Append bin/ to your $PATH
+export PATH=$PATH:$pwd/bin
+# Install
+echo -n PATH='$PATH:' >> ~/.bashrc
+echo $pwd/bin' >> ~/.bashrc
+source ~/.bashrc
+```
+
 ## Usage
 ### Assembler
 ```sh
@@ -96,7 +110,158 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 ### Execution
 * Flags to include state changes in JSON
 * Mock calls via `-w` config
-
+## Opcodes supported
+| Opname | Assembly and Disassembly | Execution |
+| :---: | :---:| :---: |
+| STOP | ✅ |✅ |
+| ADD | ✅ |✅ |
+| MUL | ✅ |✅ |
+| SUB | ✅ |✅ |
+| DIV | ✅ |✅ |
+| SDIV | ✅ |❓ |
+| MOD | ✅ |❓ |
+| SMOD | ✅ |❓ |
+| ADDMOD | ✅ |❓ |
+| MULMOD | ✅ |❓ |
+| EXP | ✅ |❓ |
+| SIGNEXTEND | ✅ |❓ |
+| LT | ✅ |✅ |
+| GT | ✅ |✅ |
+| SLT | ✅ |❓ |
+| SGT | ✅ |❓ |
+| EQ | ✅ |❓ |
+| ISZERO | ✅ |✅ |
+| AND | ✅ |❓ |
+| OR | ✅ |✅ |
+| XOR | ✅ |✅ |
+| NOT | ✅ |❓ |
+| BYTE | ✅ |❓ |
+| SHL | ✅ |❓ |
+| SHR | ✅ |❓ |
+| SAR | ✅ |❓ |
+| SHA3 | ✅ |❓ |
+| ADDRESS | ✅ |✅ |
+| BALANCE | ✅ |✅ |
+| ORIGIN | ✅ |❓ |
+| CALLER | ✅ |✅ |
+| CALLVALUE | ✅ |✅ |
+| CALLDATALOAD | ✅ |✅ |
+| CALLDATASIZE | ✅ |✅ |
+| CALLDATACOPY | ✅ |✅ |
+| CODESIZE | ✅ |✅ |
+| CODECOPY | ✅ |✅ |
+| GASPRICE | ✅ |❓ |
+| EXTCODESIZE | ✅ |✅ |
+| EXTCODECOPY | ✅ |✅ |
+| RETURNDATASIZE | ✅ |✅ |
+| RETURNDATACOPY | ✅ |❓ |
+| EXTCODEHASH | ✅ |❓ |
+| BLOCKHASH | ✅ |❓ |
+| COINBASE | ✅ |❓ |
+| TIMESTAMP | ✅ |❓ |
+| NUMBER | ✅ |❓ |
+| DIFFICULTY | ✅ |❓ |
+| GASLIMIT | ✅ |❓ |
+| CHAINID | ✅ |❓ |
+| SELFBALANCE | ✅ |✅ |
+| BASEFEE | ✅ |❓ |
+| POP | ✅ |❓ |
+| MLOAD | ✅ |❓ |
+| MSTORE | ✅ |✅ |
+| MSTORE8 | ✅ |❓ |
+| SLOAD | ✅ |✅ |
+| SSTORE | ✅ |✅ |
+| JUMP | ✅ |✅ |
+| JUMPI | ✅ |✅ |
+| PC | ✅ |✅ |
+| MSIZE | ✅ |✅ |
+| GAS | ✅ |✅ |
+| JUMPDEST | ✅ |✅ |
+| TLOAD | ✅ |❓ |
+| TSTORE | ✅ |❓ |
+| MCOPY | ✅ |❓ |
+| PUSH0 | ✅ |✅ |
+| PUSH1 | ✅ |✅ |
+| PUSH2 | ✅ |✅ |
+| PUSH3 | ✅ |✅ |
+| PUSH4 | ✅ |❓ |
+| PUSH5 | ✅ |❓ |
+| PUSH6 | ✅ |❓ |
+| PUSH7 | ✅ |✅ |
+| PUSH8 | ✅ |❓ |
+| PUSH9 | ✅ |❓ |
+| PUSH10 | ✅ |❓ |
+| PUSH11 | ✅ |❓ |
+| PUSH12 | ✅ |❓ |
+| PUSH13 | ✅ |❓ |
+| PUSH14 | ✅ |❓ |
+| PUSH15 | ✅ |❓ |
+| PUSH16 | ✅ |❓ |
+| PUSH17 | ✅ |❓ |
+| PUSH18 | ✅ |✅ |
+| PUSH19 | ✅ |❓ |
+| PUSH20 | ✅ |✅ |
+| PUSH21 | ✅ |❓ |
+| PUSH22 | ✅ |❓ |
+| PUSH23 | ✅ |✅ |
+| PUSH24 | ✅ |❓ |
+| PUSH25 | ✅ |❓ |
+| PUSH26 | ✅ |❓ |
+| PUSH27 | ✅ |❓ |
+| PUSH28 | ✅ |❓ |
+| PUSH29 | ✅ |❓ |
+| PUSH30 | ✅ |❓ |
+| PUSH31 | ✅ |❓ |
+| PUSH32 | ✅ |✅ |
+| DUP1 | ✅ |✅ |
+| DUP2 | ✅ |✅ |
+| DUP3 | ✅ |❓ |
+| DUP4 | ✅ |❓ |
+| DUP5 | ✅ |❓ |
+| DUP6 | ✅ |❓ |
+| DUP7 | ✅ |❓ |
+| DUP8 | ✅ |❓ |
+| DUP9 | ✅ |❓ |
+| DUP10 | ✅ |❓ |
+| DUP11 | ✅ |❓ |
+| DUP12 | ✅ |❓ |
+| DUP13 | ✅ |❓ |
+| DUP14 | ✅ |❓ |
+| DUP15 | ✅ |❓ |
+| DUP16 | ✅ |❓ |
+| SWAP1 | ✅ |✅ |
+| SWAP2 | ✅ |❓ |
+| SWAP3 | ✅ |❓ |
+| SWAP4 | ✅ |❓ |
+| SWAP5 | ✅ |❓ |
+| SWAP6 | ✅ |❓ |
+| SWAP7 | ✅ |❓ |
+| SWAP8 | ✅ |❓ |
+| SWAP9 | ✅ |❓ |
+| SWAP10 | ✅ |❓ |
+| SWAP11 | ✅ |❓ |
+| SWAP12 | ✅ |❓ |
+| SWAP13 | ✅ |❓ |
+| SWAP14 | ✅ |❓ |
+| SWAP15 | ✅ |❓ |
+| SWAP16 | ✅ |❓ |
+| LOG0 | ✅ |❓ |
+| LOG1 | ✅ |❓ |
+| LOG2 | ✅ |❓ |
+| LOG3 | ✅ |❓ |
+| LOG4 | ✅ |❓ |
+| CREATE | ✅ |❓ |
+| CALL | ✅ |✅ |
+| CALLCODE | ✅ |❓ |
+| RETURN | ✅ |✅ |
+| DELEGATECALL | ✅ |❓ |
+| CREATE2 | ✅ |❓ |
+| AUTH | ✅ |❓ |
+| AUTHCALL | ✅ |❓ |
+| STATICCALL | ✅ |✅ |
+| REVERT | ✅ |✅ |
+| INVALID | ✅ |❓ |
+| SELFDESTRUCT | ✅ |❓ |
 # Contributing
 Please use camelCase for methods and variables but snake\_case for types.
 Write errors to stderr.
