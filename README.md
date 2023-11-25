@@ -96,7 +96,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 ### Execution
 * Flags to include state changes in JSON
 * Mock calls via `-w` config
-### Opcodes supported
+## Opcodes supported
 | Opname | Assembly and Disassembly | Execution |
 | :---: | :---:| :---: |
 | STOP | ✅ |✅ |
