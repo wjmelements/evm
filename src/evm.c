@@ -95,7 +95,7 @@ stateChanges_t *getCurrentAccountStateChanges(result_t *result, context_t *conte
         stateChanges = &(*stateChanges)->next;
     }
     // DNF
-    *stateChanges = malloc(sizeof(stateChanges_t));
+    *stateChanges = calloc(1, sizeof(stateChanges_t));
     AddressCopy(&(*stateChanges)->account, &context->account->address);
     return *stateChanges;
 }
@@ -323,6 +323,41 @@ static storage_t *getAccountStorage(account_t *account, const uint256_t *key) {
     *storage = calloc(1, sizeof(storage_t));
     copy256(&(*storage)->key, key);
     return *storage;
+}
+
+// NOTE this sometimes dismantles and reuses the elements of src
+static void mergeStateChanges(stateChanges_t **dst, stateChanges_t *src) {
+    if (src == NULL) {
+        return;
+    }
+    mergeStateChanges(dst, src->next);
+
+    while (*dst != NULL) {
+        if (AddressEqual(&src->account, &(*dst)->account)) {
+            // merge!
+            
+            // concatenate the linked lists
+            storageChanges_t **storageEnd = &src->storageChanges;
+            while (*storageEnd != NULL) {
+                storageEnd = &(*storageEnd)->prev;
+            }
+            *storageEnd = (*dst)->storageChanges;
+            (*dst)->storageChanges = src->storageChanges;
+
+            logChanges_t **logsEnd = &src->logChanges;
+            while (*logsEnd != NULL) {
+                logsEnd = &(*logsEnd)->prev;
+            }
+            *logsEnd = (*dst)->logChanges;
+            (*dst)->logChanges = src->logChanges;
+
+            return;
+        }
+        dst = &(*dst)->next;
+    }
+    // reuse src
+    src->next = *dst;
+    *dst = src;
 }
 
 void evmMockStorage(address_t to, const uint256_t *key, const uint256_t *storedValue) {
@@ -645,6 +680,50 @@ static result_t doCall(context_t *callContext) {
                 // TODO handle intersecting calldatasize boundary
                 readu256BE(callContext->callData.content + LOWER(LOWER_P(callContext->top - 1)), callContext->top - 1);
                 break;
+            case LOG0:
+            case LOG1:
+            case LOG2:
+            case LOG3:
+            case LOG4:
+                {
+                    uint64_t src = LOWER(LOWER_P(callContext->top + 1));
+                    uint64_t size = LOWER(LOWER_P(callContext->top));
+                    if (
+                        src + size < size
+                        || UPPER(UPPER_P(callContext->top)) || LOWER(UPPER_P(callContext->top)) || UPPER(LOWER_P(callContext->top))
+                        || UPPER(UPPER_P(callContext->top + 1)) || LOWER(UPPER_P(callContext->top + 1)) || UPPER(LOWER_P(callContext->top + 1))
+                        || !ensureMemory(callContext, src + size)
+                    ) {
+                        OUT_OF_GAS;
+                    }
+                    logChanges_t *log = malloc(sizeof(logChanges_t));
+                    log->topicCount = op - LOG0;
+                    uint64_t gasCost = log->topicCount * G_LOGTOPIC + G_LOGDATA * size;
+                    if (gasCost > callContext->gas) {
+                        free(log);
+                        OUT_OF_GAS;
+                    }
+                    if (log->topicCount) {
+                        size_t size = log->topicCount * sizeof(uint256_t);
+                        log->topics = malloc(size);
+                        memcpy(log->topics, callContext->top + 2, size);
+                    } else {
+                        log->topics = NULL;
+                    }
+                    if (zero256(callContext->top)) {
+                        log->data.size = 0;
+                        log->data.content = NULL;
+                    } else {
+                        log->data.size = LOWER(LOWER_P(callContext->top));
+                        log->data.content = malloc(log->data.size);
+                        memcpy(log->data.content, callContext->memory.uint8s + src, log->data.size);
+                    }
+
+                    stateChanges_t *stateChanges = getCurrentAccountStateChanges(&result, callContext);
+                    log->prev = stateChanges->logChanges;
+                    stateChanges->logChanges = log;
+                }
+                break;
             case CALLDATACOPY:
             case EXTCODECOPY:
             case CODECOPY:
@@ -836,6 +915,7 @@ static result_t doCall(context_t *callContext) {
                     }
                     result_t callResult = evmCall(callContext->account->address, gas, to, value, input);
                     callContext->gas += callResult.gasRemaining;
+                    mergeStateChanges(&result.stateChanges, callResult.stateChanges);
                     callContext->returnData = callResult.returnData;
                     if (callContext->returnData.size < outSize) {
                         outSize = callContext->returnData.size;
@@ -879,6 +959,7 @@ static result_t doCall(context_t *callContext) {
                     callContext->gas -= gas;
                     result_t callResult = evmStaticCall(callContext->account->address, gas, to, input);
                     callContext->gas += callResult.gasRemaining;
+                    mergeStateChanges(&result.stateChanges, callResult.stateChanges);
                     callContext->returnData = callResult.returnData;
                     if (callContext->returnData.size < outSize) {
                         outSize = callContext->returnData.size;
@@ -916,12 +997,25 @@ static void evmRevertStorageChanges(account_t *account, storageChanges_t **chang
     *changes = NULL;
 }
 
+static void evmRevertLogChanges(logChanges_t **changes) {
+
+    if (*changes == NULL) {
+        return;
+    }
+    evmRevertLogChanges(&(*changes)->prev);
+
+    free(*changes);
+    *changes = NULL;
+    
+}
+
 static void evmRevert(stateChanges_t **changes) {
     if (*changes == NULL) {
         return;
     }
     account_t *account = getAccount((*changes)->account);
     evmRevertStorageChanges(account, &(*changes)->storageChanges);
+    evmRevertLogChanges(&(*changes)->logChanges);
 
     evmRevert(&(*changes)->next);
     free(*changes);

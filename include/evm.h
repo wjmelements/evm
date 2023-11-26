@@ -21,6 +21,13 @@ typedef struct storageChanges {
     struct storageChanges *prev;
 } storageChanges_t;
 
+typedef struct logChanges {
+    uint256_t *topics; // in reverse order
+    uint8_t topicCount;
+    data_t data;
+    struct logChanges *prev;
+} logChanges_t;
+
 // state changes are reverted on failure and returned on success
 typedef struct stateChanges {
     address_t account;
@@ -28,6 +35,7 @@ typedef struct stateChanges {
     // TODO code change
     // TODO selfdestruct
     // TODO nonce
+    logChanges_t *logChanges; // LIFO
     // TODO warm
     storageChanges_t *storageChanges; // LIFO
     struct stateChanges *next;
