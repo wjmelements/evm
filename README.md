@@ -96,6 +96,17 @@ By using `-w config.json`, you can define the precondition state before executio
 ```
 Account configuration fields are optional and default to zero.
 If you exclude address, one will be generated for you.
+
+Besides declaring code, contracts can be constructed from assembly source.
+If code is also supplied for the entry, the code will be used to verify the result of the constructor.
+```json
+[
+    {
+        "construct": "tst/in/quine.evm",
+        "code": "0x383d3d39383df3"
+    }
+]
+```
 #### JSON Output
 Using any of the following `-x` options will output JSON instead of the returndata.
 The JSON will always contain the returndata but other outputs can be specified.

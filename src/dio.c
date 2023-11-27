@@ -1,7 +1,12 @@
 #include "dio.h"
 
 #include <assert.h>
+#include <string.h>
 #include <strings.h>
+#include <sys/param.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 static inline int jsonIgnores(char ch) {
     return ch != '{'
@@ -25,7 +30,7 @@ static void jsonScanWaste(const char **iter) {
 static void jsonScanChar(const char **iter, char expected) {
     for (char ch; (ch = **iter) != expected; (*iter)++) {
         if (!jsonIgnores(ch)) {
-            fprintf(stderr, "Config: when seeking '%c' found unexpected character '%c'", expected, ch);
+            fprintf(stderr, "Config: when seeking '%c' found unexpected character '%c'\n", expected, ch);
             assert(expected == ch);
         }
     }
@@ -36,7 +41,7 @@ static void jsonSkipExpectedChar(const char **iter, char expected) {
     if (**iter == expected) {
         (*iter)++;
     } else {
-        fprintf(stderr, "Config: expecting '%c', found '%c'", expected, **iter);
+        fprintf(stderr, "Config: expecting '%c', found '%c'\n", expected, **iter);
     }
 }
 
@@ -60,8 +65,62 @@ typedef struct entry {
     uint64_t nonce;
     data_t code;
     storageEntry_t *storage;
+    char *constructPath;
 } entry_t;
 
+static char *selfPath;
+static char *derivedPath = NULL;
+
+void dioInit(char *_selfPath) {
+    selfPath = _selfPath;
+}
+
+static void derivePath() {
+    if (derivedPath != NULL) {
+        return;
+    }
+    if (selfPath[0] == '/') {
+        // absolute path
+        derivedPath = selfPath;
+        return;
+    }
+    const char *pathWalk = selfPath;
+    char *relativePath = malloc(MAXPATHLEN + 1);
+    while (*pathWalk) {
+        if (*pathWalk == '/') {
+            // relative path
+            getwd(relativePath);
+            size_t offset = strlen(relativePath);
+            relativePath[offset++] = '/';
+            relativePath[offset] = '\0';
+            strcpy(relativePath + offset, selfPath);
+            derivedPath = relativePath;
+            return;
+        }
+        pathWalk++;
+    }
+    // look through $PATH
+    char *path = getenv("PATH");
+    struct stat statResult;
+    while (*path) {
+        char *next = strchr(path,':');
+        if (next == NULL) {
+            break;
+        }
+        char *end = stpncpy(relativePath, path, next - path);
+        *end++ = '/';
+        strcpy(end, selfPath);
+        if (stat(relativePath, &statResult) == -1) {
+            //perror(relativePath);
+            path = next + 1;
+        } else {
+            derivedPath = relativePath;
+            return;
+        }
+    }
+    fputs("evm: could not find evm\n", stderr);
+    _exit(-1);
+}
 
 static void applyEntry(entry_t *entry) {
     if (entry->address == NULL) {
@@ -71,7 +130,98 @@ static void applyEntry(entry_t *entry) {
         static uint32_t anonymousId;
         *(uint32_t *)(&entry->address->address[15]) = anonymousId++;
     }
-    evmMockCode(*entry->address, entry->code);
+    if (entry->constructPath) {
+        int rw[2];
+        if (pipe(rw) == -1) {
+            perror("pipe");
+            _exit(-1);
+        }
+        derivePath();
+        //fprintf(stderr, "Loading from %s with %s\n", entry->constructPath, derivedPath);
+        pid_t pid = fork();
+        if (pid == 0) {
+            close(1);
+            close(rw[0]);
+            if (dup2(rw[1], 1) == -1) {
+                perror("dup2");
+                _exit(-1);
+            }
+            // child
+            char *const args[4] = {
+                derivedPath,
+                "-c",
+                entry->constructPath,
+                NULL
+            };
+            if (execve(derivedPath, args, NULL) == -1) {
+                perror(derivedPath);
+                _exit(-1);
+            }
+        }
+        close(rw[1]);
+        int status;
+        pid_t finished = wait(&status);
+        if (finished == -1) {
+            perror("wait");
+            _exit(-1);
+        }
+        size_t bufferSize = 0x10000;
+        data_t input;
+        input.size = 0;
+        char *content = malloc(bufferSize);
+        while (1) {
+            ssize_t red = read(rw[0], content + input.size, bufferSize - input.size);
+            if (red == -1) {
+                perror("read");
+                _exit(-1);
+            }
+            if (red == 0) {
+                break;
+            }
+            input.size += red;
+            if (input.size == bufferSize) {
+                char *next = malloc(bufferSize * 2);
+                memcpy(next, content, input.size);
+                free(content);
+                content = next;
+                bufferSize *= 2;
+            }
+        }
+        for (size_t i = 0; i < input.size / 2; i++) {
+            content[i] = hexString16ToUint8(content + i * 2);
+        }
+        input.content = (uint8_t *)content;
+        input.size /= 2;
+
+        // TODO support these parameters
+        address_t from;
+        uint64_t gas = 0xffffffffffffffff;
+        val_t value;
+        value[0] = 0;
+        value[1] = 0;
+        value[2] = 0;
+
+        result_t constructResult = evmConstruct(from, *entry->address, gas, value, input);
+        if (entry->code.size) {
+            // verify result code matches entry->code if present
+            if (constructResult.returnData.size != entry->code.size || memcmp(constructResult.returnData.content, entry->code.content, entry->code.size)) {
+                fputs("Code mismatch at address ", stderr);
+                fprintAddress(stderr, (*entry->address));
+                fprintf(stderr, ":\n`%s -c %s`:\n", derivedPath, entry->constructPath);
+                for (size_t i = 0; i < constructResult.returnData.size; i++) {
+                    fprintf(stderr, "%02x", constructResult.returnData.content[i]);
+                }
+                fprintf(stderr, "\nexpected:\n");
+                for (size_t i = 0; i < entry->code.size; i++) {
+                    fprintf(stderr, "%02x", entry->code.content[i]);
+                }
+                fputc('\n', stderr);
+                _exit(-1);
+            }
+        }
+    } else if (entry->code.size) {
+        evmMockCode(*entry->address, entry->code);
+    }
     evmMockNonce(*entry->address, entry->nonce);
     evmMockBalance(*entry->address, entry->balance);
     while (entry->storage != NULL) {
@@ -147,6 +297,16 @@ static void jsonScanEntry(const char **iter) {
                     }
                 }
                 break;
+            case 'snoc':
+                // construct
+                {
+                    const char *start = jsonScanStr(iter);
+                    size_t len = *iter - start - 1;
+                    entry.constructPath = malloc(len + 1);
+                    memcpy(entry.constructPath, start, len);
+                    entry.constructPath[len] = '\0';
+                }
+                break;
             case 'rots':
                 // storage
                 jsonScanChar(iter, '{');
@@ -186,8 +346,7 @@ static void jsonScanEntry(const char **iter) {
                 jsonScanChar(iter, '}');
                 break;
             default:
-                fprintf(stderr, "Unexpected entry heading: %04x\n", *(uint32_t *)heading);
-                break;
+                fprintf(stderr, "Unexpected entry heading: %04x\n", *(uint32_t *)heading); break;
         }
         jsonScanWaste(iter);
         if (**iter == ',') {

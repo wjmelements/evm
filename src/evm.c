@@ -1165,10 +1165,9 @@ result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t
     return result;
 }
 
-result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
+static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t value, data_t input) {
     context_t *callContext = callstack.next;
     callContext->gas = gas;
-    account_t *fromAccount = getAccount(from);
     if (callstack.next == callstack.bottom) {
         callContext->gas -= G_TXCREATE + G_TX;
         deductCalldataGas(callContext, &input, true);
@@ -1181,14 +1180,13 @@ result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
             result.returnData.size = 0;
             return result;
         }
-        fromAccount->warm = evmIteration;
     }
     callContext->readonly = false;
 
     callContext->top = callContext->bottom;
     BalanceCopy(callContext->callValue, value);
     AddressCopy(callContext->caller, from);
-    callContext->account = createNewAccount(fromAccount);
+    callContext->account = to;
     callContext->account->warm = evmIteration;
     BalanceAdd(callContext->account->balance, value);
     callContext->code = input;
@@ -1228,6 +1226,16 @@ result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
     }
 
     return result;
+}
+
+result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
+    account_t *fromAccount = getAccount(from);
+    fromAccount->warm = evmIteration;
+    return _evmConstruct(from, createNewAccount(fromAccount), gas, value, input);
+}
+
+result_t evmConstruct(address_t from, address_t to, uint64_t gas, val_t value, data_t input) {
+    return _evmConstruct(from, getAccount(to), gas, value, input);
 }
 
 result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input) {
