@@ -83,6 +83,8 @@ static void disassemble(const char *contents) {
     disassembleFinalize();
 }
 
+static char *selfPath;
+
 static void execute(const char *contents) {
     evmInit();
 
@@ -100,6 +102,7 @@ static void execute(const char *contents) {
             _exit(1);
         }
         char *configContents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
+        dioInit(selfPath);
         applyConfig(configContents);
         munmap(configContents, fstatus.st_size);
         close(fd);
@@ -171,6 +174,7 @@ static void execute(const char *contents) {
 #define USAGE fputs("usage: evm [ [-x [-g] [-s] ] | [-c] | [-d] ] [-o input] [file...]\n", stderr)
 
 int main(int argc, char *const argv[]) {
+    selfPath = argv[0];
     int option;
     char *contents = NULL;
     while ((option = getopt (argc, argv, "cdglo:sw:x")) != -1)
