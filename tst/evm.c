@@ -883,13 +883,7 @@ void test_staticcallSstore() {
 void test_log() {
     evmInit();
 
-    // MSTORE(PUSH0,0x66363d3d37363df33d5260076019f3)
-    // LOG0(PUSH0,MSIZE)
-    // LOG1(GAS,PUSH0,MSIZE)
-    // LOG2(GAS,GAS,PUSH0,MSIZE)
-    // LOG3(GAS,GAS,GAS,PUSH0,MSIZE)
-    // LOG4(GAS,GAS,GAS,GAS,PUSH0,MSIZE)
-    // RETURN(17,15)
+    // 6e66363d3d37363df33d5260076019f35f52595fa05a595fa15a5a595fa25a5a5a595fa35a5a5a5a595fa4600f6011f3
     op_t logTest[] = {
         PUSH15, 0x66, 0x36, 0x3d, 0x3d, 0x37, 0x36, 0x3d, 0xf3, 0x3d, 0x52, 0x60, 0x07, 0x60, 0x19, 0xf3, PUSH0, MSTORE,
         MSIZE, PUSH0, LOG0,
@@ -926,12 +920,40 @@ void test_log() {
     assert(log4->prev != NULL);
     assert(log4->data.size == 32);
     assert(memcmp(log4->data.content + 17, logTest + 1, 15) == 0);
+    assert(UPPER(UPPER(log4->topics[0])) == 0);
+    assert(LOWER(UPPER(log4->topics[0])) == 0);
+    assert(UPPER(LOWER(log4->topics[0])) == 0);
+    assert(LOWER(LOWER(log4->topics[0])) == 0x141b);
+    assert(UPPER(UPPER(log4->topics[1])) == 0);
+    assert(LOWER(UPPER(log4->topics[1])) == 0);
+    assert(UPPER(LOWER(log4->topics[1])) == 0);
+    assert(LOWER(LOWER(log4->topics[1])) == 0x1419);
+    assert(UPPER(UPPER(log4->topics[2])) == 0);
+    assert(LOWER(UPPER(log4->topics[2])) == 0);
+    assert(UPPER(LOWER(log4->topics[2])) == 0);
+    assert(LOWER(LOWER(log4->topics[2])) == 0x1417);
+    assert(UPPER(UPPER(log4->topics[3])) == 0);
+    assert(LOWER(UPPER(log4->topics[3])) == 0);
+    assert(UPPER(LOWER(log4->topics[3])) == 0);
+    assert(LOWER(LOWER(log4->topics[3])) == 0x1415);
 
     logChanges_t *log3 = log4->prev;
     assert(log3->topicCount == 3);
     assert(log3->prev != NULL);
     assert(log3->data.size == 32);
     assert(memcmp(log3->data.content + 17, logTest + 1, 15) == 0);
+    assert(UPPER(UPPER(log3->topics[0])) == 0);
+    assert(LOWER(UPPER(log3->topics[0])) == 0);
+    assert(UPPER(LOWER(log3->topics[0])) == 0);
+    assert(LOWER(LOWER(log3->topics[0])) == 0x1b01);
+    assert(UPPER(UPPER(log3->topics[1])) == 0);
+    assert(LOWER(UPPER(log3->topics[1])) == 0);
+    assert(UPPER(LOWER(log3->topics[1])) == 0);
+    assert(LOWER(LOWER(log3->topics[1])) == 0x1aff);
+    assert(UPPER(UPPER(log3->topics[2])) == 0);
+    assert(LOWER(UPPER(log3->topics[2])) == 0);
+    assert(UPPER(LOWER(log3->topics[2])) == 0);
+    assert(LOWER(LOWER(log3->topics[2])) == 0x1afd);
 
     logChanges_t *log2 = log3->prev;
     assert(log2->topicCount == 2);
@@ -941,11 +963,11 @@ void test_log() {
     assert(UPPER(UPPER(log2->topics[0])) == 0);
     assert(LOWER(UPPER(log2->topics[0])) == 0);
     assert(UPPER(LOWER(log2->topics[0])) == 0);
-    //assert(LOWER(LOWER(log2->topics[0])) == 0x206e);
+    assert(LOWER(LOWER(log2->topics[0])) == 0x206e);
     assert(UPPER(UPPER(log2->topics[1])) == 0);
     assert(LOWER(UPPER(log2->topics[1])) == 0);
     assert(UPPER(LOWER(log2->topics[1])) == 0);
-    //assert(LOWER(LOWER(log2->topics[1])) == 0x206c);
+    assert(LOWER(LOWER(log2->topics[1])) == 0x206c);
 
     logChanges_t *log1 = log2->prev;
     assert(log1->topicCount == 1);
