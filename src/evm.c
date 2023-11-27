@@ -686,27 +686,28 @@ static result_t doCall(context_t *callContext) {
             case LOG3:
             case LOG4:
                 {
-                    uint64_t src = LOWER(LOWER_P(callContext->top + 1));
-                    uint64_t size = LOWER(LOWER_P(callContext->top));
+                    uint8_t topicCount = op - LOG0;
+                    uint64_t src = LOWER(LOWER_P(callContext->top + topicCount + 1));
+                    uint64_t size = LOWER(LOWER_P(callContext->top + topicCount));
                     if (
                         src + size < size
-                        || UPPER(UPPER_P(callContext->top)) || LOWER(UPPER_P(callContext->top)) || UPPER(LOWER_P(callContext->top))
-                        || UPPER(UPPER_P(callContext->top + 1)) || LOWER(UPPER_P(callContext->top + 1)) || UPPER(LOWER_P(callContext->top + 1))
+                        || UPPER(UPPER_P(callContext->top + topicCount)) || LOWER(UPPER_P(callContext->top + topicCount)) || UPPER(LOWER_P(callContext->top + topicCount))
+                        || UPPER(UPPER_P(callContext->top + topicCount + 1)) || LOWER(UPPER_P(callContext->top + topicCount + 1)) || UPPER(LOWER_P(callContext->top + topicCount + 1))
                         || !ensureMemory(callContext, src + size)
                     ) {
                         OUT_OF_GAS;
                     }
-                    logChanges_t *log = malloc(sizeof(logChanges_t));
-                    log->topicCount = op - LOG0;
-                    uint64_t gasCost = log->topicCount * G_LOGTOPIC + G_LOGDATA * size;
+                    uint64_t gasCost = /*topicCount * G_LOGTOPIC +*/ G_LOGDATA * size;
                     if (gasCost > callContext->gas) {
-                        free(log);
                         OUT_OF_GAS;
                     }
-                    if (log->topicCount) {
-                        size_t size = log->topicCount * sizeof(uint256_t);
+                    callContext->gas -= gasCost;
+                    logChanges_t *log = malloc(sizeof(logChanges_t));
+                    log->topicCount = topicCount;
+                    if (topicCount) {
+                        size_t size = topicCount * sizeof(uint256_t);
                         log->topics = malloc(size);
-                        memcpy(log->topics, callContext->top + 2, size);
+                        memcpy(log->topics, callContext->top, size);
                     } else {
                         log->topics = NULL;
                     }
@@ -714,8 +715,8 @@ static result_t doCall(context_t *callContext) {
                         log->data.size = 0;
                         log->data.content = NULL;
                     } else {
-                        log->data.size = LOWER(LOWER_P(callContext->top));
-                        log->data.content = malloc(log->data.size);
+                        log->data.size = size;
+                        log->data.content = malloc(size);
                         memcpy(log->data.content, callContext->memory.uint8s + src, log->data.size);
                     }
 
@@ -1145,7 +1146,7 @@ result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
     if (!zero256(&result.status)) {
         uint64_t codeGas = result.returnData.size * G_PER_CODEBYTE;
         if (codeGas > callContext->gas) {
-            fprintf(stderr, "Insufficient gas to insert code\n");
+            fprintf(stderr, "Insufficient gas to insert code, codeGas %llu > gas %llu\n", codeGas, callContext->gas);
             LOWER(LOWER(result.status)) = 0;
         } else {
             result.gasRemaining -= codeGas;

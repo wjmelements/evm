@@ -195,7 +195,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | PUSH12 | ✅ |❓ |
 | PUSH13 | ✅ |❓ |
 | PUSH14 | ✅ |❓ |
-| PUSH15 | ✅ |❓ |
+| PUSH15 | ✅ |✅ |
 | PUSH16 | ✅ |❓ |
 | PUSH17 | ✅ |❓ |
 | PUSH18 | ✅ |✅ |
@@ -245,11 +245,11 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | SWAP14 | ✅ |❓ |
 | SWAP15 | ✅ |❓ |
 | SWAP16 | ✅ |❓ |
-| LOG0 | ✅ |❓ |
-| LOG1 | ✅ |❓ |
-| LOG2 | ✅ |❓ |
-| LOG3 | ✅ |❓ |
-| LOG4 | ✅ |❓ |
+| LOG0 | ✅ |✅ |
+| LOG1 | ✅ |✅ |
+| LOG2 | ✅ |✅ |
+| LOG3 | ✅ |✅ |
+| LOG4 | ✅ |✅ |
 | CREATE | ✅ |❓ |
 | CALL | ✅ |✅ |
 | CALLCODE | ✅ |❓ |
