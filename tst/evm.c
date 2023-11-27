@@ -880,6 +880,117 @@ void test_staticcallSstore() {
     evmFinalize();
 }
 
+void test_log() {
+    evmInit();
+
+    // 6e66363d3d37363df33d5260076019f35f52595fa05a595fa15a5a595fa25a5a5a595fa35a5a5a5a595fa4600f6011f3
+    op_t logTest[] = {
+        PUSH15, 0x66, 0x36, 0x3d, 0x3d, 0x37, 0x36, 0x3d, 0xf3, 0x3d, 0x52, 0x60, 0x07, 0x60, 0x19, 0xf3, PUSH0, MSTORE,
+        MSIZE, PUSH0, LOG0,
+        GAS, MSIZE, PUSH0, LOG1,
+        GAS, GAS, MSIZE, PUSH0, LOG2,
+        GAS, GAS, GAS, MSIZE, PUSH0, LOG3,
+        GAS, GAS, GAS, GAS, MSIZE, PUSH0, LOG4,
+        PUSH1, 15, PUSH1, 17, RETURN
+    };
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    uint64_t gas = 0xf8f6;
+    val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
+    data_t input;
+
+    input.size = sizeof(logTest);
+    input.content = logTest;
+
+    result_t result = txCreate(from, gas, value, input);
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0x80d9b122);
+    assert(UPPER(LOWER(result.status)) == 0xdc3a16fdc41f96cf);
+    assert(LOWER(LOWER(result.status)) == 0x010ffe7e38d227c3);
+
+    assert(result.stateChanges != NULL);
+    stateChanges_t *stateChanges = result.stateChanges;
+    assert(stateChanges->logChanges != NULL);
+
+    logChanges_t *log4 = stateChanges->logChanges;
+    assert(log4->topicCount == 4);
+    assert(log4->prev != NULL);
+    assert(log4->data.size == 32);
+    assert(memcmp(log4->data.content + 17, logTest + 1, 15) == 0);
+    assert(UPPER(UPPER(log4->topics[0])) == 0);
+    assert(LOWER(UPPER(log4->topics[0])) == 0);
+    assert(UPPER(LOWER(log4->topics[0])) == 0);
+    assert(LOWER(LOWER(log4->topics[0])) == 0x141b);
+    assert(UPPER(UPPER(log4->topics[1])) == 0);
+    assert(LOWER(UPPER(log4->topics[1])) == 0);
+    assert(UPPER(LOWER(log4->topics[1])) == 0);
+    assert(LOWER(LOWER(log4->topics[1])) == 0x1419);
+    assert(UPPER(UPPER(log4->topics[2])) == 0);
+    assert(LOWER(UPPER(log4->topics[2])) == 0);
+    assert(UPPER(LOWER(log4->topics[2])) == 0);
+    assert(LOWER(LOWER(log4->topics[2])) == 0x1417);
+    assert(UPPER(UPPER(log4->topics[3])) == 0);
+    assert(LOWER(UPPER(log4->topics[3])) == 0);
+    assert(UPPER(LOWER(log4->topics[3])) == 0);
+    assert(LOWER(LOWER(log4->topics[3])) == 0x1415);
+
+    logChanges_t *log3 = log4->prev;
+    assert(log3->topicCount == 3);
+    assert(log3->prev != NULL);
+    assert(log3->data.size == 32);
+    assert(memcmp(log3->data.content + 17, logTest + 1, 15) == 0);
+    assert(UPPER(UPPER(log3->topics[0])) == 0);
+    assert(LOWER(UPPER(log3->topics[0])) == 0);
+    assert(UPPER(LOWER(log3->topics[0])) == 0);
+    assert(LOWER(LOWER(log3->topics[0])) == 0x1b01);
+    assert(UPPER(UPPER(log3->topics[1])) == 0);
+    assert(LOWER(UPPER(log3->topics[1])) == 0);
+    assert(UPPER(LOWER(log3->topics[1])) == 0);
+    assert(LOWER(LOWER(log3->topics[1])) == 0x1aff);
+    assert(UPPER(UPPER(log3->topics[2])) == 0);
+    assert(LOWER(UPPER(log3->topics[2])) == 0);
+    assert(UPPER(LOWER(log3->topics[2])) == 0);
+    assert(LOWER(LOWER(log3->topics[2])) == 0x1afd);
+
+    logChanges_t *log2 = log3->prev;
+    assert(log2->topicCount == 2);
+    assert(log2->prev != NULL);
+    assert(log2->data.size == 32);
+    assert(memcmp(log2->data.content + 17, logTest + 1, 15) == 0);
+    assert(UPPER(UPPER(log2->topics[0])) == 0);
+    assert(LOWER(UPPER(log2->topics[0])) == 0);
+    assert(UPPER(LOWER(log2->topics[0])) == 0);
+    assert(LOWER(LOWER(log2->topics[0])) == 0x206e);
+    assert(UPPER(UPPER(log2->topics[1])) == 0);
+    assert(LOWER(UPPER(log2->topics[1])) == 0);
+    assert(UPPER(LOWER(log2->topics[1])) == 0);
+    assert(LOWER(LOWER(log2->topics[1])) == 0x206c);
+
+    logChanges_t *log1 = log2->prev;
+    assert(log1->topicCount == 1);
+    assert(log1->prev != NULL);
+    assert(log1->data.size == 32);
+    assert(memcmp(log1->data.content + 17, logTest + 1, 15) == 0);
+    assert(UPPER(UPPER(log1->topics[0])) == 0);
+    assert(LOWER(UPPER(log1->topics[0])) == 0);
+    assert(UPPER(LOWER(log1->topics[0])) == 0);
+    assert(LOWER(LOWER(log1->topics[0])) == 0x2462);
+
+    logChanges_t *log0 = log1->prev;
+    assert(log0->topicCount == 0);
+    assert(log0->prev == NULL);
+    assert(log0->topics == NULL);
+    assert(log0->data.size == 32);
+    assert(memcmp(log0->data.content + 17, logTest + 1, 15) == 0);
+
+    assert(result.gasRemaining == 0);
+
+    evmFinalize();
+}
+
 int main() {
     test_stop();
     test_mstoreReturn();
@@ -896,6 +1007,7 @@ int main() {
     test_deepCall();
     test_revertStorage();
     test_revertSload();
+    test_log();
 
     // These last tests will write to stderr; usually we want this to be hushed
     close(2);

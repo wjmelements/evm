@@ -8,6 +8,60 @@
 #include <strings.h>
 
 
+static uint16_t _fprintLog(FILE *file, const logChanges_t *log) {
+    if (log == NULL) {
+        return 0;
+    }
+    uint16_t items = _fprintLog(file, log->prev);
+    if (items) {
+        fputc(',', file);
+    }
+    fprintf(file, "{\"logIndex\":\"0x%x\",\"data\":\"0x", log->logIndex);
+    for (size_t i = 0; i < log->data.size; i++) {
+        fprintf(file, "%02x", log->data.content[i]);
+    }
+    fputs("\",\"topics\":[", file);
+    for (uint8_t i = log->topicCount; i-->0;) {
+        fprintf(file, "\"0x%016llx%016llx%016llx%016llx\"",
+            UPPER(UPPER(log->topics[i])),
+            LOWER(UPPER(log->topics[i])),
+            UPPER(LOWER(log->topics[i])),
+            LOWER(LOWER(log->topics[i]))
+        );
+        if (i) {
+            fputc(',', file);
+        }
+    }
+    fputs("]}", file);
+    return items + 1;
+}
+
+static uint16_t _fprintLogs(FILE *file, const stateChanges_t *account) {
+    if (account == NULL) {
+        return 0;
+    }
+    uint16_t items = _fprintLogs(file, account->next);
+    if (account->logChanges == NULL) {
+        return items;
+    }
+    if (items) {
+        fputc(',', file);
+    }
+    fputs("\"", file);
+    fprintAddress(file, account->account);
+    fputs("\":[", file);
+    items += _fprintLog(file, account->logChanges);
+    fputc(']', file);
+    return items;
+}
+
+uint16_t fprintLogs(FILE *file, const stateChanges_t *account) {
+    fputs("{", file);
+    uint16_t items = _fprintLogs(file, account);
+    fputs("}", file);
+    return items;
+}
+
 static inline void DataCopy(data_t *dst, const data_t *src) {
     dst->content = malloc(src->size);
     memcpy(dst->content, src->content, dst->size = src->size);
@@ -95,7 +149,7 @@ stateChanges_t *getCurrentAccountStateChanges(result_t *result, context_t *conte
         stateChanges = &(*stateChanges)->next;
     }
     // DNF
-    *stateChanges = malloc(sizeof(stateChanges_t));
+    *stateChanges = calloc(1, sizeof(stateChanges_t));
     AddressCopy(&(*stateChanges)->account, &context->account->address);
     return *stateChanges;
 }
@@ -176,6 +230,7 @@ static account_t accounts[1024];
 static account_t *emptyAccount;
 static account_t const *dnfAccount = &accounts[1024];
 static uint64_t evmIteration = 0;
+static uint16_t logIndex = 0;
 static uint64_t refundCounter = 0;
 static uint64_t debugFlags = 0;
 
@@ -209,6 +264,7 @@ void evmInit() {
     emptyAccount = accounts;
     evmIteration++;
     refundCounter = 0;
+    logIndex = 0;
 }
 
 void evmFinalize() {
@@ -323,6 +379,41 @@ static storage_t *getAccountStorage(account_t *account, const uint256_t *key) {
     *storage = calloc(1, sizeof(storage_t));
     copy256(&(*storage)->key, key);
     return *storage;
+}
+
+// NOTE this sometimes dismantles and reuses the elements of src
+static void mergeStateChanges(stateChanges_t **dst, stateChanges_t *src) {
+    if (src == NULL) {
+        return;
+    }
+    mergeStateChanges(dst, src->next);
+
+    while (*dst != NULL) {
+        if (AddressEqual(&src->account, &(*dst)->account)) {
+            // merge!
+            
+            // concatenate the linked lists
+            storageChanges_t **storageEnd = &src->storageChanges;
+            while (*storageEnd != NULL) {
+                storageEnd = &(*storageEnd)->prev;
+            }
+            *storageEnd = (*dst)->storageChanges;
+            (*dst)->storageChanges = src->storageChanges;
+
+            logChanges_t **logsEnd = &src->logChanges;
+            while (*logsEnd != NULL) {
+                logsEnd = &(*logsEnd)->prev;
+            }
+            *logsEnd = (*dst)->logChanges;
+            (*dst)->logChanges = src->logChanges;
+
+            return;
+        }
+        dst = &(*dst)->next;
+    }
+    // reuse src
+    src->next = *dst;
+    *dst = src;
 }
 
 void evmMockStorage(address_t to, const uint256_t *key, const uint256_t *storedValue) {
@@ -645,6 +736,52 @@ static result_t doCall(context_t *callContext) {
                 // TODO handle intersecting calldatasize boundary
                 readu256BE(callContext->callData.content + LOWER(LOWER_P(callContext->top - 1)), callContext->top - 1);
                 break;
+            case LOG0:
+            case LOG1:
+            case LOG2:
+            case LOG3:
+            case LOG4:
+                {
+                    uint8_t topicCount = op - LOG0;
+                    uint64_t src = LOWER(LOWER_P(callContext->top + topicCount + 1));
+                    uint64_t size = LOWER(LOWER_P(callContext->top + topicCount));
+                    if (
+                        src + size < size
+                        || UPPER(UPPER_P(callContext->top + topicCount)) || LOWER(UPPER_P(callContext->top + topicCount)) || UPPER(LOWER_P(callContext->top + topicCount))
+                        || UPPER(UPPER_P(callContext->top + topicCount + 1)) || LOWER(UPPER_P(callContext->top + topicCount + 1)) || UPPER(LOWER_P(callContext->top + topicCount + 1))
+                        || !ensureMemory(callContext, src + size)
+                    ) {
+                        OUT_OF_GAS;
+                    }
+                    uint64_t gasCost = /*topicCount * G_LOGTOPIC +*/ G_LOGDATA * size;
+                    if (gasCost > callContext->gas) {
+                        OUT_OF_GAS;
+                    }
+                    callContext->gas -= gasCost;
+                    logChanges_t *log = malloc(sizeof(logChanges_t));
+                    log->logIndex = logIndex++;
+                    log->topicCount = topicCount;
+                    if (topicCount) {
+                        size_t size = topicCount * sizeof(uint256_t);
+                        log->topics = malloc(size);
+                        memcpy(log->topics, callContext->top, size);
+                    } else {
+                        log->topics = NULL;
+                    }
+                    if (zero256(callContext->top)) {
+                        log->data.size = 0;
+                        log->data.content = NULL;
+                    } else {
+                        log->data.size = size;
+                        log->data.content = malloc(size);
+                        memcpy(log->data.content, callContext->memory.uint8s + src, log->data.size);
+                    }
+
+                    stateChanges_t *stateChanges = getCurrentAccountStateChanges(&result, callContext);
+                    log->prev = stateChanges->logChanges;
+                    stateChanges->logChanges = log;
+                }
+                break;
             case CALLDATACOPY:
             case EXTCODECOPY:
             case CODECOPY:
@@ -836,6 +973,7 @@ static result_t doCall(context_t *callContext) {
                     }
                     result_t callResult = evmCall(callContext->account->address, gas, to, value, input);
                     callContext->gas += callResult.gasRemaining;
+                    mergeStateChanges(&result.stateChanges, callResult.stateChanges);
                     callContext->returnData = callResult.returnData;
                     if (callContext->returnData.size < outSize) {
                         outSize = callContext->returnData.size;
@@ -879,6 +1017,7 @@ static result_t doCall(context_t *callContext) {
                     callContext->gas -= gas;
                     result_t callResult = evmStaticCall(callContext->account->address, gas, to, input);
                     callContext->gas += callResult.gasRemaining;
+                    mergeStateChanges(&result.stateChanges, callResult.stateChanges);
                     callContext->returnData = callResult.returnData;
                     if (callContext->returnData.size < outSize) {
                         outSize = callContext->returnData.size;
@@ -916,12 +1055,25 @@ static void evmRevertStorageChanges(account_t *account, storageChanges_t **chang
     *changes = NULL;
 }
 
+static void evmRevertLogChanges(logChanges_t **changes) {
+
+    if (*changes == NULL) {
+        return;
+    }
+    evmRevertLogChanges(&(*changes)->prev);
+
+    free(*changes);
+    *changes = NULL;
+    
+}
+
 static void evmRevert(stateChanges_t **changes) {
     if (*changes == NULL) {
         return;
     }
     account_t *account = getAccount((*changes)->account);
     evmRevertStorageChanges(account, &(*changes)->storageChanges);
+    evmRevertLogChanges(&(*changes)->logChanges);
 
     evmRevert(&(*changes)->next);
     free(*changes);
@@ -1051,7 +1203,7 @@ result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
     if (!zero256(&result.status)) {
         uint64_t codeGas = result.returnData.size * G_PER_CODEBYTE;
         if (codeGas > callContext->gas) {
-            fprintf(stderr, "Insufficient gas to insert code\n");
+            fprintf(stderr, "Insufficient gas to insert code, codeGas %llu > gas %llu\n", codeGas, callContext->gas);
             LOWER(LOWER(result.status)) = 0;
         } else {
             result.gasRemaining -= codeGas;

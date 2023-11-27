@@ -96,6 +96,12 @@ By using `-w config.json`, you can define the precondition state before executio
 ```
 Account configuration fields are optional and default to zero.
 If you exclude address, one will be generated for you.
+#### JSON Output
+Using any of the following `-x` options will output JSON instead of the returndata.
+The JSON will always contain the returndata but other outputs can be specified.
+* `-g`: gasUsed
+* `-l`: logs
+* `-s`: status
 #### Warning
 EVM execution should mostly work but may not implement every opcode and corner-case.
 If you find a bug that disrupts you, please file an issue with its impact to you and code that reproduces it and I may find time to fix it, or alternatively you can submit a pull request.

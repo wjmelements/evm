@@ -90,3 +90,8 @@ static inline void AddressToUint256(uint256_t *dst, address_t *src) {
         | ((uint64_t)src->address[19])
     );
 }
+
+#define fprintAddress(file, addr) fprintf(file, "0x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", \
+        addr.address[0], addr.address[1], addr.address[2], addr.address[3], addr.address[4], addr.address[5], addr.address[6], addr.address[7], addr.address[8], addr.address[9], addr.address[10],\
+        addr.address[11], addr.address[12], addr.address[13], addr.address[14], addr.address[15], addr.address[16], addr.address[17], addr.address[18], addr.address[19]\
+)

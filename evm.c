@@ -17,9 +17,10 @@ op_t ops[PROGRAM_BUFFER_LENGTH];
 static int wrapConstructor = 0;
 static int inverse = 0;
 static int runtime = 0;
-#define outputJson (includeGas || includeStatus)
+#define outputJson (includeGas || includeStatus | includeLogs)
 static int includeGas = 0;
 static int includeStatus = 0;
+static int includeLogs = 0;
 static const char *configFile = NULL;
 
 static void assemble(const char *contents) {
@@ -143,6 +144,11 @@ static void execute(const char *contents) {
         if (includeGas) {
             printf("gasUsed\":%llu,\"", gas - result.gasRemaining);
         }
+        if (includeLogs) {
+            fputs("logs\":", stdout);
+            fprintLogs(stdout, result.stateChanges);
+            fputs(",\"", stdout);
+        }
         if (includeStatus) {
             printf(
                 "status\":\"0x%08llx%08llx%08llx%08llx\",\"",
@@ -167,7 +173,7 @@ static void execute(const char *contents) {
 int main(int argc, char *const argv[]) {
     int option;
     char *contents = NULL;
-    while ((option = getopt (argc, argv, "cdgo:sw:x")) != -1)
+    while ((option = getopt (argc, argv, "cdglo:sw:x")) != -1)
         switch (option) {
             case 'c':
                 wrapConstructor = 1;
@@ -186,6 +192,9 @@ int main(int argc, char *const argv[]) {
                 break;
             case 's':
                 includeStatus = 1;
+                break;
+            case 'l':
+                includeLogs = 1;
                 break;
             case 'w':
                 configFile = optarg;
