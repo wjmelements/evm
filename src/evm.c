@@ -8,6 +8,60 @@
 #include <strings.h>
 
 
+static uint16_t _fprintLog(FILE *file, const logChanges_t *log) {
+    if (log == NULL) {
+        return 0;
+    }
+    uint16_t items = _fprintLog(file, log->prev);
+    if (items) {
+        fputc(',', file);
+    }
+    fprintf(file, "{\"logIndex\":\"0x%x\",\"data\":\"0x", log->logIndex);
+    for (size_t i = 0; i < log->data.size; i++) {
+        fprintf(file, "%02x", log->data.content[i]);
+    }
+    fputs("\",\"topics\":[", file);
+    for (uint8_t i = log->topicCount; i-->0;) {
+        fprintf(file, "\"0x%016llx%016llx%016llx%016llx\"",
+            UPPER(UPPER(log->topics[i])),
+            LOWER(UPPER(log->topics[i])),
+            UPPER(LOWER(log->topics[i])),
+            LOWER(LOWER(log->topics[i]))
+        );
+        if (i) {
+            fputc(',', file);
+        }
+    }
+    fputs("]}", file);
+    return items + 1;
+}
+
+static uint16_t _fprintLogs(FILE *file, const stateChanges_t *account) {
+    if (account == NULL) {
+        return 0;
+    }
+    uint16_t items = _fprintLogs(file, account->next);
+    if (account->logChanges == NULL) {
+        return items;
+    }
+    if (items) {
+        fputc(',', file);
+    }
+    fputs("\"", file);
+    fprintAddress(file, account->account);
+    fputs("\":[", file);
+    items += _fprintLog(file, account->logChanges);
+    fputc(']', file);
+    return items;
+}
+
+uint16_t fprintLogs(FILE *file, const stateChanges_t *account) {
+    fputs("{", file);
+    uint16_t items = _fprintLogs(file, account);
+    fputs("}", file);
+    return items;
+}
+
 static inline void DataCopy(data_t *dst, const data_t *src) {
     dst->content = malloc(src->size);
     memcpy(dst->content, src->content, dst->size = src->size);
@@ -176,6 +230,7 @@ static account_t accounts[1024];
 static account_t *emptyAccount;
 static account_t const *dnfAccount = &accounts[1024];
 static uint64_t evmIteration = 0;
+static uint16_t logIndex = 0;
 static uint64_t refundCounter = 0;
 static uint64_t debugFlags = 0;
 
@@ -209,6 +264,7 @@ void evmInit() {
     emptyAccount = accounts;
     evmIteration++;
     refundCounter = 0;
+    logIndex = 0;
 }
 
 void evmFinalize() {
@@ -703,6 +759,7 @@ static result_t doCall(context_t *callContext) {
                     }
                     callContext->gas -= gasCost;
                     logChanges_t *log = malloc(sizeof(logChanges_t));
+                    log->logIndex = logIndex++;
                     log->topicCount = topicCount;
                     if (topicCount) {
                         size_t size = topicCount * sizeof(uint256_t);

@@ -24,6 +24,7 @@ typedef struct storageChanges {
 typedef struct logChanges {
     uint256_t *topics; // in reverse order
     uint8_t topicCount;
+    uint16_t logIndex;
     data_t data;
     struct logChanges *prev;
 } logChanges_t;
@@ -40,6 +41,9 @@ typedef struct stateChanges {
     storageChanges_t *storageChanges; // LIFO
     struct stateChanges *next;
 } stateChanges_t;
+
+// returns the number of items printed
+uint16_t fprintLogs(FILE *, const stateChanges_t *);
 
 typedef struct callResult {
     data_t returnData;
