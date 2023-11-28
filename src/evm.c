@@ -662,7 +662,7 @@ static result_t doCall(context_t *callContext) {
                 }
                 break;
             case LT:
-                LOWER(LOWER_P(callContext->top - 1)) = gte256(callContext->top - 1, callContext->top);
+                LOWER(LOWER_P(callContext->top - 1)) = gt256(callContext->top - 1, callContext->top);
                 bzero(callContext->top - 1, 24);
                 break;
             case GT:
