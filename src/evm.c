@@ -587,6 +587,28 @@ static result_t doCall(context_t *callContext) {
                 memcpy(callContext->top - 1, callContext->top - (op - DUP15), 32);
                 memcpy(callContext->top - (op - DUP15), buffer, 32);
                 break;
+            case SHA3:
+                {
+                    uint64_t src = LOWER(LOWER_P(callContext->top));
+                    uint64_t size = LOWER(LOWER_P(callContext->top - 1));
+                    if (
+                        UPPER(UPPER_P(callContext->top)) || LOWER(UPPER_P(callContext->top)) || UPPER(LOWER_P(callContext->top))
+                        || UPPER(UPPER_P(callContext->top - 1)) || LOWER(UPPER_P(callContext->top - 1)) || UPPER(LOWER_P(callContext->top - 1))
+                        || size > src + size
+                        || !ensureMemory(callContext, src + size)
+                    ) {
+                        OUT_OF_GAS;
+                    }
+                    uint64_t gasCost = G_KECCAK_WORD * ((size + 31) / 32);
+                    if (gasCost > callContext->gas) {
+                        OUT_OF_GAS;
+                    }
+                    callContext->gas -= gasCost;
+                    uint8_t result[32];
+                    keccak_256(result, 32, callContext->memory.uint8s + src, size);
+                    readu256BE(result, callContext->top - 1);
+                }
+                break;
             case ADDRESS:
                 AddressToUint256(callContext->top - 1, &callContext->account->address);
                 break;

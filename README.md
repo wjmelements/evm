@@ -156,7 +156,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | SHL | ✅ |❓ |
 | SHR | ✅ |✅ |
 | SAR | ✅ |❓ |
-| SHA3 | ✅ |❓ |
+| SHA3 | ✅ |✅ |
 | ADDRESS | ✅ |✅ |
 | BALANCE | ✅ |✅ |
 | ORIGIN | ✅ |❓ |
