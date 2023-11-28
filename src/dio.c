@@ -59,12 +59,20 @@ typedef struct storageEntry {
     struct storageEntry *prev;
 } storageEntry_t;
 
+typedef struct testEntry {
+    op_t op;
+    data_t input;
+    data_t output;
+    struct testEntry *prev;
+} testEntry_t;
+
 typedef struct entry {
     address_t *address;
     val_t balance;
     uint64_t nonce;
     data_t code;
     storageEntry_t *storage;
+    testEntry_t *tests;
     char *constructPath;
 } entry_t;
 
@@ -120,6 +128,43 @@ static void derivePath() {
     }
     fputs("evm: could not find evm\n", stderr);
     _exit(-1);
+}
+
+static void runTests(const entry_t *entry, testEntry_t *test) {
+    if (test == NULL) {
+        return;
+    }
+    runTests(entry, test->prev);
+
+    // TODO Support these parameters
+    address_t from;
+    uint64_t gas = 0xffffffffffffffff;
+    val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
+    // TODO support evmStaticCall
+    result_t result = evmCall(from, gas, *entry->address, value, test->input);
+
+    if (LOWER(LOWER(result.status))) {
+        fputs("Execution reverted\n", stderr);
+    }
+
+    if (result.returnData.size != test->output.size || memcmp(result.returnData.content, test->output.content, test->output.size)) {
+        fputs("Output data mismatch\nactual:\n", stderr);
+
+        for (size_t i = 0; i < result.returnData.size; i++) {
+            fprintf(stderr, "%02x", result.returnData.content[i]);
+        }
+        fputs("\nexpected:\n", stderr);
+        for (size_t i = 0; i < test->output.size; i++) {
+            fprintf(stderr, "%02x", test->output.content[i]);
+        }
+
+        fputc('\n', stderr);
+    }
+
+    free(test);
 }
 
 static void applyEntry(entry_t *entry) {
@@ -230,6 +275,7 @@ static void applyEntry(entry_t *entry) {
         entry->storage = prev->prev;
         free(prev);
     }
+    runTests(entry, entry->tests);
 }
 
 static void jsonScanEntry(const char **iter) {
@@ -305,6 +351,75 @@ static void jsonScanEntry(const char **iter) {
                     entry.constructPath = malloc(len + 1);
                     memcpy(entry.constructPath, start, len);
                     entry.constructPath[len] = '\0';
+                }
+                break;
+            case 'tset':
+                // tests
+                {
+                    jsonSkipExpectedChar(iter, '[');
+                    jsonScanWaste(iter);
+                    if (**iter != ']') do {
+                        jsonScanChar(iter, '{');
+                        jsonScanWaste(iter);
+
+                        testEntry_t *test = calloc(1, sizeof(testEntry_t));
+                        test->prev = entry.tests;
+                        entry.tests = test;
+
+                        if (**iter != '}') do {
+                            const char *testHeading = jsonScanStr(iter);
+                            size_t testHeadingLen = *iter - testHeading - 1;
+                            jsonScanChar(iter, ':');
+                            const char *testValue = jsonScanStr(iter);
+                            size_t testValueLength = *iter - testValue - 1;
+                            if (testHeadingLen == 5 && *testHeading == 'i') {
+                                // input
+                                jsonSkipExpectedChar(&testValue, '0');
+                                jsonSkipExpectedChar(&testValue, 'x');
+                                test->input.size = (testValueLength - 2) / 2;
+                                test->input.content = malloc(test->input.size);
+                                for (size_t i = 0; i < test->input.size; i++) {
+                                    test->input.content[i] = hexString16ToUint8(testValue + i * 2);
+                                }
+                            } else if (testHeadingLen == 6 && *testHeading == 'o') {
+                                // output
+                                jsonSkipExpectedChar(&testValue, '0');
+                                jsonSkipExpectedChar(&testValue, 'x');
+                                test->output.size = (testValueLength - 2) / 2;
+                                test->output.content = malloc(test->output.size);
+                                for (size_t i = 0; i < test->output.size; i++) {
+                                    test->output.content[i] = hexString16ToUint8(testValue + i * 2);
+                                }
+                            } else if (testHeadingLen == 2 && *testHeading == 'o') {
+                                const char *end;
+                                test->op = parseOp(testValue, &end);
+                            } else {
+                                fputs("Unexpected test heading: ", stderr);
+                                for (size_t i = 0; i < testHeadingLen; i++) {
+                                    fputc(testHeading[i], stderr);
+                                }
+                                fputc('\n', stderr);
+                            }
+                            jsonScanWaste(iter);
+                            if (**iter == ',') {
+                                jsonSkipExpectedChar(iter, ',');
+                                jsonScanWaste(iter);
+                                continue;
+                            } else {
+                                break;
+                            }
+                        } while (1);
+
+                        jsonSkipExpectedChar(iter, '}');
+                        if (**iter == ',') {
+                            jsonSkipExpectedChar(iter, ',');
+                            jsonScanWaste(iter);
+                            continue;
+                        } else {
+                            break;
+                        }
+                    } while (1);
+                    jsonScanChar(iter, ']');
                 }
                 break;
             case 'rots':
