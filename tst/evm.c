@@ -70,12 +70,13 @@ void test_math() {
     evmInit();
 
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
-    uint64_t gas = 53332;
+    uint64_t gas = 53493;
     val_t value;
     data_t input;
 
-    // 0 - (3 * 7 + 4 / 2)
+    // 60026004046007600302015f035f5262ce378160021c5952595ff3
     op_t program[] = {
+        // 0 - (3 * 7 + 4 / 2)
         PUSH1, 0x02,
         PUSH1, 0x04,
         DIV,
@@ -87,6 +88,8 @@ void test_math() {
         SUB,
         PUSH0,
         MSTORE,
+        // 0xce3781 >> 2
+        PUSH3, 0xce, 0x37, 0x81, PUSH1, 0x02, SHR, MSIZE, MSTORE,
         MSIZE,
         PUSH0,
         REVERT,
@@ -99,11 +102,19 @@ void test_math() {
     evmFinalize();
 
     assert(zero256(&result.status));
-    assert(result.returnData.size == 32);
+    assert(result.returnData.size == 64);
     for (int i = 0; i < 31; i++) {
         assert(result.returnData.content[i] == 0xff);
     }
     assert(result.returnData.content[31] == 0xe9);
+    for (int i = 32; i < 61; i++) {
+        assert(result.returnData.content[i] == 0x00);
+    }
+    // 0x338de0
+    assert(result.returnData.content[61] == 0x33);
+    assert(result.returnData.content[62] == 0x8d);
+    assert(result.returnData.content[63] == 0xe0);
+
     assert(result.gasRemaining == 0);
 }
 

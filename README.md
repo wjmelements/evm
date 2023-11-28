@@ -154,7 +154,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | NOT | ✅ |❓ |
 | BYTE | ✅ |❓ |
 | SHL | ✅ |❓ |
-| SHR | ✅ |❓ |
+| SHR | ✅ |✅ |
 | SAR | ✅ |❓ |
 | SHA3 | ✅ |❓ |
 | ADDRESS | ✅ |✅ |
