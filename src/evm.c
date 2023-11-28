@@ -629,6 +629,16 @@ static result_t doCall(context_t *callContext) {
             case NOT:
                 not256(callContext->top - 1, callContext->top - 1);
                 break;
+            case SHR:
+                {
+                    uint256_t *shiftAmount = callContext->top;
+                    if (UPPER(UPPER_P(shiftAmount)) || LOWER(UPPER_P(shiftAmount)) || UPPER(LOWER_P(shiftAmount)) || LOWER(LOWER_P(shiftAmount)) > 256) {
+                        clear256(callContext->top - 1);
+                    } else {
+                        shiftr256(callContext->top - 1, LOWER(LOWER_P(shiftAmount)), callContext->top - 1);
+                    }
+                }
+                break;
             case LT:
                 LOWER(LOWER_P(callContext->top - 1)) = gte256(callContext->top - 1, callContext->top);
                 bzero(callContext->top - 1, 24);
