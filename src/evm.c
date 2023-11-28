@@ -438,6 +438,7 @@ static storage_t *warmStorage(context_t *callContext, uint256_t *key, uint64_t w
 }
 
 static result_t evmStaticCall(address_t from, uint64_t gas, address_t to, data_t input);
+static result_t evmDelegateCall(uint64_t gas, account_t *codeSource, data_t input);
 
 static result_t doCall(context_t *callContext) {
     //dumpCallData(callContext);
@@ -745,11 +746,22 @@ static result_t doCall(context_t *callContext) {
                 LOWER(LOWER_P(callContext->top - 1)) = scratch;
                 break;
             case MSTORE:
-                if (!ensureMemory(callContext, 32 + LOWER(LOWER_P(callContext->top + 1)))) {
-                    OUT_OF_GAS;
+                {
+                    if (!ensureMemory(callContext, 32 + LOWER(LOWER_P(callContext->top + 1)))) {
+                        OUT_OF_GAS;
+                    }
+                    uint8_t *loc = (callContext->memory.uint8s + LOWER(LOWER_P(callContext->top + 1)));
+                    dumpu256BE(callContext->top, loc);
                 }
-                uint8_t *loc = (callContext->memory.uint8s + LOWER(LOWER_P(callContext->top + 1)));
-                dumpu256BE(callContext->top, loc);
+                break;
+            case MSTORE8:
+                {
+                    if (!ensureMemory(callContext, 1 + LOWER(LOWER_P(callContext->top + 1)))) {
+                        OUT_OF_GAS;
+                    }
+                    uint8_t *loc = (callContext->memory.uint8s + LOWER(LOWER_P(callContext->top + 1)));
+                    *loc = LOWER(LOWER_P(callContext->top));
+                }
                 break;
             case MLOAD:
                 if (UPPER(LOWER_P(callContext->top - 1)) || LOWER(UPPER_P(callContext->top - 1)) || UPPER(UPPER_P(callContext->top - 1))) {
@@ -816,6 +828,7 @@ static result_t doCall(context_t *callContext) {
                 break;
             case CALLDATACOPY:
             case EXTCODECOPY:
+            case RETURNDATACOPY:
             case CODECOPY:
                 {
                     const data_t *code;
@@ -827,6 +840,8 @@ static result_t doCall(context_t *callContext) {
                         code = &account->code;
                     } else if (op == CALLDATACOPY) {
                         code = &callContext->callData;
+                    } else if (op == RETURNDATACOPY) {
+                        code = &callContext->returnData;
                     } else {
                         code = &callContext->code;
                     }
@@ -918,7 +933,7 @@ static result_t doCall(context_t *callContext) {
                 break;
             case SLOAD:
                 {
-                    uint64_t warmBefore = getAccountStorage(callContext->account, callContext->top + 1)->warm;
+                    uint64_t warmBefore = getAccountStorage(callContext->account, callContext->top - 1)->warm;
                     storage_t *storage = warmStorage(callContext, callContext->top - 1, G_COLD_STORAGE - G_ACCESS);
                     if (storage == NULL) {
                         OUT_OF_GAS;
@@ -1012,6 +1027,51 @@ static result_t doCall(context_t *callContext) {
                     }
                     memcpy(callContext->memory.uint8s + dst, callResult.returnData.content, outSize);
                     copy256(callContext->top - 1, &callResult.status);
+                }
+                break;
+            case DELEGATECALL:
+                {
+                    data_t input;
+                    input.size = LOWER(LOWER_P(callContext->top + 1));
+                    uint64_t src = LOWER(LOWER_P(callContext->top + 2));
+                    uint64_t dst = LOWER(LOWER_P(callContext->top));
+                    uint64_t gas = LOWER(LOWER_P(callContext->top + 4));
+                    uint64_t outSize = LOWER(LOWER_P(callContext->top - 1));
+                    if (!ensureMemory(callContext, src + input.size)) {
+                        OUT_OF_GAS;
+                    }
+                    if (!ensureMemory(callContext, dst + outSize)) {
+                        OUT_OF_GAS;
+                    }
+                    input.content = callContext->memory.uint8s + src;
+                    // C_EXTRA
+                    address_t to = AddressFromUint256(callContext->top + 3);
+                    account_t *toAccount = warmAccount(callContext, to);
+                    if (toAccount == NULL) {
+                        OUT_OF_GAS;
+                    }
+                    uint64_t gasCost = 0;
+                    if (AccountDead(toAccount)) {
+                        // TODO unsure if G_NEWACCOUNT can happen here
+                        gasCost += G_NEWACCOUNT;
+                    }
+                    if (gasCost > callContext->gas) {
+                        OUT_OF_GAS;
+                    }
+                    callContext->gas -= gasCost;
+                    if (UPPER(UPPER_P(callContext->top + 5)) || LOWER(UPPER_P(callContext->top + 5)) || UPPER(LOWER_P(callContext->top + 5)) || gas > L(callContext->gas)) {
+                        gas = L(callContext->gas);
+                    }
+                    callContext->gas -= gas;
+                    result_t delegateCallResult = evmDelegateCall(gas, toAccount, input);
+                    callContext->gas += delegateCallResult.gasRemaining;
+                    mergeStateChanges(&result.stateChanges, delegateCallResult.stateChanges);
+                    callContext->returnData = delegateCallResult.returnData;
+                    if (callContext->returnData.size < outSize) {
+                        outSize = callContext->returnData.size;
+                    }
+                    memcpy(callContext->memory.uint8s + dst, delegateCallResult.returnData.content, outSize);
+                    copy256(callContext->top - 1, &delegateCallResult.status);
                 }
                 break;
             case STATICCALL:
@@ -1112,10 +1172,36 @@ static void evmRevert(stateChanges_t **changes) {
     *changes = NULL;
 }
 
+static result_t evmDelegateCall(uint64_t gas, account_t *codeSource, data_t input) {
+    context_t *parent = callstack.next - 1;
+    context_t *callContext  = callstack.next;
+
+    callContext->gas = gas;
+    callContext->top = callContext->bottom;
+    callContext->readonly = parent->readonly;
+    BalanceCopy(callContext->callValue, parent->callValue);
+    AddressCopy(callContext->caller, parent->caller);
+    callContext->account = parent->account;
+    callContext->code = codeSource->code;
+    callContext->callData = input;
+    callContext->returnData.size = 0;
+
+    memory_init(&callContext->memory, 0);
+
+    callstack.next += 1;
+    result_t result = doCall(callContext);
+    callstack.next -= 1;
+    result.gasRemaining = callContext->gas;
+    if (zero256(&result.status)) {
+        evmRevert(&result.stateChanges);
+    }
+
+    return result;
+}
+
 static result_t evmStaticCall(address_t from, uint64_t gas, address_t to, data_t input) {
     context_t *callContext = callstack.next;
     callContext->gas = gas;
-    account_t *fromAccount = getAccount(from);
 
     callContext->top = callContext->bottom;
     callContext->readonly = true;

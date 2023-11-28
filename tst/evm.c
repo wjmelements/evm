@@ -1128,6 +1128,96 @@ void test_sha3() {
     evmFinalize();
 }
 
+void test_delegateCall() {
+    evmInit();
+
+    // 5f365b818111156042577fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01813560f81c8153803560f81c825390600101906002565b365ff3
+#define PROGRAM_REVERSE \
+        PUSH0, CALLDATASIZE, \
+        JUMPDEST, \
+        DUP2, DUP2, GT, ISZERO, PUSH1, 66, JUMPI, \
+        PUSH32, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, ADD, \
+        DUP2, CALLDATALOAD, PUSH1, 248, SHR, DUP2, MSTORE8, \
+        DUP1, CALLDATALOAD, PUSH1, 248, SHR, DUP3, MSTORE8, \
+        SWAP1, PUSH1, 1, ADD, SWAP1, \
+        PUSH1, 2, JUMP, \
+        JUMPDEST, \
+        CALLDATASIZE, PUSH0, RETURN
+	op_t reverseBytes[] = {
+        PROGRAM_REVERSE
+	};
+
+    op_t createReverseBytes[] = {
+        PUSH1, 70, DUP1, PUSH1, 9, RETURNDATASIZE, CODECOPY, RETURNDATASIZE, RETURN,
+        PROGRAM_REVERSE
+    };
+#undef PROGRAM_REVERSE
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    uint64_t gas = 0x10ad0;
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+    data_t input;
+    input.size = sizeof(createReverseBytes);
+    input.content = createReverseBytes;
+    result_t result = txCreate(from, gas, value, input);
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0x80d9b122);
+    assert(UPPER(LOWER(result.status)) == 0xdc3a16fdc41f96cf);
+    assert(LOWER(LOWER(result.status)) == 0x010ffe7e38d227c3);
+    assert(result.returnData.size == sizeof(reverseBytes));
+    assert(memcmp(result.returnData.content, reverseBytes, sizeof(reverseBytes)) == 0);
+    assert(result.gasRemaining == 0);
+
+#define PROGRAM_PROXY \
+		CALLDATASIZE, RETURNDATASIZE, RETURNDATASIZE, CALLDATACOPY, \
+		RETURNDATASIZE, \
+		RETURNDATASIZE, RETURNDATASIZE, CALLDATASIZE, RETURNDATASIZE, PUSH20, ACCOUNT0, GAS, DELEGATECALL, \
+		RETURNDATASIZE, DUP3, DUP1, RETURNDATACOPY, \
+		SWAP1, RETURNDATASIZE, SWAP2, PUSH1, 43, JUMPI, REVERT, \
+		JUMPDEST, RETURN
+    op_t delegateCaller[] = {
+        PROGRAM_PROXY
+    };
+
+    op_t createDelegateCaller[] = {
+        PUSH1, 45,
+        DUP1, PUSH1, 9, RETURNDATASIZE, CODECOPY, RETURNDATASIZE, RETURN,
+        PROGRAM_PROXY
+    };
+#undef PROGRAM_PROXY
+
+    gas = 0xf5b0;
+    input.content = createDelegateCaller;
+    input.size = sizeof(createDelegateCaller);
+
+    result_t secondCreateResult = txCreate(from, gas, value, input);
+    assert(UPPER(UPPER(secondCreateResult.status)) == 0);
+    assert(LOWER(UPPER(secondCreateResult.status)) == 0x47784b21);
+    assert(UPPER(LOWER(secondCreateResult.status)) == 0x780d1e1d5efcd005);
+    assert(LOWER(LOWER(secondCreateResult.status)) == 0xc5fe542813b6d71e);
+    assert(secondCreateResult.returnData.size == sizeof(delegateCaller));
+    assert(memcmp(secondCreateResult.returnData.content, delegateCaller, sizeof(delegateCaller)) == 0);
+    assert(secondCreateResult.gasRemaining == 0);
+
+    address_t proxy = AddressFromUint256(&secondCreateResult.status);
+    gas = 0x6fe8;
+    input.content = createReverseBytes;
+    input.size = sizeof(createReverseBytes);
+
+    result_t reverseProxy = txCall(from, gas, proxy, value, input);
+    assert(UPPER(UPPER(reverseProxy.status)) == 0);
+    assert(LOWER(UPPER(reverseProxy.status)) == 0);
+    assert(UPPER(LOWER(reverseProxy.status)) == 0);
+    assert(LOWER(LOWER(reverseProxy.status)) == 1);
+    assert(reverseProxy.returnData.size == input.size);
+    for (size_t i = 0; i < input.size; i++) {
+        assert(reverseProxy.returnData.content[i] == input.content[input.size - i - 1]);
+    }
+    assert(reverseProxy.gasRemaining == 16);
+
+    evmFinalize();
+}
+
 int main() {
     test_stop();
     test_mstoreReturn();
@@ -1146,6 +1236,7 @@ int main() {
     test_revertSload();
     test_log();
     test_sha3();
+    test_delegateCall();
 
     // These last tests will write to stderr; usually we want this to be hushed
     close(2);
