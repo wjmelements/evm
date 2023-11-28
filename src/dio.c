@@ -63,6 +63,7 @@ typedef struct testEntry {
     op_t op;
     data_t input;
     data_t output;
+    uint64_t debug;
     struct testEntry *prev;
 } testEntry_t;
 
@@ -137,6 +138,7 @@ static void runTests(const entry_t *entry, testEntry_t *test) {
     }
     runTests(entry, test->prev);
 
+    evmSetDebug(test->debug);
     // TODO Support these parameters
     address_t from;
     uint64_t gas = 0xffffffffffffffff;
@@ -384,6 +386,15 @@ static void jsonScanEntry(const char **iter) {
                                 test->input.content = malloc(test->input.size);
                                 for (size_t i = 0; i < test->input.size; i++) {
                                     test->input.content[i] = hexString16ToUint8(testValue + i * 2);
+                                }
+                            } else if (testHeadingLen == 5 && *testHeading == 'd') {
+                                // debug
+                                jsonSkipExpectedChar(&testValue, '0');
+                                jsonSkipExpectedChar(&testValue, 'x');
+                                testValueLength -= 2;
+                                for (size_t i = 0; i < testValueLength; i++) {
+                                    test->debug <<= 4;
+                                    test->debug |= hexString8ToUint8(testValue[i]);
                                 }
                             } else if (testHeadingLen == 6 && *testHeading == 'o') {
                                 // output
