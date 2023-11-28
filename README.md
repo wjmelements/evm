@@ -171,7 +171,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | EXTCODESIZE | ✅ |✅ |
 | EXTCODECOPY | ✅ |✅ |
 | RETURNDATASIZE | ✅ |✅ |
-| RETURNDATACOPY | ✅ |❓ |
+| RETURNDATACOPY | ✅ |✅ |
 | EXTCODEHASH | ✅ |❓ |
 | BLOCKHASH | ✅ |❓ |
 | COINBASE | ✅ |❓ |
@@ -185,7 +185,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | POP | ✅ |❓ |
 | MLOAD | ✅ |❓ |
 | MSTORE | ✅ |✅ |
-| MSTORE8 | ✅ |❓ |
+| MSTORE8 | ✅ |✅ |
 | SLOAD | ✅ |✅ |
 | SSTORE | ✅ |✅ |
 | JUMP | ✅ |✅ |
@@ -232,7 +232,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | PUSH32 | ✅ |✅ |
 | DUP1 | ✅ |✅ |
 | DUP2 | ✅ |✅ |
-| DUP3 | ✅ |❓ |
+| DUP3 | ✅ |✅ |
 | DUP4 | ✅ |❓ |
 | DUP5 | ✅ |❓ |
 | DUP6 | ✅ |❓ |
@@ -247,7 +247,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | DUP15 | ✅ |❓ |
 | DUP16 | ✅ |❓ |
 | SWAP1 | ✅ |✅ |
-| SWAP2 | ✅ |❓ |
+| SWAP2 | ✅ |✅ |
 | SWAP3 | ✅ |❓ |
 | SWAP4 | ✅ |❓ |
 | SWAP5 | ✅ |❓ |
@@ -271,7 +271,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | CALL | ✅ |✅ |
 | CALLCODE | ✅ |❓ |
 | RETURN | ✅ |✅ |
-| DELEGATECALL | ✅ |❓ |
+| DELEGATECALL | ✅ |✅ |
 | CREATE2 | ✅ |❓ |
 | AUTH | ✅ |❓ |
 | AUTHCALL | ✅ |❓ |
