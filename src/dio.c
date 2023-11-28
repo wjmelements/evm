@@ -147,7 +147,7 @@ static void runTests(const entry_t *entry, testEntry_t *test) {
     // TODO support evmStaticCall
     result_t result = evmCall(from, gas, *entry->address, value, test->input);
 
-    if (LOWER(LOWER(result.status))) {
+    if (LOWER(LOWER(result.status)) == 0) {
         fputs("Execution reverted\n", stderr);
         // TODO allow revert as expected status
         testFailure = 1;
