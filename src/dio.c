@@ -78,6 +78,7 @@ typedef struct entry {
 
 static char *selfPath;
 static char *derivedPath = NULL;
+static int testFailure = 0;
 
 void dioInit(char *_selfPath) {
     selfPath = _selfPath;
@@ -148,6 +149,8 @@ static void runTests(const entry_t *entry, testEntry_t *test) {
 
     if (LOWER(LOWER(result.status))) {
         fputs("Execution reverted\n", stderr);
+        // TODO allow revert as expected status
+        testFailure = 1;
     }
 
     if (result.returnData.size != test->output.size || memcmp(result.returnData.content, test->output.content, test->output.size)) {
@@ -162,6 +165,7 @@ static void runTests(const entry_t *entry, testEntry_t *test) {
         }
 
         fputc('\n', stderr);
+        testFailure = 1;
     }
 
     free(test);
@@ -491,4 +495,7 @@ void applyConfig(const char *json) {
         }
     } while (1);
     jsonScanChar(&json, ']');
+    if (testFailure) {
+        _exit(1);
+    }
 }
