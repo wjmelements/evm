@@ -1002,6 +1002,132 @@ void test_log() {
     evmFinalize();
 }
 
+void test_sha3() {
+    evmInit();
+
+    // 595f205952595f205952596020205952595ff3
+    op_t sha3Test[] = {
+        MSIZE, PUSH0, SHA3, MSIZE, MSTORE,
+        MSIZE, PUSH0, SHA3, MSIZE, MSTORE,
+        MSIZE, PUSH1, 32, SHA3, MSIZE, MSTORE,
+        MSIZE, PUSH0, RETURN
+    };
+
+    address_t from;
+    uint64_t gas = 0x134d2;
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+    data_t input;
+    input.size = sizeof(sha3Test);
+    input.content = sha3Test;
+    result_t result = txCreate(from, gas, value, input);
+
+    // c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a47010ca3eff73ebec87d2394fc58560afeab86dac7a21f5e402ea0a55e5c8a6758f0000000000000000000000000000000000000000000000000000000000000000ec10957fe1361acf6a7655b35eb00faed8b1495e58674196eaa0eb7900b213f2
+    assert(result.returnData.size == 128);
+    assert(result.returnData.content[0] == 0xc5);
+    assert(result.returnData.content[1] == 0xd2);
+    assert(result.returnData.content[2] == 0x46);
+    assert(result.returnData.content[3] == 0x01);
+    assert(result.returnData.content[4] == 0x86);
+    assert(result.returnData.content[5] == 0xf7);
+    assert(result.returnData.content[6] == 0x23);
+    assert(result.returnData.content[7] == 0x3c);
+    assert(result.returnData.content[8] == 0x92);
+    assert(result.returnData.content[9] == 0x7e);
+    assert(result.returnData.content[10] == 0x7d);
+    assert(result.returnData.content[11] == 0xb2);
+    assert(result.returnData.content[12] == 0xdc);
+    assert(result.returnData.content[13] == 0xc7);
+    assert(result.returnData.content[14] == 0x03);
+    assert(result.returnData.content[15] == 0xc0);
+    assert(result.returnData.content[16] == 0xe5);
+    assert(result.returnData.content[17] == 0x00);
+    assert(result.returnData.content[18] == 0xb6);
+    assert(result.returnData.content[19] == 0x53);
+    assert(result.returnData.content[20] == 0xca);
+    assert(result.returnData.content[21] == 0x82);
+    assert(result.returnData.content[22] == 0x27);
+    assert(result.returnData.content[23] == 0x3b);
+    assert(result.returnData.content[24] == 0x7b);
+    assert(result.returnData.content[25] == 0xfa);
+    assert(result.returnData.content[26] == 0xd8);
+    assert(result.returnData.content[27] == 0x04);
+    assert(result.returnData.content[28] == 0x5d);
+    assert(result.returnData.content[29] == 0x85);
+    assert(result.returnData.content[30] == 0xa4);
+    assert(result.returnData.content[31] == 0x70);
+    assert(result.returnData.content[32] == 0x10);
+    assert(result.returnData.content[33] == 0xca);
+    assert(result.returnData.content[34] == 0x3e);
+    assert(result.returnData.content[35] == 0xff);
+    assert(result.returnData.content[36] == 0x73);
+    assert(result.returnData.content[37] == 0xeb);
+    assert(result.returnData.content[38] == 0xec);
+    assert(result.returnData.content[39] == 0x87);
+    assert(result.returnData.content[40] == 0xd2);
+    assert(result.returnData.content[41] == 0x39);
+    assert(result.returnData.content[42] == 0x4f);
+    assert(result.returnData.content[43] == 0xc5);
+    assert(result.returnData.content[44] == 0x85);
+    assert(result.returnData.content[45] == 0x60);
+    assert(result.returnData.content[46] == 0xaf);
+    assert(result.returnData.content[47] == 0xea);
+    assert(result.returnData.content[48] == 0xb8);
+    assert(result.returnData.content[49] == 0x6d);
+    assert(result.returnData.content[50] == 0xac);
+    assert(result.returnData.content[51] == 0x7a);
+    assert(result.returnData.content[52] == 0x21);
+    assert(result.returnData.content[53] == 0xf5);
+    assert(result.returnData.content[54] == 0xe4);
+    assert(result.returnData.content[55] == 0x02);
+    assert(result.returnData.content[56] == 0xea);
+    assert(result.returnData.content[57] == 0x0a);
+    assert(result.returnData.content[58] == 0x55);
+    assert(result.returnData.content[59] == 0xe5);
+    assert(result.returnData.content[60] == 0xc8);
+    assert(result.returnData.content[61] == 0xa6);
+    assert(result.returnData.content[62] == 0x75);
+    assert(result.returnData.content[63] == 0x8f);
+    for (int i = 64; i < 96; i++) {
+        assert(result.returnData.content[i] == 0x00);
+    }
+    assert(result.returnData.content[96] == 0xec);
+    assert(result.returnData.content[97] == 0x10);
+    assert(result.returnData.content[98] == 0x95);
+    assert(result.returnData.content[99] == 0x7f);
+    assert(result.returnData.content[100] == 0xe1);
+    assert(result.returnData.content[101] == 0x36);
+    assert(result.returnData.content[102] == 0x1a);
+    assert(result.returnData.content[103] == 0xcf);
+    assert(result.returnData.content[104] == 0x6a);
+    assert(result.returnData.content[105] == 0x76);
+    assert(result.returnData.content[106] == 0x55);
+    assert(result.returnData.content[107] == 0xb3);
+    assert(result.returnData.content[108] == 0x5e);
+    assert(result.returnData.content[109] == 0xb0);
+    assert(result.returnData.content[110] == 0x0f);
+    assert(result.returnData.content[111] == 0xae);
+    assert(result.returnData.content[112] == 0xd8);
+    assert(result.returnData.content[113] == 0xb1);
+    assert(result.returnData.content[114] == 0x49);
+    assert(result.returnData.content[115] == 0x5e);
+    assert(result.returnData.content[116] == 0x58);
+    assert(result.returnData.content[117] == 0x67);
+    assert(result.returnData.content[118] == 0x41);
+    assert(result.returnData.content[119] == 0x96);
+    assert(result.returnData.content[120] == 0xea);
+    assert(result.returnData.content[121] == 0xa0);
+    assert(result.returnData.content[122] == 0xeb);
+    assert(result.returnData.content[123] == 0x79);
+    assert(result.returnData.content[124] == 0x00);
+    assert(result.returnData.content[125] == 0xb2);
+    assert(result.returnData.content[126] == 0x13);
+    assert(result.returnData.content[127] == 0xf2);
+    assert(result.gasRemaining == 0);
+
+    evmFinalize();
+}
+
 int main() {
     test_stop();
     test_mstoreReturn();
@@ -1019,6 +1145,7 @@ int main() {
     test_revertStorage();
     test_revertSload();
     test_log();
+    test_sha3();
 
     // These last tests will write to stderr; usually we want this to be hushed
     close(2);
