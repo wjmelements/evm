@@ -71,9 +71,21 @@ void evmMockStorage(address_t to, const uint256_t *key, const uint256_t *storedV
 void evmMockNonce(address_t to, uint64_t nonce);
 void evmMockCode(address_t to, data_t code);
 
+typedef struct accessListStorage {
+    uint256_t key;
+    struct accessListStorage *prev;
+} accessListStorage_t;
+
+typedef struct accessList {
+    address_t address;
+    accessListStorage_t *storage;
+    struct accessList *prev;
+} accessList_t;
+
 result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input);
 result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input);
 result_t evmConstruct(address_t from, address_t to, uint64_t gas, val_t value, data_t input);
-// TODO gasPrice
-result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input);
-result_t txCreate(address_t from, uint64_t gas, val_t value, data_t input);
+// TODO gasPrice, basefee, blockNumber
+result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input, const accessList_t *accessList);
+// TODO accessList
+result_t txCreate(address_t from, uint64_t gas, val_t value, data_t input/*, const accessList_t *accessList*/);

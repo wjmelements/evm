@@ -61,8 +61,12 @@ typedef struct storageEntry {
 
 typedef struct testEntry {
     op_t op;
+    address_t from;
+    val_t value;
     data_t input;
     data_t output;
+    uint64_t gas;
+    accessList_t *accessList;
     uint64_t gasUsed;
     uint64_t debug;
     struct testEntry *prev;
@@ -140,15 +144,12 @@ static void runTests(const entry_t *entry, testEntry_t *test) {
     runTests(entry, test->prev);
 
     evmSetDebug(test->debug);
-    // TODO Support these parameters
-    address_t from;
     uint64_t gas = 0xffffffffffffffff;
-    val_t value;
-    value[0] = 0;
-    value[1] = 0;
-    value[2] = 0;
+    if (test->gas) {
+        gas = test->gas;
+    }
     // TODO support evmStaticCall
-    result_t result = txCall(from, gas, *entry->address, value, test->input);
+    result_t result = txCall(test->from, gas, *entry->address, test->value, test->input, test->accessList);
 
     if (LOWER(LOWER(result.status)) == 0) {
         fputs("Execution reverted\n", stderr);
@@ -261,6 +262,7 @@ static void applyEntry(entry_t *entry) {
         value[1] = 0;
         value[2] = 0;
 
+        evmSetDebug(0);
         result_t constructResult = evmConstruct(from, *entry->address, gas, value, input);
         if (entry->code.size) {
             // verify result code matches entry->code if present
@@ -385,52 +387,142 @@ static void jsonScanEntry(const char **iter) {
                             const char *testHeading = jsonScanStr(iter);
                             size_t testHeadingLen = *iter - testHeading - 1;
                             jsonScanChar(iter, ':');
-                            const char *testValue = jsonScanStr(iter);
-                            size_t testValueLength = *iter - testValue - 1;
-                            if (testHeadingLen == 5 && *testHeading == 'i') {
-                                // input
-                                jsonSkipExpectedChar(&testValue, '0');
-                                jsonSkipExpectedChar(&testValue, 'x');
-                                test->input.size = (testValueLength - 2) / 2;
-                                test->input.content = malloc(test->input.size);
-                                for (size_t i = 0; i < test->input.size; i++) {
-                                    test->input.content[i] = hexString16ToUint8(testValue + i * 2);
-                                }
-                            } else if (testHeadingLen == 5 && *testHeading == 'd') {
-                                // debug
-                                jsonSkipExpectedChar(&testValue, '0');
-                                jsonSkipExpectedChar(&testValue, 'x');
-                                testValueLength -= 2;
-                                for (size_t i = 0; i < testValueLength; i++) {
-                                    test->debug <<= 4;
-                                    test->debug |= hexString8ToUint8(testValue[i]);
-                                }
-                            } else if (testHeadingLen == 6 && *testHeading == 'o') {
-                                // output
-                                jsonSkipExpectedChar(&testValue, '0');
-                                jsonSkipExpectedChar(&testValue, 'x');
-                                test->output.size = (testValueLength - 2) / 2;
-                                test->output.content = malloc(test->output.size);
-                                for (size_t i = 0; i < test->output.size; i++) {
-                                    test->output.content[i] = hexString16ToUint8(testValue + i * 2);
-                                }
-                            } else if (testHeadingLen == 7 && *testHeading == 'g') {
-                                jsonSkipExpectedChar(&testValue, '0');
-                                jsonSkipExpectedChar(&testValue, 'x');
-                                testValueLength -= 2;
-                                for (size_t i = 0; i < testValueLength; i++) {
-                                    test->gasUsed <<= 4;
-                                    test->gasUsed |= hexString8ToUint8(testValue[i]);
-                                }
-                            } else if (testHeadingLen == 2 && *testHeading == 'o') {
-                                const char *end;
-                                test->op = parseOp(testValue, &end);
+                            if (testHeadingLen == 10 && *testHeading == 'a') {
+                                // accessList
+                                jsonScanChar(iter, '{');
+                                jsonScanWaste(iter);
+                                if (**iter != '}') do {
+                                    accessList_t *accessList = calloc(1, sizeof(accessList_t));
+                                    accessList->prev = test->accessList;
+                                    test->accessList = accessList;
+                                    const char *accessListAccount = jsonScanStr(iter);
+                                    size_t accessListAccountLen = *iter - accessListAccount - 1;
+                                    if (accessListAccountLen != 42) {
+                                        fprintf(stderr, "Unexpected address length %zu\n", accessListAccountLen);
+                                        _exit(1);
+                                    }
+                                    accessList->address = AddressFromHex42(accessListAccount);
+
+                                    jsonScanChar(iter, ':');
+
+                                    jsonScanChar(iter, '[');
+                                    if (**iter != ']') do {
+                                        const char *accessListSlot = jsonScanStr(iter);
+
+                                        jsonSkipExpectedChar(&accessListSlot, '0');
+                                        jsonSkipExpectedChar(&accessListSlot, 'x');
+
+
+                                        accessListStorage_t *slot = calloc(1, sizeof(accessListStorage_t));
+                                        slot->prev = accessList->storage;
+                                        accessList->storage = slot;
+
+                                        while (*accessListSlot != '"') {
+                                            shiftl256(&slot->key, 4, &slot->key);
+                                            LOWER(LOWER(slot->key)) |= hexString8ToUint8(*accessListSlot);
+                                            accessListSlot++;
+                                        }
+
+                                        jsonScanWaste(iter);
+                                        if (**iter == ',') {
+                                            jsonSkipExpectedChar(iter, ',');
+                                            jsonScanWaste(iter);
+                                            continue;
+                                        } else {
+                                            break;
+                                        }
+                                    } while (1);
+                                    jsonScanChar(iter, ']');
+                                    jsonScanWaste(iter);
+                                    if (**iter == ',') {
+                                        jsonSkipExpectedChar(iter, ',');
+                                        jsonScanWaste(iter);
+                                        continue;
+                                    } else {
+                                        break;
+                                    }
+                                } while (1);
+                                jsonScanChar(iter, '}');
                             } else {
-                                fputs("Unexpected test heading: ", stderr);
-                                for (size_t i = 0; i < testHeadingLen; i++) {
-                                    fputc(testHeading[i], stderr);
+                                const char *testValue = jsonScanStr(iter);
+                                size_t testValueLength = *iter - testValue - 1;
+                                if (testHeadingLen == 5 && *testHeading == 'i') {
+                                    // input
+                                    jsonSkipExpectedChar(&testValue, '0');
+                                    jsonSkipExpectedChar(&testValue, 'x');
+                                    test->input.size = (testValueLength - 2) / 2;
+                                    test->input.content = malloc(test->input.size);
+                                    for (size_t i = 0; i < test->input.size; i++) {
+                                        test->input.content[i] = hexString16ToUint8(testValue + i * 2);
+                                    }
+                                } else if (testHeadingLen == 5 && *testHeading == 'd') {
+                                    // debug
+                                    jsonSkipExpectedChar(&testValue, '0');
+                                    jsonSkipExpectedChar(&testValue, 'x');
+                                    testValueLength -= 2;
+                                    for (size_t i = 0; i < testValueLength; i++) {
+                                        test->debug <<= 4;
+                                        test->debug |= hexString8ToUint8(testValue[i]);
+                                    }
+                                } else if (testHeadingLen == 6 && *testHeading == 'o') {
+                                    // output
+                                    jsonSkipExpectedChar(&testValue, '0');
+                                    jsonSkipExpectedChar(&testValue, 'x');
+                                    test->output.size = (testValueLength - 2) / 2;
+                                    test->output.content = malloc(test->output.size);
+                                    for (size_t i = 0; i < test->output.size; i++) {
+                                        test->output.content[i] = hexString16ToUint8(testValue + i * 2);
+                                    }
+                                } else if (testHeadingLen == 5 && *testHeading == 'v') {
+                                    // value
+                                    jsonSkipExpectedChar(&testValue, '0');
+                                    jsonSkipExpectedChar(&testValue, 'x');
+                                    while (*testValue != '"') {
+                                        test->value[0] <<= 4;
+                                        test->value[0] |= test->value[1] >> 28;
+                                        test->value[1] <<= 4;
+                                        test->value[1] |= test->value[2] >> 28;
+                                        test->value[2] <<= 4;
+                                        test->value[2] |= hexString8ToUint8(*testValue);
+                                        testValue++;
+                                    }
+                                } else if (testHeadingLen == 4 && *testHeading == 'f') {
+                                    // from
+                                    jsonSkipExpectedChar(&testValue, '0');
+                                    jsonSkipExpectedChar(&testValue, 'x');
+                                    for (unsigned int i = 0; i < 20; i++) {
+                                        test->from.address[i] = hexString16ToUint8(testValue);
+                                        testValue += 2;
+                                    }
+                                } else if (testHeadingLen == 7 && *testHeading == 'g') {
+                                    // gasUsed
+                                    jsonSkipExpectedChar(&testValue, '0');
+                                    jsonSkipExpectedChar(&testValue, 'x');
+                                    testValueLength -= 2;
+                                    for (size_t i = 0; i < testValueLength; i++) {
+                                        test->gasUsed <<= 4;
+                                        test->gasUsed |= hexString8ToUint8(testValue[i]);
+                                    }
+                                } else if (testHeadingLen == 3 && *testHeading == 'g') {
+                                    // gas
+                                    jsonSkipExpectedChar(&testValue, '0');
+                                    jsonSkipExpectedChar(&testValue, 'x');
+                                    while (*testValue != '"') {
+                                        test->gas <<= 4;
+                                        test->gas |= hexString8ToUint8(*testValue);
+                                        testValue++;
+                                    }
+                                } else if (testHeadingLen == 2 && *testHeading == 'o') {
+                                    // op
+                                    const char *end;
+                                    test->op = parseOp(testValue, &end);
+                                } else {
+                                    fputs("Unexpected test heading: ", stderr);
+                                    for (size_t i = 0; i < testHeadingLen; i++) {
+                                        fputc(testHeading[i], stderr);
+                                    }
+                                    fputc('\n', stderr);
                                 }
-                                fputc('\n', stderr);
                             }
                             jsonScanWaste(iter);
                             if (**iter == ',') {

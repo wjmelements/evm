@@ -207,16 +207,18 @@ static inline bool ensureMemory(context_t *callContext, uint64_t capacity) {
     return true;
 }
 
-static inline void deductCalldataGas(context_t *callContext, const data_t *calldata, bool isCreate) {
-    callContext->gas -= G_CALLDATAZERO * calldata->size;
+static inline uint64_t calldataGas(const data_t *calldata, bool isCreate) {
+    uint64_t gas = 0;
+    gas += G_CALLDATAZERO * calldata->size;
     if (isCreate) {
-        callContext->gas -= G_INITCODEWORD * ((calldata->size + 31) >> 5); // EIP 3860: 2 gas per word
+        gas += G_INITCODEWORD * ((calldata->size + 31) >> 5); // EIP 3860: 2 gas per word
     }
     for (size_t i = 0; i < calldata->size; i++) {
         if (calldata->content[i]) {
-            callContext->gas -= G_CALLDATANONZERO;
+            gas += G_CALLDATANONZERO;
         }
     }
+    return gas;
 }
 
 typedef struct {
@@ -893,7 +895,7 @@ static result_t doCall(context_t *callContext) {
                             if (zero256(&storage->original)) {
                                 gasCost = G_SSET - G_ACCESS;
                             } else {
-                                gasCost = G_SRESET - G_ACCESS - G_COLD_STORAGE;
+                                gasCost = G_SRESET - G_ACCESS;
                                 if (zero256(callContext->top)) {
                                     refundCounter += R_CLEAR;
                                 }
@@ -949,6 +951,13 @@ static result_t doCall(context_t *callContext) {
                     change->prev = changes->storageChanges;
                     changes->storageChanges = change;
                 }
+                break;
+            case NUMBER:
+                // TODO allow configuration for blockNumber
+                UPPER(UPPER_P(callContext->top - 1)) = 0;
+                LOWER(UPPER_P(callContext->top - 1)) = 0;
+                UPPER(LOWER_P(callContext->top - 1)) = 0;
+                LOWER(LOWER_P(callContext->top - 1)) = 0x11cfe8a;
                 break;
             case CALLVALUE:
                 UPPER(UPPER_P(callContext->top - 1)) = 0;
@@ -1231,20 +1240,6 @@ result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t
     account_t *fromAccount = getAccount(from);
     if (callstack.next == callstack.bottom) {
         callContext->readonly = false;
-        callContext->gas = gas - G_TX;
-        deductCalldataGas(callContext, &input, false);
-        if (gas < callContext->gas) {
-            // underflow indicates insufficient initial gas
-            fprintf(stderr, "Insufficient intrinsic gas %llu (need %llu)\n", gas, gas - callContext->gas);
-            result_t result;
-            result.gasRemaining = 0;
-            clear256(&result.status);
-            result.returnData.size = 0;
-            return result;
-        }
-        fromAccount->warm = evmIteration;
-        account_t *toAccount = getAccount(to);
-        toAccount->warm = evmIteration;
     } else {
         callContext->readonly = callContext[-1].readonly;
     }
@@ -1288,7 +1283,7 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
     callContext->gas = gas;
     if (callstack.next == callstack.bottom) {
         callContext->gas -= G_TXCREATE + G_TX;
-        deductCalldataGas(callContext, &input, true);
+        callContext->gas -= calldataGas(&input, true);
         if (gas < callContext->gas) {
             // underflow indicates insufficient initial gas
             fprintf(stderr, "Insufficient intrinsic gas %llu (need %llu)\n", gas, gas - callContext->gas);
@@ -1356,14 +1351,40 @@ result_t evmConstruct(address_t from, address_t to, uint64_t gas, val_t value, d
     return _evmConstruct(from, getAccount(to), gas, value, input);
 }
 
-result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input) {
+result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input, const accessList_t *accessList) {
     account_t *fromAccount = getAccount(from);
     fromAccount->warm = evmIteration;
+    uint64_t intrinsicGas = G_TX + calldataGas(&input, false);
+    while (accessList) {
+        intrinsicGas += G_ACCESSLIST_ACCOUNT;
+        account_t *account = getAccount(accessList->address);
+        account->warm = evmIteration;
+        accessListStorage_t *accessListStorage = accessList->storage;
+        while (accessListStorage) {
+            intrinsicGas += G_ACCESSLIST_STORAGE;
+            getAccountStorage(account, &accessListStorage->key)->warm = evmIteration;
+            accessListStorage = accessListStorage->prev;
+        }
+        accessList = accessList->prev;
+    }
+    if (gas < intrinsicGas) {
+        fprintf(stderr, "Insufficient intrinsic gas %llu (need %llu)\n", gas, intrinsicGas);
+        result_t result;
+        result.gasRemaining = 0;
+        clear256(&result.status);
+        result.returnData.size = 0;
+        evmIteration++;
+        return result;
+    }
+    gas -= intrinsicGas;
+    account_t *toAccount = getAccount(to);
+    toAccount->warm = evmIteration;
     result_t result = evmCall(from, gas, to, value, input);
     evmIteration++;
     getAccount(from)->nonce++;
     return result;
 }
+
 
 result_t txCreate(address_t from, uint64_t gas, val_t value, data_t input) {
     result_t result = evmCreate(from, gas, value, input);

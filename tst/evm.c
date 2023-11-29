@@ -356,7 +356,7 @@ void test_callEmpty() {
     input.content = callData;
     input.size = sizeof(callData);
 
-    result_t result = txCall(from, gas, to, value, input);
+    result_t result = txCall(from, gas, to, value, input, NULL);
     evmFinalize();
 
     assert(UPPER(UPPER(result.status)) == 0);
@@ -486,7 +486,7 @@ void test_extcodecopy() {
 
     gas = 24117;
     input.content = locations[1].address - 12;
-    result_t examineFirstAccount = txCall(from, gas, to, value, input);
+    result_t examineFirstAccount = txCall(from, gas, to, value, input, NULL);
     assert(UPPER(UPPER(examineFirstAccount.status)) == 0);
     assert(LOWER(UPPER(examineFirstAccount.status)) == 0);
     assert(UPPER(LOWER(examineFirstAccount.status)) == 0);
@@ -508,7 +508,7 @@ void test_extcodecopy() {
 
     gas = 21617;
     input.content = locations[3].address - 12;
-    result_t examineSecondAccount = txCall(from, gas, to, value, input);
+    result_t examineSecondAccount = txCall(from, gas, to, value, input, NULL);
     assert(UPPER(UPPER(examineSecondAccount.status)) == 0);
     assert(LOWER(UPPER(examineSecondAccount.status)) == 0);
     assert(UPPER(LOWER(examineSecondAccount.status)) == 0);
@@ -587,7 +587,7 @@ void test_deepCall() {
 
     input.content = param;
     input.size = sizeof(param);
-    result_t diveResult = txCall(from, gas, to, value, input);
+    result_t diveResult = txCall(from, gas, to, value, input, NULL);
 
     assert(UPPER(UPPER(diveResult.status)) == 0);
     assert(LOWER(UPPER(diveResult.status)) == 0);
@@ -672,7 +672,7 @@ void test_revertStorage() {
     gas = 103640;
     address_t to = AddressFromUint256(&createResult.status);
 
-    result_t sstoreRevertResult = txCall(from, gas, to, value, input);
+    result_t sstoreRevertResult = txCall(from, gas, to, value, input, NULL);
     assert(UPPER(UPPER(sstoreRevertResult.status)) == 0);
     assert(LOWER(UPPER(sstoreRevertResult.status)) == 0);
     assert(UPPER(LOWER(sstoreRevertResult.status)) == 0);
@@ -744,7 +744,7 @@ void test_revertSload() {
     gas = 27655;
     address_t to = AddressFromUint256(&createResult.status);
 
-    result_t sloadRevertResult = txCall(from, gas, to, value, input);
+    result_t sloadRevertResult = txCall(from, gas, to, value, input, NULL);
     assert(UPPER(UPPER(sloadRevertResult.status)) == 0);
     assert(LOWER(UPPER(sloadRevertResult.status)) == 0);
     assert(UPPER(LOWER(sloadRevertResult.status)) == 0);
@@ -847,7 +847,7 @@ void test_staticcallSstore() {
     // STATICCALL into SLOAD, returning 0
     input.size = 0;
     gas = 0x64c2;
-    result = txCall(from, gas, staticCall, value, input);
+    result = txCall(from, gas, staticCall, value, input, NULL);
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0);
     assert(UPPER(LOWER(result.status)) == 0);
@@ -858,7 +858,7 @@ void test_staticcallSstore() {
     // STATICCALL into SLOAD, returning 32
     input.size = 32;
     gas = 25928;
-    result = txCall(from, gas, staticCall, value, input);
+    result = txCall(from, gas, staticCall, value, input, NULL);
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0);
     assert(UPPER(LOWER(result.status)) == 0);
@@ -870,7 +870,7 @@ void test_staticcallSstore() {
     // SSTORE directly; success
     input.size = 64;
     gas = 23589;
-    result = txCall(from, gas, storageTest, value, input);
+    result = txCall(from, gas, storageTest, value, input, NULL);
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0);
     assert(UPPER(LOWER(result.status)) == 0);
@@ -880,7 +880,7 @@ void test_staticcallSstore() {
 
     // STATICCALL into SSTORE; forbidden
     gas = 0x10000;
-    result = txCall(from, gas, staticCall, value, input);
+    result = txCall(from, gas, staticCall, value, input, NULL);
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0);
     assert(UPPER(LOWER(result.status)) == 0);
@@ -1204,7 +1204,7 @@ void test_delegateCall() {
     input.content = createReverseBytes;
     input.size = sizeof(createReverseBytes);
 
-    result_t reverseProxy = txCall(from, gas, proxy, value, input);
+    result_t reverseProxy = txCall(from, gas, proxy, value, input, NULL);
     assert(UPPER(UPPER(reverseProxy.status)) == 0);
     assert(LOWER(UPPER(reverseProxy.status)) == 0);
     assert(UPPER(LOWER(reverseProxy.status)) == 0);
