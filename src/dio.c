@@ -63,6 +63,7 @@ typedef struct testEntry {
     op_t op;
     data_t input;
     data_t output;
+    uint64_t gasUsed;
     uint64_t debug;
     struct testEntry *prev;
 } testEntry_t;
@@ -168,6 +169,14 @@ static void runTests(const entry_t *entry, testEntry_t *test) {
 
         fputc('\n', stderr);
         testFailure = 1;
+    } else if (test->gasUsed) {
+        if (test->gasUsed < gas - result.gasRemaining) {
+            // more actual gasUsed than expected
+            fprintf(stderr, "gas: used \033[0;31m%llu\033[0m expected %llu\n", gas - result.gasRemaining, test->gasUsed);
+        } else if (test->gasUsed > gas - result.gasRemaining) {
+            // less actual gasUsed than expected
+            fprintf(stderr, "gas: used \033[0;32m%llu\033[0m expected %llu\n", gas - result.gasRemaining, test->gasUsed);
+        }
     }
 
     free(test);
@@ -404,6 +413,14 @@ static void jsonScanEntry(const char **iter) {
                                 test->output.content = malloc(test->output.size);
                                 for (size_t i = 0; i < test->output.size; i++) {
                                     test->output.content[i] = hexString16ToUint8(testValue + i * 2);
+                                }
+                            } else if (testHeadingLen == 7 && *testHeading == 'g') {
+                                jsonSkipExpectedChar(&testValue, '0');
+                                jsonSkipExpectedChar(&testValue, 'x');
+                                testValueLength -= 2;
+                                for (size_t i = 0; i < testValueLength; i++) {
+                                    test->gasUsed <<= 4;
+                                    test->gasUsed |= hexString8ToUint8(testValue[i]);
                                 }
                             } else if (testHeadingLen == 2 && *testHeading == 'o') {
                                 const char *end;
