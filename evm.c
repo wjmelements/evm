@@ -136,7 +136,7 @@ static void execute(const char *contents) {
     result_t result;
     if (false) {
         address_t to; // TODO support this parameter
-        result = txCall(from, gas, to, value, input);
+        result = txCall(from, gas, to, value, input, NULL);
     } else {
         result = txCreate(from, gas, value, input);
     }

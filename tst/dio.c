@@ -22,7 +22,7 @@ void test_applyConfig_code() {
     data_t input;
     input.size = 0;
 
-    result_t result = txCall(from, gas, to, val, input);
+    result_t result = txCall(from, gas, to, val, input, NULL);
     op_t expected[] = {
          CODESIZE, RETURNDATASIZE, RETURNDATASIZE, CODECOPY,
          CODESIZE, RETURNDATASIZE, RETURN
@@ -58,7 +58,7 @@ void test_applyConfig_storage() {
     data_t input;
     input.size = 0;
 
-    result_t result = txCall(from, gas, to, val, input);
+    result_t result = txCall(from, gas, to, val, input, NULL);
     op_t expected[] = {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -95,7 +95,7 @@ void test_applyConfig_balance() {
     data_t input;
     input.size = 0;
 
-    result_t result = txCall(from, gas, to, val, input);
+    result_t result = txCall(from, gas, to, val, input, NULL);
     op_t expected[] = {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -131,7 +131,7 @@ void test_applyConfig_construct() {
     data_t input;
     input.size = 0;
 
-    result_t result = txCall(from, gas, to, val, input);
+    result_t result = txCall(from, gas, to, val, input, NULL);
     op_t expected[] = {
         0x38, 0x3d, 0x3d, 0x39, 0x38, 0x3d, 0xf3
     };
@@ -182,7 +182,7 @@ void test_applyConfig_tests() {
     data_t input;
     input.size = 0;
 
-    result_t result = txCall(from, gas, to, val, input);
+    result_t result = txCall(from, gas, to, val, input, NULL);
     op_t expected[] = {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
