@@ -13,6 +13,10 @@ typedef struct data {
     uint8_t *content;
 } data_t;
 
+static inline int DataEqual(const data_t *expected, const data_t *actual) {
+    return expected->size == actual->size && memcmp(expected->content, actual->content, actual->size) == 0;
+}
+
 typedef struct storageChanges {
     uint256_t key;
     uint256_t before;
@@ -29,6 +33,25 @@ typedef struct logChanges {
     struct logChanges *prev;
 } logChanges_t;
 
+static int LogsEqual(const logChanges_t *expectedLog, const logChanges_t *actualLog) {
+    while (expectedLog && actualLog) {
+        if (!DataEqual(&expectedLog->data, &actualLog->data)) {
+            return false;
+        }
+        if (expectedLog->topicCount != actualLog->topicCount) {
+            return false;
+        }
+        for (uint16_t i = 0; i < expectedLog->topicCount; i++) {
+            if (!equal256(expectedLog->topics + i, actualLog->topics + i)) {
+                return false;
+            }
+        }
+        expectedLog = expectedLog->prev;
+        actualLog = actualLog->prev;
+    }
+    return expectedLog == NULL && actualLog == NULL;
+}
+
 // state changes are reverted on failure and returned on success
 typedef struct stateChanges {
     address_t account;
@@ -43,7 +66,8 @@ typedef struct stateChanges {
 } stateChanges_t;
 
 // returns the number of items printed
-uint16_t fprintLogs(FILE *, const stateChanges_t *);
+uint16_t fprintLogs(FILE *, const stateChanges_t *, int showLogIndex);
+uint16_t fprintLog(FILE *, const logChanges_t *, int showLogIndex);
 
 typedef struct callResult {
     data_t returnData;

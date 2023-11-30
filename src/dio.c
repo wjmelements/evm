@@ -8,6 +8,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#define MAX_LOG_TOPICS 4
+
 static inline int jsonIgnores(char ch) {
     return ch != '{'
         && ch != '}'
@@ -59,6 +61,12 @@ typedef struct storageEntry {
     struct storageEntry *prev;
 } storageEntry_t;
 
+typedef struct logsEntry {
+    address_t address;
+    logChanges_t *logs;
+    struct logsEntry *prev;
+} logsEntry_t;
+
 typedef struct testEntry {
     char *name;
     op_t op;
@@ -70,6 +78,7 @@ typedef struct testEntry {
     accessList_t *accessList;
     uint256_t status;
     uint64_t gasUsed;
+    logsEntry_t *logs;
     uint64_t debug;
 
     struct testEntry *prev;
@@ -177,6 +186,39 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
             fputs("\033[0;31mshould revert\033[0m\n", stderr);
         }
         testFailure = anyTestFailure = 1;
+    }
+    const logsEntry_t *expectedLogs = test->logs;
+    while (expectedLogs) {
+        // find corresponding acccount
+        const stateChanges_t *actualLogs = result.stateChanges;
+        while (actualLogs) {
+            if (AddressEqual(&actualLogs->account, &expectedLogs->address)) {
+                break;
+            }
+            actualLogs = actualLogs->next;
+        }
+        if (actualLogs) {
+            // compare all logs
+            const logChanges_t *expectedLog = expectedLogs->logs;
+            const logChanges_t *actualLog = actualLogs->logChanges;
+            if (!LogsEqual(expectedLog, actualLog)) {
+                // mismatch
+                fputs("logs expected:\n", stderr);
+                fprintLog(stderr, expectedLogs->logs, false);
+                fputc('\n', stderr);
+                fputs("logs actual:\n", stderr);
+                fprintLog(stderr, actualLogs->logChanges, false);
+                fputc('\n', stderr);
+                testFailure = anyTestFailure = 1;
+            }
+        } else {
+            // Missing!
+            fputs("expected logs missing:\n", stderr);
+            fprintLog(stderr, expectedLogs->logs, false);
+            fputc('\n', stderr);
+            testFailure = anyTestFailure = 1;
+        }
+        expectedLogs = expectedLogs->prev;
     }
 
     if (result.returnData.size != test->output.size || memcmp(result.returnData.content, test->output.content, test->output.size)) {
@@ -324,6 +366,114 @@ static void applyEntry(entry_t *entry) {
         free(prev);
     }
     runTests(entry, entry->tests);
+}
+
+static void jsonScanLogTopics(const char **iter, logChanges_t *log) {
+    jsonScanChar(iter, '[');
+    jsonScanWaste(iter);
+    uint256_t topics[MAX_LOG_TOPICS];
+    if (**iter != ']') do {
+        const char *topic = jsonScanStr(iter);
+        jsonSkipExpectedChar(&topic, '0');
+        jsonSkipExpectedChar(&topic, 'x');
+        clear256(topics+log->topicCount);
+        while (*topic != '"') {
+            shiftl256((topics+log->topicCount), 4, (topics+log->topicCount));
+            LOWER(LOWER_P((topics+log->topicCount))) |= hexString8ToUint8(*topic);
+            topic++;
+        }
+        log->topicCount++;
+        jsonScanWaste(iter);
+        if (**iter == ',') {
+            jsonSkipExpectedChar(iter, ',');
+            jsonScanWaste(iter);
+            continue;
+        } else {
+            break;
+        }
+    } while (1);
+    jsonSkipExpectedChar(iter, ']');
+    log->topics = calloc(log->topicCount, sizeof(uint256_t));
+    for (uint16_t i = log->topicCount; i--> 0;) {
+        log->topics[log->topicCount - i - 1] = topics[i];
+    }
+}
+
+static void jsonScanData(const char **iter, data_t *result){
+    const char *data = jsonScanStr(iter);
+    jsonSkipExpectedChar(&data, '0');
+    jsonSkipExpectedChar(&data, 'x');
+    result->size = (*iter - data - 1) / 2;
+    result->content = malloc(result->size);
+    for (size_t i = 0; i < result->size; i++) {
+        result->content[i] = hexString16ToUint8(data);
+        data += 2;
+    }
+}
+
+static void jsonScanLog(const char **iter, logChanges_t **prev) {
+    jsonScanChar(iter, '{');
+    logChanges_t *log = calloc(1, sizeof(logChanges_t));
+    log->prev = *prev;
+    *prev = log;
+    jsonScanWaste(iter);
+    if (**iter != '}') do {
+        const char *logHeading = jsonScanStr(iter);
+        size_t logHeadingLen = *iter - logHeading - 1;
+        jsonScanChar(iter, ':');
+        if (logHeadingLen == 6 && *logHeading == 't') {
+            // topics
+            jsonScanLogTopics(iter, log);
+        } else if (logHeadingLen == 4 && *logHeading == 'd') {
+            // data
+            jsonScanData(iter, &log->data);
+        } else {
+            fprintf(stderr, "Unexpected log heading: ");
+            for (size_t i = 0; i < logHeadingLen; i++) {
+                fputc(logHeading[i], stderr);
+            }
+            fputc('\n', stderr);
+            _exit(1);
+        }
+        jsonScanWaste(iter);
+        if (**iter == ',') {
+            jsonSkipExpectedChar(iter, ',');
+            jsonScanWaste(iter);
+        } else {
+            break;
+        }
+    } while (1);
+    jsonSkipExpectedChar(iter, '}');
+}
+
+static void jsonScanAccountLogs(const char **iter, logsEntry_t **prev) {
+    logsEntry_t *accountLogs = malloc(sizeof(logsEntry_t));
+    accountLogs->prev = *prev;
+    *prev = accountLogs;
+
+    const char *addressStr = jsonScanStr(iter);
+    size_t addressLen = *iter - addressStr - 1;
+    if (addressLen != 42) {
+        fprintf(stderr, "Unexpected address len %zu\n", addressLen);
+    }
+    accountLogs->address = AddressFromHex42(addressStr);
+    jsonScanChar(iter, ':');
+    jsonScanChar(iter, '[');
+
+    jsonScanWaste(iter);
+    if (**iter != ']') do {
+        jsonScanLog(iter, &accountLogs->logs);
+
+        jsonScanWaste(iter);
+        if (**iter == ',') {
+            jsonSkipExpectedChar(iter, ',');
+            jsonScanWaste(iter);
+            continue;
+        } else {
+            break;
+        }
+    } while (1);
+    jsonSkipExpectedChar(iter, ']');
 }
 
 static void jsonScanEntry(const char **iter) {
@@ -475,6 +625,23 @@ static void jsonScanEntry(const char **iter) {
                                     }
                                 } while (1);
                                 jsonScanChar(iter, '}');
+                            } else if (testHeadingLen == 4 && *testHeading == 'l') {
+                                // logs
+                                jsonScanChar(iter, '{');
+                                jsonScanWaste(iter);
+                                if (**iter != '}') do {
+                                    jsonScanAccountLogs(iter, &test->logs);
+
+                                    jsonScanWaste(iter);
+                                    if (**iter == ',') {
+                                        jsonSkipExpectedChar(iter, ',');
+                                        jsonScanWaste(iter);
+                                        continue;
+                                    } else {
+                                        break;
+                                    }
+                                } while (1);
+                                jsonSkipExpectedChar(iter, '}');
                             } else {
                                 const char *testValue = jsonScanStr(iter);
                                 size_t testValueLength = *iter - testValue - 1;
