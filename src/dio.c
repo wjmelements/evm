@@ -68,6 +68,7 @@ typedef struct testEntry {
     data_t output;
     uint64_t gas;
     accessList_t *accessList;
+    uint256_t status;
     uint64_t gasUsed;
     uint64_t debug;
 
@@ -169,9 +170,12 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
     }
     fputs(": ", stderr);
     int testFailure = 0;
-    if (LOWER(LOWER(result.status)) == 0) {
-        fputs("Execution reverted\n", stderr);
-        // TODO allow revert as expected status
+    if (!equal256(&result.status, &test->status) || test->op == CREATE) {
+        if (zero256(&test->status)) {
+            fputs("\033[0;31mreverted\033[0m\n", stderr);
+        } else {
+            fputs("\033[0;31mshould revert\033[0m\n", stderr);
+        }
         testFailure = anyTestFailure = 1;
     }
 
@@ -408,6 +412,7 @@ static void jsonScanEntry(const char **iter) {
 
                         testEntry_t *test = calloc(1, sizeof(testEntry_t));
                         test->prev = entry.tests;
+                        LOWER(LOWER(test->status)) = 1;
                         entry.tests = test;
 
                         if (**iter != '}') do {
@@ -548,6 +553,16 @@ static void jsonScanEntry(const char **iter) {
                                     // op
                                     const char *end;
                                     test->op = parseOp(testValue, &end);
+                                } else if (testHeadingLen == 6 && *testHeading == 's') {
+                                    // status
+                                    jsonSkipExpectedChar(&testValue, '0');
+                                    jsonSkipExpectedChar(&testValue, 'x');
+                                    clear256(&test->status);
+                                    while (*testValue != '"') {
+                                        shiftl256(&test->status, 4, &test->status);
+                                        LOWER(LOWER(test->status)) |= hexString8ToUint8(*testValue);
+                                        testValue++;
+                                    }
                                 } else {
                                     fputs("Unexpected test heading: ", stderr);
                                     for (size_t i = 0; i < testHeadingLen; i++) {
