@@ -85,20 +85,18 @@ static void disassemble(const char *contents) {
 
 static char *selfPath;
 
-static void execute(const char *contents) {
-    evmInit();
-
-    if (configFile != NULL) {
-        int fd = open(configFile, O_RDONLY);
+static void runConfig(const char *_configFile) {
+    if (_configFile != NULL) {
+        int fd = open(_configFile, O_RDONLY);
         if (fd == -1) {
-            perror(configFile);
+            perror(_configFile);
             _exit(1);
         }
 
         struct stat fstatus;
         int fstatSuccess = fstat(fd, &fstatus);
         if (fstatSuccess == -1) {
-            perror(configFile);
+            perror(_configFile);
             _exit(1);
         }
         char *configContents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
@@ -107,7 +105,12 @@ static void execute(const char *contents) {
         munmap(configContents, fstatus.st_size);
         close(fd);
     }
+}
 
+static void execute(const char *contents) {
+    if (configFile == NULL) {
+        evmInit();
+    }
     size_t len = strlen(contents);
     if (len & 1 && contents[len - 1] != '\n') {
         fputs("odd-lengthed input", stderr);
@@ -201,7 +204,11 @@ int main(int argc, char *const argv[]) {
                 includeLogs = 1;
                 break;
             case 'w':
+                if (configFile == NULL) {
+                    evmInit();
+                }
                 configFile = optarg;
+                runConfig(configFile);
                 break;
             case '?':
             default:
@@ -228,6 +235,9 @@ int main(int argc, char *const argv[]) {
         subprogram = disassemble;
     } else if (runtime) {
         subprogram = execute;
+    } else if (configFile) {
+        // tests should _exit(1) if they fail
+        _exit(0);
     } else {
         subprogram = assemble;
     }
