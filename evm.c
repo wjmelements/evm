@@ -152,7 +152,7 @@ static void execute(const char *contents) {
         }
         if (includeLogs) {
             fputs("logs\":", stdout);
-            fprintLogs(stdout, result.stateChanges);
+            fprintLogs(stdout, result.stateChanges, true);
             fputs(",\"", stdout);
         }
         if (includeStatus) {

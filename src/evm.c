@@ -8,15 +8,19 @@
 #include <strings.h>
 
 
-static uint16_t _fprintLog(FILE *file, const logChanges_t *log) {
+uint16_t fprintLog(FILE *file, const logChanges_t *log, int showLogIndex) {
     if (log == NULL) {
         return 0;
     }
-    uint16_t items = _fprintLog(file, log->prev);
+    uint16_t items = fprintLog(file, log->prev, showLogIndex);
     if (items) {
         fputc(',', file);
     }
-    fprintf(file, "{\"logIndex\":\"0x%x\",\"data\":\"0x", log->logIndex);
+    if (showLogIndex) {
+        fprintf(file, "{\"logIndex\":\"0x%x\",\"data\":\"0x", log->logIndex);
+    } else {
+        fprintf(file, "{\"data\":\"0x");
+    }
     for (size_t i = 0; i < log->data.size; i++) {
         fprintf(file, "%02x", log->data.content[i]);
     }
@@ -36,11 +40,11 @@ static uint16_t _fprintLog(FILE *file, const logChanges_t *log) {
     return items + 1;
 }
 
-static uint16_t _fprintLogs(FILE *file, const stateChanges_t *account) {
+static uint16_t _fprintLogs(FILE *file, const stateChanges_t *account, int showLogIndex) {
     if (account == NULL) {
         return 0;
     }
-    uint16_t items = _fprintLogs(file, account->next);
+    uint16_t items = _fprintLogs(file, account->next, showLogIndex);
     if (account->logChanges == NULL) {
         return items;
     }
@@ -50,14 +54,14 @@ static uint16_t _fprintLogs(FILE *file, const stateChanges_t *account) {
     fputs("\"", file);
     fprintAddress(file, account->account);
     fputs("\":[", file);
-    items += _fprintLog(file, account->logChanges);
+    items += fprintLog(file, account->logChanges, showLogIndex);
     fputc(']', file);
     return items;
 }
 
-uint16_t fprintLogs(FILE *file, const stateChanges_t *account) {
+uint16_t fprintLogs(FILE *file, const stateChanges_t *account, int showLogIndex) {
     fputs("{", file);
-    uint16_t items = _fprintLogs(file, account);
+    uint16_t items = _fprintLogs(file, account, showLogIndex);
     fputs("}", file);
     return items;
 }
