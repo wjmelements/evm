@@ -1,6 +1,8 @@
 #include "dio.h"
 
+
 #include <assert.h>
+#include <unistd.h>
 
 void test_applyConfig_code() {
     evmInit();
@@ -203,6 +205,8 @@ int main() {
     test_applyConfig_storage();
     test_applyConfig_balance();
     test_applyConfig_construct();
+
+    close(2);
     test_applyConfig_tests();
     return 0;
 }
