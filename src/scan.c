@@ -32,15 +32,15 @@ int scanValid(const char **iter) {
     return **iter || !scanstackEmpty();
 }
 
-int isHexConstantPrefix(const char *iter) {
+static int isHexConstantPrefix(const char *iter) {
     return *(uint16_t *)iter == 'x0';
 }
 
-int isConstant(const char *iter) {
+static int isConstant(const char *iter) {
     return isDecimal(*iter);  
 }
 
-op_t parseHex(const char **iter) {
+static op_t parseHex(const char **iter) {
     const char *start = *iter;
     while (isHex(**iter)) ++(*iter);
     uint8_t words = 0;
@@ -146,8 +146,7 @@ op_t parseDecimal(const char **iter, int negative) {
     return (op_t) PUSH1 + start;
 }
 
-
-int parseNegative(const char **iter) {
+static int parseNegative(const char **iter) {
     if (**iter == '-') {
         (*iter)++;
         return 1;
@@ -172,7 +171,7 @@ op_t parseConstant(const char **iter) {
 // For FN1(FN11(ARG11,ARG12), FN12(ARG21,ARG22)) the op order is ARG22 ARG21 FN12 ARG12 ARG11 FN11 FN1
 
 
-void scanChar(const char **iter, char expected) {
+static void scanChar(const char **iter, char expected) {
     for (char ch; (ch = **iter) != expected; (*iter)++) {
         if (!shouldIgnore(ch)) {
             fprintf(stderr, "When seeking %c found unexpected character %c, before: %s", expected, ch, *iter);
@@ -285,8 +284,7 @@ op_t scanNextOp(const char **iter) {
     } else return scanstackPop();
 }
 
-
-void shiftProgram(op_t* begin, uint32_t *programLength, uint32_t offset, uint32_t amount) {
+static void shiftProgram(op_t* begin, uint32_t *programLength, uint32_t offset, uint32_t amount) {
     memmove(begin + offset + amount, begin + offset, *programLength - offset);
     *programLength += amount;
 }
