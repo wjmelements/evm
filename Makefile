@@ -6,13 +6,13 @@ CXXSTD=-std=gnu++11
 CFLAGS=-O3 -fdiagnostics-color=auto -Wno-multichar -pthread -g $(CCSTD)
 CXXFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) $(CXXSTD) -fno-exceptions -Wno-write-strings -Wno-pointer-arith
 OCFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) -fmodules
-MKDIRS=lib bin tst/bin .pass .pass/tst/bin .make .make/bin .make/tst/bin .make/lib .pass/tst/in
+MKDIRS=lib bin tst/bin .pass .pass/tst/bin .make .make/bin .make/tst/bin .make/lib .pass/tst/in .pass/tst/diotst
 INCLUDE=$(addprefix -I,include)
 EXECS=$(addprefix bin/,evm ops)
 TESTS=$(addprefix tst/bin/,address dio evm hex keccak label ops scanstack scan uint256 vector)
 SRC=$(wildcard src/*.cpp) $(wildcard src/*.m)
 LIBS=$(patsubst src/%.cpp, lib/%.o, $(wildcard src/*.cpp)) $(patsubst src/%.m, lib/%.o, $(wildcard src/*.m))
-INTEGRATIONS=$(addprefix tst/in/,$(shell ls tst/in))
+INTEGRATIONS=$(addprefix tst/in/,$(shell ls tst/in)) $(addprefix tst/dio,$(shell ls tst/*.json))
 
 
 .PHONY: default all clean again check distcheck dist-check
@@ -61,6 +61,9 @@ distcheck dist-check:
 	@bin/evm $(patsubst .pass/tst/in/%,tst/in/%,$@) | diff $(patsubst .pass/tst/in/%.evm,tst/out/%.out, $@) - \
 		&& echo -e "\033[0;32mpass\033[0m" && touch $@\
 		|| echo -e "\033[0;31mfail\033[0m"
+.pass/tst/diotst/%.json: bin/evm tst/%.json | .pass/tst/diotst
+	@echo [$(patsubst .pass/tst/diotst/%,tst/%,$@)]
+	@$(subst $(eval ) , -w ,$^) && touch $@
 $(MKDIRS):
 	@mkdir -p $@
 $(EXECS): | bin
