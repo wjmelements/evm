@@ -692,13 +692,13 @@ static result_t doCall(context_t *callContext) {
             case JUMP:
                 pc = LOWER(LOWER_P(callContext->top + (op - JUMP)));
                 if (pc >= callContext->code.size) {
-                    fprintf(stderr, "JUMP out of bounds %llu >= %lu\n", pc, callContext->code.size);
+                    fprintf(stderr, "%s out of bounds %llu >= %lu\n", opString[op], pc, callContext->code.size);
                     result.returnData.size = 0;
                     callContext->gas = 0;
                     return result;
                 }
                 if (callContext->code.content[pc] != JUMPDEST) {
-                    fprintf(stderr, "JUMP to invalid destination %llu (%s)\n", pc, opString[callContext->code.content[pc]]);
+                    fprintf(stderr, "%s to invalid destination %llu (%s)\n", opString[op], pc, opString[callContext->code.content[pc]]);
                     result.returnData.size = 0;
                     callContext->gas = 0;
                     return result;
@@ -1253,13 +1253,14 @@ result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t
     callContext->returnData.size = 0;
 
     if (!BalanceSub(fromAccount->balance, value)) {
-        fprintf(stderr, "Insufficient intrinsic value [0x%08x%08x%08x] (need [0x%08x%08x%08x])\n",
+        fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for call (need [0x%08x%08x%08x])\n",
             fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
             value[0], value[1], value[2]
         );
 
         result_t result;
         result.gasRemaining = 0;
+        result.stateChanges = NULL;
         clear256(&result.status);
         result.returnData.size = 0;
         return result;
@@ -1381,7 +1382,7 @@ result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t 
     toAccount->warm = evmIteration;
     result_t result = evmCall(from, gas, to, value, input);
     evmIteration++;
-    getAccount(from)->nonce++;
+    fromAccount->nonce++;
     return result;
 }
 
