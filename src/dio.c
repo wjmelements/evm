@@ -60,6 +60,7 @@ typedef struct storageEntry {
 } storageEntry_t;
 
 typedef struct testEntry {
+    char *name;
     op_t op;
     address_t from;
     val_t value;
@@ -69,6 +70,7 @@ typedef struct testEntry {
     accessList_t *accessList;
     uint64_t gasUsed;
     uint64_t debug;
+
     struct testEntry *prev;
 } testEntry_t;
 
@@ -84,7 +86,7 @@ typedef struct entry {
 
 static char *selfPath;
 static char *derivedPath = NULL;
-static int testFailure = 0;
+static int anyTestFailure = 0;
 
 void dioInit(char *_selfPath) {
     selfPath = _selfPath;
@@ -137,11 +139,20 @@ static void derivePath() {
     _exit(-1);
 }
 
-static void runTests(const entry_t *entry, testEntry_t *test) {
+static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
     if (test == NULL) {
-        return;
+        return 0;
     }
-    runTests(entry, test->prev);
+    uint64_t testsRun = runTests(entry, test->prev);
+    if (!testsRun) {
+        fputs("# ", stderr);
+        if (entry->constructPath) {
+            fputs(entry->constructPath, stderr);
+        } else {
+            fprintAddress(stderr, (*entry->address));
+        }
+        fputc('\n', stderr);
+    }
 
     evmSetDebug(test->debug);
     uint64_t gas = 0xffffffffffffffff;
@@ -151,10 +162,17 @@ static void runTests(const entry_t *entry, testEntry_t *test) {
     // TODO support evmStaticCall
     result_t result = txCall(test->from, gas, *entry->address, test->value, test->input, test->accessList);
 
+    if (test->name) {
+        fputs(test->name, stderr);
+    } else {
+        fprintf(stderr, "%llu", testsRun);
+    }
+    fputs(": ", stderr);
+    int testFailure = 0;
     if (LOWER(LOWER(result.status)) == 0) {
         fputs("Execution reverted\n", stderr);
         // TODO allow revert as expected status
-        testFailure = 1;
+        testFailure = anyTestFailure = 1;
     }
 
     if (result.returnData.size != test->output.size || memcmp(result.returnData.content, test->output.content, test->output.size)) {
@@ -169,18 +187,27 @@ static void runTests(const entry_t *entry, testEntry_t *test) {
         }
 
         fputc('\n', stderr);
-        testFailure = 1;
+        testFailure = anyTestFailure = 1;
     } else if (test->gasUsed) {
         if (test->gasUsed < gas - result.gasRemaining) {
             // more actual gasUsed than expected
-            fprintf(stderr, "gas: used \033[0;31m%llu\033[0m expected %llu\n", gas - result.gasRemaining, test->gasUsed);
+            fprintf(stderr, "gasUsed \033[0;31m%llu\033[0m expected %llu\n", gas - result.gasRemaining, test->gasUsed);
         } else if (test->gasUsed > gas - result.gasRemaining) {
             // less actual gasUsed than expected
-            fprintf(stderr, "gas: used \033[0;32m%llu\033[0m expected %llu\n", gas - result.gasRemaining, test->gasUsed);
+            fprintf(stderr, "gasUsed \033[0;32m%llu\033[0m expected %llu\n", gas - result.gasRemaining, test->gasUsed);
+        } else if (testFailure) {
+            fprintf(stderr, "\033[0;31mfail\033[0m\n");
+        } else {
+            fprintf(stderr, "\033[0;32mpass\033[0m\n");
         }
+    } else if (testFailure) {
+        fprintf(stderr, "\033[0;31mfail\033[0m\n");
+    } else {
+        fprintf(stderr, "\033[0;32mpass\033[0m\n");
     }
 
     free(test);
+    return ++testsRun;
 }
 
 static void applyEntry(entry_t *entry) {
@@ -455,6 +482,11 @@ static void jsonScanEntry(const char **iter) {
                                     for (size_t i = 0; i < test->input.size; i++) {
                                         test->input.content[i] = hexString16ToUint8(testValue + i * 2);
                                     }
+                                } else if (testHeadingLen == 4 && *testHeading == 'n') {
+                                    // name
+                                    test->name = malloc(testValueLength + 1);
+                                    strncpy(test->name, testValue, testValueLength);
+                                    test->name[testValueLength] = '\0';
                                 } else if (testHeadingLen == 5 && *testHeading == 'd') {
                                     // debug
                                     jsonSkipExpectedChar(&testValue, '0');
@@ -615,7 +647,7 @@ void applyConfig(const char *json) {
         }
     } while (1);
     jsonScanChar(&json, ']');
-    if (testFailure) {
+    if (anyTestFailure) {
         _exit(1);
     }
 }
