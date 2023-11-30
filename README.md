@@ -105,14 +105,14 @@ If code is also supplied for the entry, the code will be used to verify the resu
     {
         "construct": "tst/in/quine.evm",
         "code": "0x383d3d39383df3",
-		"tests": [
-			{
-				"name": "ignores calldata",
-				"input": "0xdeadbeef",
-				"output": "0x383d3d39383df3"
-			}
-		]
- 	}
+        "tests": [
+            {
+                "name": "ignores calldata",
+                "input": "0xdeadbeef",
+                "output": "0x383d3d39383df3"
+            }
+        ]
+    }
 ]
 ```
 Run unit tests with `tests` entries.
