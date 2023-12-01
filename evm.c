@@ -15,6 +15,7 @@ op_t ops[PROGRAM_BUFFER_LENGTH];
 
 
 static int wrapConstructor = 0;
+static int labelJumpdests = 0;
 static int inverse = 0;
 static int runtime = 0;
 #define outputJson (includeGas || includeStatus | includeLogs)
@@ -35,6 +36,10 @@ static void assemble(const char *contents) {
         programStart[programLength] = scanNextOp(&contents);
     }
     scanFinalize(programStart, &programLength);
+    if (labelJumpdests) {
+        fprintLabels(stdout);
+        return;
+    }
     if (wrapConstructor) {
         if (programLength < 0x20) {
             // PUSHx<>3d5260xx60xxf3
@@ -174,19 +179,22 @@ static void execute(const char *contents) {
 
 }
 
-#define USAGE fputs("usage: evm [ [-x [-g] [-s] ] | [-c] | [-d] ] [-o input] [file...]\n", stderr)
+#define USAGE fputs("usage: evm [ [-w json] [-x [-g] [-s] ] | [-c] [-j] | [-d] ] [-o input] [file...]\n", stderr)
 
 int main(int argc, char *const argv[]) {
     selfPath = argv[0];
     int option;
     char *contents = NULL;
-    while ((option = getopt (argc, argv, "cdglo:sw:x")) != -1)
+    while ((option = getopt (argc, argv, "cdgjlo:sw:x")) != -1)
         switch (option) {
             case 'c':
                 wrapConstructor = 1;
                 break;
             case 'd':
                 inverse = 1;
+                break;
+            case 'j':
+                labelJumpdests = 1;
                 break;
             case 'o':
                 contents = optarg;
@@ -220,8 +228,18 @@ int main(int argc, char *const argv[]) {
         USAGE;
         return 1;
     }
+    if (inverse && labelJumpdests) {
+        fputs("-j cannot be used with -d\n", stderr);
+        USAGE;
+        return 1;
+    }
     if (runtime && wrapConstructor) {
         fputs("-c cannot be used with -x\n", stderr);
+        USAGE;
+        return 1;
+    }
+    if (runtime && labelJumpdests) {
+        fputs("-j cannot be used with -x\n", stderr);
         USAGE;
         return 1;
     }

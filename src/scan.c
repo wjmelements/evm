@@ -354,3 +354,29 @@ void scanFinalize(op_t *begin, uint32_t *programLength) {
         }
     }
 }
+
+static void fprintLabel(FILE *stream, label_t *label) {
+    for (size_t i = 0; i < label->length; i++) {
+        fputc(label->start[i], stream);
+    }
+}
+
+void fprintLabels(FILE *stream) {
+    fputc('{', stream);
+    for (uint32_t i = 0; i < labelCount; i++) {
+        if (i) {
+            fputc(',', stream);
+        }
+        fputc('\n', stream);
+        fputc('\t', stream);
+        fputc('"', stream);
+        fprintLabel(stream, labels + i);
+        fputc('"', stream);
+        fprintf(stream, ": \"0x%04x\"", labelLocations[i]);
+    }
+    if (labelCount) {
+        fputc('\n', stream);
+    }
+    fputc('}', stream);
+    fputc('\n', stream);
+}
