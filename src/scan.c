@@ -261,18 +261,9 @@ op_t scanNextOp(const char **iter) {
     jump.len = 1;
     programCounter++;
     jump.programCounter = programCounter;
-    if (!scanstackEmpty()) {
-        if (scanstackTopLabel(&jump.label)) {
-            op_t type = scanstackPop();
-            if (type == JUMPDEST) {
-                registerLabel(jump);
-            } else {
-                labelQueuePush(jump);
-            }
-            return type;
-        } else return scanstackPop();
+    if (scanstackEmpty()) {
+        scanOp(iter);
     }
-    scanOp(iter);
     if (scanstackTopLabel(&jump.label)) {
         op_t type = scanstackPop();
         if (type == JUMPDEST) {
