@@ -180,7 +180,7 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
     fputs(": ", stderr);
     int testFailure = 0;
     if (!equal256(&result.status, &test->status) || test->op == CREATE) {
-        if (zero256(&test->status)) {
+        if (zero256(&result.status)) {
             fputs("\033[0;31mreverted\033[0m\n", stderr);
         } else {
             fputs("\033[0;31mshould revert\033[0m\n", stderr);
