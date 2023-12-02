@@ -79,6 +79,7 @@ lib/%.o: src/%.c include/%.h | lib
 	$(CC) -c $(CFLAGS) $(INCLUDE) $< -o $@
 tst/bin/%: tst/%.m | tst/bin
 	$(CC) $(OCFLAGS) $(INCLUDE) $^ -o $@
+tst/bin/dio: | bin/evm
 tst/bin/%: tst/%.cpp | tst/bin
 	$(CPP) $(CXXFLAGS) $(INCLUDE) $^ -o $@
 tst/bin/%: tst/%.c | tst/bin
