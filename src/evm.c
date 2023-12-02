@@ -397,7 +397,7 @@ static void mergeStateChanges(stateChanges_t **dst, stateChanges_t *src) {
     while (*dst != NULL) {
         if (AddressEqual(&src->account, &(*dst)->account)) {
             // merge!
-            
+
             // concatenate the linked lists
             storageChanges_t **storageEnd = &src->storageChanges;
             while (*storageEnd != NULL) {
@@ -657,6 +657,21 @@ static result_t doCall(context_t *callContext) {
                 break;
             case NOT:
                 not256(callContext->top - 1, callContext->top - 1);
+                break;
+            case BYTE:
+                {
+                    uint64_t index = LOWER(LOWER_P(callContext->top));
+                    uint256_t *target = callContext->top - 1;
+                    if (UPPER(UPPER_P(callContext->top)) || LOWER(UPPER_P(callContext->top)) || UPPER(LOWER_P(callContext->top)) || index >= 32) {
+                        clear256(target);
+                    } else {
+                        shiftr256(target, 248 - index * 8, target);
+                        UPPER(UPPER_P(target)) = 0;
+                        LOWER(UPPER_P(target)) = 0;
+                        UPPER(LOWER_P(target)) = 0;
+                        LOWER(LOWER_P(target)) &= 0xff;
+                    }
+                }
                 break;
             case SHR:
                 {
@@ -1161,7 +1176,6 @@ static void evmRevertStorageChanges(account_t *account, storageChanges_t **chang
 }
 
 static void evmRevertLogChanges(logChanges_t **changes) {
-
     if (*changes == NULL) {
         return;
     }
@@ -1169,7 +1183,6 @@ static void evmRevertLogChanges(logChanges_t **changes) {
 
     free(*changes);
     *changes = NULL;
-    
 }
 
 static void evmRevert(stateChanges_t **changes) {
