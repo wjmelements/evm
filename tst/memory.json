@@ -1,0 +1,14 @@
+[
+    {
+        "construct": "tst/in/byte.evm",
+        "code": "0x7f00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff5f5b81811a815360010180602011602257595ff3",
+        "tests": [
+            {
+                "name": "BYTE and MSTORE8",
+                "output": "0x00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+                "gas": "0x5794",
+                "gasUsed": "0x5794"
+            }
+        ]
+    }
+]

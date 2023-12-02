@@ -1,0 +1,6 @@
+MSTORE(MSIZE, 4)
+CODECOPY(MSIZE, data, 1)
+RETURN(0, MSIZE)
+{
+    data: 0x11
+}
