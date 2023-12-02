@@ -30,10 +30,14 @@ static void disassemblePushDecimal(op_t op, uint8_t pushlen, const char **iter) 
     while (pushlen) {
         disassembleWaste(iter);
         value *= 16;
-        value += hexString8ToUint8(*(*iter)++);
+        if (**iter) {
+            value += hexString8ToUint8(*(*iter)++);
+        }
         disassembleWaste(iter);
         value *= 16;
-        value += hexString8ToUint8(*(*iter)++);
+        if (**iter) {
+            value += hexString8ToUint8(*(*iter)++);
+        }
         pushlen--;
         pc++;
     }
@@ -49,15 +53,23 @@ static void disassemblePushDecimal(op_t op, uint8_t pushlen, const char **iter) 
 }
 static void disassemblePushHex(op_t op, uint8_t pushlen, const char **iter) {
     size_t strLength = 2 * pushlen + 2;
-    char *str = (char *)calloc(strLength, 1);
+    char *str = calloc(strLength, 1);
     str[0] = '0';
     str[1] = 'x';
     uint8_t i = 2;
     while (pushlen) {
         disassembleWaste(iter);
-        str[i++] = *(*iter)++;
+        if (**iter) {
+            str[i++] = *(*iter)++;
+        } else {
+            str[i++] = '0';
+        }
         disassembleWaste(iter);
-        str[i++] = *(*iter)++;
+        if (**iter) {
+            str[i++] = *(*iter)++;
+        } else {
+            str[i++] = '0';
+        }
         pushlen--;
         pc++;
     }

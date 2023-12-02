@@ -1,4 +1,5 @@
 #include "label.h"
+#include "ops.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -7,6 +8,7 @@
 
 typedef struct {
     uint32_t programCounter;
+    uint16_t dataSize;
     uint8_t len;
     uint32_t labelIndex; // undefined until scanFinalize
     label_t label;
@@ -14,6 +16,7 @@ typedef struct {
 
 typedef struct node {
     jump_t jump;
+    op_t type;
     struct node *next;
 } node_t;
 
@@ -25,11 +28,12 @@ static inline void labelQueueInit() {
     tail = &head;
 }
 
-static inline void labelQueuePush(jump_t jump) {
-    node_t *next = (node_t *)malloc(sizeof(node_t));
+static inline void labelQueuePush(jump_t jump, op_t type) {
+    node_t *next = malloc(sizeof(node_t));
     *tail = next;
     next->next = NULL;
     next->jump = jump;
+    next->type = type;
     tail = &next->next;
 }
 
@@ -37,9 +41,10 @@ static inline int labelQueueEmpty() {
     return head == NULL;
 }
 
-static inline jump_t labelQueuePop() {
+static inline jump_t labelQueuePop(op_t *type) {
     node_t *prev = head;
     jump_t jump = head->jump;
+    *type = head->type;
     head = head->next;
     free(prev);
     return jump;
@@ -49,6 +54,7 @@ static inline jump_t labelQueuePop() {
 #define MAX_LABEL_COUNT 1024
 static label_t labels[MAX_LABEL_COUNT];
 static uint32_t labelLocations[MAX_LABEL_COUNT];
+static uint16_t dataSizes[MAX_LABEL_COUNT];
 static uint32_t labelCount = 0;
 
 static void registerLabel(jump_t jump) {
@@ -63,6 +69,7 @@ static void registerLabel(jump_t jump) {
         assert(0); // duplicate label
     }
     labelLocations[labelCount] = jump.programCounter;
+    dataSizes[labelCount] = jump.dataSize;
     labels[labelCount++] = jump.label;
 }
 
