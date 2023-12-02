@@ -6,6 +6,7 @@
 #include "hex.h"
 #include <assert.h>
 #include <string.h>
+#include <stdbool.h>
 #include <stdlib.h>
 
 static inline int shouldIgnore(char ch) {
@@ -15,6 +16,9 @@ static inline int shouldIgnore(char ch) {
         && ch != ':'
         && ch != '/'
         && ch != '-'
+        && ch != '{'
+        && ch != '}'
+        && ch != '#'
         && (ch < '0' || ch > '9')
         && (ch < 'A' || ch > 'Z')
         && (ch < 'a' || ch > 'z')
@@ -22,9 +26,11 @@ static inline int shouldIgnore(char ch) {
 }
 
 static uint32_t programCounter;
+static bool inDataSection;
 
 void scanInit() {
     programCounter = (uint32_t)-1;
+    inDataSection = false;
     labelQueueInit();
 }
 
@@ -37,7 +43,7 @@ static int isHexConstantPrefix(const char *iter) {
 }
 
 static int isConstant(const char *iter) {
-    return isDecimal(*iter);  
+    return isDecimal(*iter);
 }
 
 static op_t parseHex(const char **iter) {
@@ -55,7 +61,7 @@ static op_t parseHex(const char **iter) {
             scanstackPush((op_t)hexString8ToUint8(*end));
         }
     }
-    assert(words <= 32);
+    assert(words <= 32 || inDataSection);
     return (op_t)((PUSH1 - 1) + words);
 }
 
@@ -211,6 +217,59 @@ static void scanLabel(const char **iter) {
     scanWaste(iter);
 }
 
+static void scanDataSection(const char **iter) {
+    (*iter)++; // '{' or ','
+    inDataSection = true;
+    scanWaste(iter);
+
+    const char *start = *iter;
+    if (!isLowerCase(*start)) {
+        fprintf(stderr, "Data section keys should be lowercase; instead found unexpected character %c\n", *start);
+        assert(false);
+    }
+    for (char ch; isLowerCase(**iter); (*iter)++);
+    const char *end = *iter;
+    char next = scanWaste(iter);
+    if (next != ':') {
+        fprintf(stderr, "Data section expects colon after key; instead found unexpected character %c\n", next);
+        assert(false);
+    }
+    (*iter)++;
+    scanWaste(iter);
+    if (**iter == '"') {
+        // TODO parse ascii
+    } else if (isHexConstantPrefix(*iter)) {
+        (*iter) += 2;
+        parseHex(iter);
+    }
+    scanstackPushLabel(start, end - start, CODECOPY);
+    scanWaste(iter);
+    if (**iter == '}') {
+        inDataSection = false;
+        (*iter)++;
+        scanWaste(iter);
+    } else if (**iter != ',') {
+        fprintf(stderr, "Data section expecting ',' or '}'; instead found unexpected character %c\n", **iter);
+        assert(false);
+    }
+}
+
+static void scanDataLen(const char **iter) {
+    (*iter)++; // '#'
+    scanWaste(iter);
+    const char *start = *iter;
+    if (!isLowerCase(*start)) {
+        fprintf(stderr, "Data section #keys should be lowercase; instead found unexpected character %c\n", *start);
+    }
+    for (char ch; isLowerCase(**iter); (*iter)++);
+    const char *end = *iter;
+
+    scanstackPushLabel(start, end - start, CODESIZE);
+    scanstackPush(PUSH1);
+
+    scanWaste(iter);
+}
+
 static void scanOp(const char **iter) {
     scanWaste(iter);
     if (isConstant(*iter)) {
@@ -218,8 +277,25 @@ static void scanOp(const char **iter) {
         scanWaste(iter);
         scanstackPush(op);
         return;
-    } else if (isLowerCase(**iter)) {
+    }
+    if (isLowerCase(**iter)) {
         scanLabel(iter);
+        return;
+    }
+    if (**iter == '{' ) {
+        scanDataSection(iter);
+        return;
+    }
+    if (**iter == ',') {
+        if (!inDataSection) {
+            fprintf(stderr, "Found unexpected comma when scanning for next op\n");
+            assert(false);
+        }
+        scanDataSection(iter);
+        return;
+    }
+    if (**iter == '#') {
+        scanDataLen(iter);
         return;
     }
     op_t op = parseOp(*iter, iter);
@@ -239,6 +315,8 @@ static void scanOp(const char **iter) {
             scanstackPush(parseConstant(iter));
         } else if (isLowerCase(**iter)) {
             scanLabel(iter);
+        } else if (**iter == '#') {
+            scanDataLen(iter);
         } else {
             const char *end;
             op_t next = parseOp(*iter, &end);
@@ -256,9 +334,9 @@ static void scanOp(const char **iter) {
     scanWaste(iter);
 }
 
+
 op_t scanNextOp(const char **iter) {
     jump_t jump;
-    jump.len = 1;
     programCounter++;
     jump.programCounter = programCounter;
     if (scanstackEmpty()) {
@@ -267,11 +345,23 @@ op_t scanNextOp(const char **iter) {
     if (scanstackTopLabel(&jump.label)) {
         op_t type = scanstackPop();
         if (type == JUMPDEST) {
+            jump.dataSize = 1;
             registerLabel(jump);
+            return type;
+        } else if (type == CODECOPY) {
+            // because we can one data entry at a time, the stack size is the dataSize
+            jump.dataSize = scanstackIndex;
+            registerLabel(jump);
+            return scanNextOp(iter);
+        } else if (type == CODESIZE) {
+            jump.len = 1;
+            labelQueuePush(jump, type);
+            return type;
         } else {
-            labelQueuePush(jump);
+            jump.len = 1;
+            labelQueuePush(jump, type);
+            return type;
         }
-        return type;
     } else return scanstackPop();
 }
 
@@ -295,7 +385,7 @@ void scanFinalize(op_t *begin, uint32_t *programLength) {
             }
         }
         if (node->jump.labelIndex == labelCount) {
-            fputs("Unmatched label: ", stderr); 
+            fputs("Unmatched label: ", stderr);
             for (const char *c = node->jump.label.start; isLowerCase(*c); c++) {
                 putc(*c, stderr);
             }
@@ -311,7 +401,13 @@ void scanFinalize(op_t *begin, uint32_t *programLength) {
         again = 0;
         node = head;
         while (node) {
-            if (labelLocations[node->jump.labelIndex] > 255 && node->jump.len == 1) {
+            uint32_t pushValue;
+            if (node->type == CODESIZE) {
+                pushValue = dataSizes[node->jump.labelIndex];
+            } else {
+                pushValue = labelLocations[node->jump.labelIndex];
+            }
+            if (pushValue > 255 && node->jump.len == 1) {
                 again = 1;
                 node->jump.len++;
                 shiftProgram(begin, programLength, node->jump.programCounter, 1);
@@ -331,17 +427,26 @@ void scanFinalize(op_t *begin, uint32_t *programLength) {
     } while (again);
 
     while (!labelQueueEmpty()) {
-        jump_t jump = labelQueuePop();
-        uint32_t location = labelLocations[jump.labelIndex]; //getLabelLocation(jump.label);
-        if (location > 0xffff) {
-            fprintf(stderr, "Unsupported label location %u\n", location);
-        }
-        if (location > 0xff) {
-            begin[jump.programCounter - 1]++; // PUSH1 -> PUSH2
-            begin[jump.programCounter] = location / 256;
-            begin[jump.programCounter + 1] = location % 256;
+        op_t type;
+        jump_t jump = labelQueuePop(&type);
+        uint32_t pushValue;
+        if (type == CODESIZE) {
+            pushValue = dataSizes[jump.labelIndex];
+            if (pushValue > 0xffff) {
+                fprintf(stderr, "Unsupported data size %u\n", pushValue);
+            }
         } else {
-            begin[jump.programCounter] = location;
+            pushValue = labelLocations[jump.labelIndex];
+            if (pushValue > 0xffff) {
+                fprintf(stderr, "Unsupported label location %u\n", pushValue);
+            }
+        }
+        if (pushValue > 0xff) {
+            begin[jump.programCounter - 1]++; // PUSH1 -> PUSH2
+            begin[jump.programCounter] = pushValue / 256;
+            begin[jump.programCounter + 1] = pushValue % 256;
+        } else {
+            begin[jump.programCounter] = pushValue;
         }
     }
 }

@@ -1,6 +1,6 @@
 [
     {
-        "construct": "tst/in/string.evm",
+        "construct": "tst/in/bitstring.evm",
         "tests": [
             {
                 "name": "bitstring output",
