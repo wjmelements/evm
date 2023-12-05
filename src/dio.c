@@ -235,12 +235,13 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
         fputc('\n', stderr);
         testFailure = anyTestFailure = 1;
     } else if (test->gasUsed) {
-        if (test->gasUsed < gas - result.gasRemaining) {
+        uint64_t gasUsed = gas - result.gasRemaining;
+        if (test->gasUsed < gasUsed) {
             // more actual gasUsed than expected
-            fprintf(stderr, "gasUsed \033[0;31m%llu\033[0m expected %llu\n", gas - result.gasRemaining, test->gasUsed);
+            fprintf(stderr, "gasUsed \033[0;31m%llu\033[0m expected %llu (\033[0;31m+%llu\033[0m)\n", gasUsed, test->gasUsed, gasUsed - test->gasUsed);
         } else if (test->gasUsed > gas - result.gasRemaining) {
             // less actual gasUsed than expected
-            fprintf(stderr, "gasUsed \033[0;32m%llu\033[0m expected %llu\n", gas - result.gasRemaining, test->gasUsed);
+            fprintf(stderr, "gasUsed \033[0;32m%llu\033[0m expected %llu (\033[0;32m-%llu\033[0m)\n", gasUsed, test->gasUsed, test->gasUsed - gasUsed);
         } else if (testFailure) {
             fprintf(stderr, "\033[0;31mfail\033[0m\n");
         } else {
