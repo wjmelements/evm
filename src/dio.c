@@ -1,6 +1,5 @@
 #include "dio.h"
 
-#include <assert.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/param.h>
@@ -24,16 +23,25 @@ static inline int jsonIgnores(char ch) {
     ;
 }
 
+static uint64_t lineNumber = 0;
 
 static void jsonScanWaste(const char **iter) {
-    for (; jsonIgnores(**iter); (*iter)++);
+    for (; jsonIgnores(**iter); (*iter)++) {
+        if (**iter == '\n') {
+            lineNumber++;
+        }
+    }
 }
 
 static void jsonScanChar(const char **iter, char expected) {
     for (char ch; (ch = **iter) != expected; (*iter)++) {
-        if (!jsonIgnores(ch)) {
-            fprintf(stderr, "Config: when seeking '%c' found unexpected character '%c'\n", expected, ch);
-            assert(expected == ch);
+        if (jsonIgnores(ch)) {
+            if (ch == '\n') {
+                lineNumber++;
+            }
+        } else {
+            fprintf(stderr, "Config: when seeking '%c' found unexpected character '%c' on line %llu\n", expected, ch, lineNumber);
+            _exit(1);
         }
     }
     (*iter)++;
@@ -43,7 +51,8 @@ static void jsonSkipExpectedChar(const char **iter, char expected) {
     if (**iter == expected) {
         (*iter)++;
     } else {
-        fprintf(stderr, "Config: expecting '%c', found '%c'\n", expected, **iter);
+        fprintf(stderr, "Config: expecting '%c', found '%c' on line %llu\n", expected, **iter, lineNumber);
+        _exit(1);
     }
 }
 
@@ -817,6 +826,7 @@ static void jsonScanEntry(const char **iter) {
 }
 
 void applyConfig(const char *json) {
+    lineNumber = 1;
     jsonScanChar(&json, '[');
     do {
         jsonScanEntry(&json);
