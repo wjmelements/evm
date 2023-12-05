@@ -254,6 +254,14 @@ bool gte256(const uint256_t *number1, const uint256_t *number2) {
     return gt256(number1, number2) || equal256(number1, number2);
 }
 
+bool sgt256(const uint256_t *number1, const uint256_t *number2) {
+    return (
+        UPPER(UPPER_P(number1)) >= 0x8000000000000000 == UPPER(UPPER_P(number2)) >= 0x8000000000000000
+        ? gt256(number1, number2)
+        : gt256(number2, number1)
+    );
+}
+
 void add128(const uint128_t *number1, const uint128_t *number2, uint128_t *target) {
     UPPER_P(target) =
         UPPER_P(number1) + UPPER_P(number2) +
