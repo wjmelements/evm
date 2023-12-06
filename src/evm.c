@@ -685,6 +685,13 @@ static result_t doCall(context_t *callContext) {
                 break;
             case EXP:
                 {
+                    uint32_t bitLen = bits256(callContext->top - 1);
+                    uint32_t bytes = (bitLen + 7) / 8;
+                    uint64_t gasCost = bytes * G_EXPBYTE;
+                    if (gasCost > callContext->gas) {
+                        OUT_OF_GAS;
+                    }
+                    callContext->gas -= gasCost;
                     exp256(callContext->top, callContext->top - 1, callContext->top - 1);
                 }
                 break;
