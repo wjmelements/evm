@@ -478,6 +478,29 @@ void mul256(const uint256_t *number1, const uint256_t *number2, uint256_t *targe
     add256(&target1, &target2, target);
 }
 
+static uint256_t _exp256(const uint256_t *base, uint256_t power) {
+    uint256_t result;
+    if (zero256(&power)) {
+        UPPER(UPPER(result)) = 0;
+        UPPER(LOWER(result)) = 0;
+        LOWER(UPPER(result)) = 0;
+        LOWER(LOWER(result)) = 1;
+    } else if (LOWER(LOWER(power)) % 1) {
+        LOWER(LOWER(power)) -= 1;
+        result = _exp256(base, power);
+        mul256(&result, base, &result);
+    } else {
+        shiftr256(&power, 1, &power);
+        result = _exp256(base, power);
+        mul256(&result, &result, &result);
+    }
+    return result;
+}
+
+void exp256(const uint256_t *base, const uint256_t *power, uint256_t *target) {
+    *target = _exp256(base, *power);
+}
+
 void divmod128(const uint128_t *l, const uint128_t *r, uint128_t *retDiv,
                uint128_t *retMod) {
     uint128_t copyd, adder, resDiv, resMod;
