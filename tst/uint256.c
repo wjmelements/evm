@@ -110,6 +110,19 @@ void test_math() {
     divmod256(&d, &b, &c, &e);
     assert(zero256(&e));
     assert(equal256(&c, &a));
+
+    // 10e425c56daffabc35c1
+    clear128(&UPPER(a));
+    assert(UPPER(UPPER(a)) == 0);
+    assert(LOWER(UPPER(a)) == 0);
+    UPPER(LOWER(a)) = 0x10ef;
+    LOWER(LOWER(a)) = 0x25c56daffabc35c1;
+    mul256(&a, &a, &a);
+    // 11d500bfaf40ac5044981798db5fb39f2c17b81
+    assert(UPPER(UPPER(a)) == 0);
+    assert(LOWER(UPPER(a)) == 0x11d500b);
+    assert(UPPER(LOWER(a)) == 0xfaf40ac504498179);
+    assert(LOWER(LOWER(a)) == 0x8db5fb39f2c17b81);
 }
 
 void test_exp() {
