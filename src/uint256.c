@@ -351,8 +351,8 @@ void mul128(const uint128_t *number1, const uint128_t *number2, uint128_t *targe
     uint64_t products[4][4];
     uint128_t tmp, tmp2;
 
-    for (int y = 3; y > -1; y--) {
-        for (int x = 3; x > -1; x--) {
+    for (uint8_t y = 4; y --> 0;) {
+        for (uint8_t x = 4; x --> 0;) {
             products[3 - x][y] = top[x] * bottom[y];
         }
     }
@@ -407,8 +407,8 @@ void mul256(const uint256_t *number1, const uint256_t *number2, uint256_t *targe
     UPPER(bottom[3]) = 0;
     LOWER(bottom[3]) = LOWER(LOWER_P(number2));
 
-    for (int y = 3; y > -1; y--) {
-        for (int x = 3; x > -1; x--) {
+    for (uint8_t y = 4; y --> 0;) {
+        for (uint8_t x = 4; x --> 0;) {
             mul128(&top[x], &bottom[y], &products[3 - x][y]);
         }
     }
@@ -478,27 +478,23 @@ void mul256(const uint256_t *number1, const uint256_t *number2, uint256_t *targe
     add256(&target1, &target2, target);
 }
 
-static uint256_t _exp256(const uint256_t *base, uint256_t power) {
-    uint256_t result;
-    if (zero256(&power)) {
-        UPPER(UPPER(result)) = 0;
-        UPPER(LOWER(result)) = 0;
-        LOWER(UPPER(result)) = 0;
-        LOWER(LOWER(result)) = 1;
-    } else if (LOWER(LOWER(power)) & 1llu) {
-        LOWER(LOWER(power)) -= 1;
-        result = _exp256(base, power);
-        mul256(&result, base, &result);
-    } else {
-        shiftr256(&power, 1, &power);
-        result = _exp256(base, power);
-        mul256(&result, &result, &result);
-    }
-    return result;
-}
-
 void exp256(const uint256_t *base, const uint256_t *power, uint256_t *target) {
-    *target = _exp256(base, *power);
+    uint256_t remaining, result;
+    copy256(&remaining, power);
+    UPPER(UPPER(result)) = 0;
+    LOWER(UPPER(result)) = 0;
+    UPPER(LOWER(result)) = 0;
+    LOWER(LOWER(result)) = 1;
+    uint256_t multiplier;
+    copy256(&multiplier, base);
+    while (!zero256(&remaining)) {
+        if (LOWER(LOWER(remaining)) & 1) {
+            mul256(&result, &multiplier, &result);
+        }
+        mul256(&multiplier, &multiplier, &multiplier);
+        shiftr256(&remaining, 1, &remaining);
+    }
+    copy256(target, &result);
 }
 
 void divmod128(const uint128_t *l, const uint128_t *r, uint128_t *retDiv,
