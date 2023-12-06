@@ -1,6 +1,7 @@
 #include "uint256.h"
 
 #include <assert.h>
+#include <stdio.h>
 
 
 void test_bitwise() {
@@ -81,6 +82,27 @@ void test_bitwise() {
     assert(zero256(&d));
 }
 
+void test_bits() {
+    uint256_t a;
+    clear256(&a);
+    assert(bits256(&a) == 0);
+
+    LOWER(LOWER(a)) = 1;
+    assert(bits256(&a) == 1);
+
+    LOWER(UPPER(a)) = 1;
+    assert(bits128(&UPPER(a)) == 1);
+    assert(bits256(&a) == 129);
+
+    UPPER(UPPER(a)) = 0xff00000000000000;
+    assert(bits128(&UPPER(a)) == 128);
+    assert(bits256(&a) == 256);
+
+    UPPER(UPPER(a)) = 0x7f00000000000000;
+    assert(bits128(&UPPER(a)) == 127);
+    assert(bits256(&a) == 255);
+}
+
 void test_math() {
     uint256_t a, b, c, d, e;
 
@@ -110,11 +132,62 @@ void test_math() {
     divmod256(&d, &b, &c, &e);
     assert(zero256(&e));
     assert(equal256(&c, &a));
+
+    // 10e425c56daffabc35c1
+    clear128(&UPPER(a));
+    assert(UPPER(UPPER(a)) == 0);
+    assert(LOWER(UPPER(a)) == 0);
+    UPPER(LOWER(a)) = 0x10e4;
+    LOWER(LOWER(a)) = 0x25c56daffabc35c1;
+    mul256(&a, &a, &a);
+    // 11d500bfaf40ac5044981798db5fb39f2c17b81
+    assert(UPPER(UPPER(a)) == 0);
+    assert(LOWER(UPPER(a)) == 0x11d500b);
+    assert(UPPER(LOWER(a)) == 0xfaf40ac504498179);
+    assert(LOWER(LOWER(a)) == 0x8db5fb39f2c17b81);
+}
+
+void test_exp() {
+    uint256_t a, b, c;
+
+    clear256(&a);
+    LOWER(LOWER(a)) = 3;
+    clear256(&b);
+    LOWER(LOWER(b)) = 8;
+    clear256(&c);
+
+    exp256(&b, &c, &c);
+    assert(LOWER(LOWER(c)) == 1);
+    assert(UPPER(LOWER(c)) == 0);
+    assert(LOWER(UPPER(c)) == 0);
+    assert(UPPER(UPPER(c)) == 0);
+
+    exp256(&a, &b, &c);
+    assert(LOWER(LOWER(c)) == 6561);
+    assert(UPPER(LOWER(c)) == 0);
+    assert(LOWER(UPPER(c)) == 0);
+    assert(UPPER(UPPER(c)) == 0);
+
+    exp256(&b, &a, &c);
+    assert(LOWER(LOWER(c)) == 512);
+    assert(UPPER(LOWER(c)) == 0);
+    assert(LOWER(UPPER(c)) == 0);
+    assert(UPPER(UPPER(c)) == 0);
+
+    LOWER(LOWER(c)) = 160;
+
+    exp256(&a, &c, &c);
+    assert(UPPER(UPPER(c)) == 0x304d37f120d696c8);
+    assert(LOWER(UPPER(c)) == 0x34550e63d9bb9c14);
+    assert(UPPER(LOWER(c)) == 0xb4f9165c9ede434e);
+    assert(LOWER(LOWER(c)) == 0x4644e3998d6db881);
 }
 
 
 int main() {
     test_bitwise();
+    test_bits();
     test_math();
+    test_exp();
     return 0;
 }
