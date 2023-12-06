@@ -82,6 +82,27 @@ void test_bitwise() {
     assert(zero256(&d));
 }
 
+void test_bits() {
+    uint256_t a;
+    clear256(&a);
+    assert(bits256(&a) == 0);
+
+    LOWER(LOWER(a)) = 1;
+    assert(bits256(&a) == 1);
+
+    LOWER(UPPER(a)) = 1;
+    assert(bits128(&UPPER(a)) == 1);
+    assert(bits256(&a) == 129);
+
+    UPPER(UPPER(a)) = 0xff00000000000000;
+    assert(bits128(&UPPER(a)) == 128);
+    assert(bits256(&a) == 256);
+
+    UPPER(UPPER(a)) = 0x7f00000000000000;
+    assert(bits128(&UPPER(a)) == 127);
+    assert(bits256(&a) == 255);
+}
+
 void test_math() {
     uint256_t a, b, c, d, e;
 
@@ -165,6 +186,7 @@ void test_exp() {
 
 int main() {
     test_bitwise();
+    test_bits();
     test_math();
     test_exp();
     return 0;
