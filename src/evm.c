@@ -691,6 +691,14 @@ static result_t doCall(context_t *callContext) {
                 LOWER(LOWER_P(callContext->top - 1)) = gt256(callContext->top, callContext->top - 1);
                 bzero(callContext->top - 1, 24);
                 break;
+            case SLT:
+                LOWER(LOWER_P(callContext->top - 1)) = sgt256(callContext->top - 1, callContext->top);
+                bzero(callContext->top - 1, 24);
+                break;
+            case SGT:
+                LOWER(LOWER_P(callContext->top - 1)) = sgt256(callContext->top, callContext->top - 1);
+                bzero(callContext->top - 1, 24);
+                break;
             case EQ:
                 LOWER(LOWER_P(callContext->top - 1)) = equal256(callContext->top, callContext->top - 1);
                 bzero(callContext->top - 1, 24);

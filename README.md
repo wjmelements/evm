@@ -161,8 +161,8 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | SIGNEXTEND | ✅ |❓ |
 | LT | ✅ |✅ |
 | GT | ✅ |✅ |
-| SLT | ✅ |❓ |
-| SGT | ✅ |❓ |
+| SLT | ✅ |✅ |
+| SGT | ✅ |✅ |
 | EQ | ✅ |❓ |
 | ISZERO | ✅ |✅ |
 | AND | ✅ |❓ |

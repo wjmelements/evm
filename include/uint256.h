@@ -54,6 +54,7 @@ bool gt128(const uint128_t *number1, const uint128_t *number2);
 bool gt256(const uint256_t *number1, const uint256_t *number2);
 bool gte128(const uint128_t *number1, const uint128_t *number2);
 bool gte256(const uint256_t *number1, const uint256_t *number2);
+bool sgt256(const uint256_t *number1, const uint256_t *number2);
 void add128(const uint128_t *number1, const uint128_t *number2, uint128_t *target);
 void add256(const uint256_t *number1, const uint256_t *number2, uint256_t *target);
 void minus128(const uint128_t *number1, const uint128_t *number2, uint128_t *target);
