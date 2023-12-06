@@ -202,24 +202,11 @@ uint32_t bits128(const uint128_t *number) {
 }
 
 uint32_t bits256(const uint256_t *number) {
-    uint32_t result = 0;
     if (!zero128(&UPPER_P(number))) {
-        result = 128;
-        uint128_t up;
-        copy128(&up, &UPPER_P(number));
-        while (!zero128(&up)) {
-            shiftr128(&up, 1, &up);
-            result++;
-        }
+        return 128 + bits128(&UPPER_P(number));
     } else {
-        uint128_t low;
-        copy128(&low, &LOWER_P(number));
-        while (!zero128(&low)) {
-            shiftr128(&low, 1, &low);
-            result++;
-        }
+        return bits128(&LOWER_P(number));
     }
-    return result;
 }
 
 bool equal128(const uint128_t *number1, const uint128_t *number2) {
