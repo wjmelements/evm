@@ -485,7 +485,7 @@ static uint256_t _exp256(const uint256_t *base, uint256_t power) {
         UPPER(LOWER(result)) = 0;
         LOWER(UPPER(result)) = 0;
         LOWER(LOWER(result)) = 1;
-    } else if (LOWER(LOWER(power)) % 1) {
+    } else if (LOWER(LOWER(power)) & 1llu) {
         LOWER(LOWER(power)) -= 1;
         result = _exp256(base, power);
         mul256(&result, base, &result);

@@ -112,9 +112,46 @@ void test_math() {
     assert(equal256(&c, &a));
 }
 
+void test_exp() {
+    uint256_t a, b, c;
+
+    clear256(&a);
+    LOWER(LOWER(a)) = 3;
+    clear256(&b);
+    LOWER(LOWER(b)) = 8;
+    clear256(&c);
+
+    exp256(&b, &c, &c);
+    assert(LOWER(LOWER(c)) == 1);
+    assert(UPPER(LOWER(c)) == 0);
+    assert(LOWER(UPPER(c)) == 0);
+    assert(UPPER(UPPER(c)) == 0);
+
+    exp256(&a, &b, &c);
+    assert(LOWER(LOWER(c)) == 6561);
+    assert(UPPER(LOWER(c)) == 0);
+    assert(LOWER(UPPER(c)) == 0);
+    assert(UPPER(UPPER(c)) == 0);
+
+    exp256(&b, &a, &c);
+    assert(LOWER(LOWER(c)) == 512);
+    assert(UPPER(LOWER(c)) == 0);
+    assert(LOWER(UPPER(c)) == 0);
+    assert(UPPER(UPPER(c)) == 0);
+
+    LOWER(LOWER(c)) = 160;
+
+    exp256(&a, &c, &c);
+    assert(UPPER(UPPER(c)) == 0x304d37f120d696c8);
+    assert(LOWER(UPPER(c)) == 0x34550e63d9bb9c14);
+    assert(UPPER(LOWER(c)) == 0xb4f9165c9ede434e);
+    assert(LOWER(LOWER(c)) == 0x4644e3998d6db881);
+}
+
 
 int main() {
     test_bitwise();
     test_math();
+    test_exp();
     return 0;
 }
