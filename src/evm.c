@@ -683,6 +683,11 @@ static result_t doCall(context_t *callContext) {
                     }
                 }
                 break;
+            case EXP:
+                {
+                    exp256(callContext->top, callContext->top - 1, callContext->top - 1);
+                }
+                break;
             case LT:
                 LOWER(LOWER_P(callContext->top - 1)) = gt256(callContext->top - 1, callContext->top);
                 bzero(callContext->top - 1, 24);
