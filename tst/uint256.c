@@ -1,6 +1,7 @@
 #include "uint256.h"
 
 #include <assert.h>
+#include <stdio.h>
 
 
 void test_bitwise() {
@@ -115,7 +116,7 @@ void test_math() {
     clear128(&UPPER(a));
     assert(UPPER(UPPER(a)) == 0);
     assert(LOWER(UPPER(a)) == 0);
-    UPPER(LOWER(a)) = 0x10ef;
+    UPPER(LOWER(a)) = 0x10e4;
     LOWER(LOWER(a)) = 0x25c56daffabc35c1;
     mul256(&a, &a, &a);
     // 11d500bfaf40ac5044981798db5fb39f2c17b81

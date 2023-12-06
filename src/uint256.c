@@ -387,9 +387,6 @@ void mul128(const uint128_t *number1, const uint128_t *number2, uint128_t *targe
 void mul256(const uint256_t *number1, const uint256_t *number2, uint256_t *target) {
     uint128_t top[4];
     uint128_t bottom[4];
-    uint128_t products[4][4];
-    uint128_t tmp, tmp2, fourth64, third64, second64, first64;
-    uint256_t target1, target2;
     UPPER(top[0]) = 0;
     LOWER(top[0]) = UPPER(UPPER_P(number1));
     UPPER(top[1]) = 0;
@@ -407,68 +404,68 @@ void mul256(const uint256_t *number1, const uint256_t *number2, uint256_t *targe
     UPPER(bottom[3]) = 0;
     LOWER(bottom[3]) = LOWER(LOWER_P(number2));
 
+    uint128_t products[4][4];
     for (uint8_t y = 4; y --> 0;) {
         for (uint8_t x = 4; x --> 0;) {
-            mul128(&top[x], &bottom[y], &products[3 - x][y]);
+            mul128(&top[x], &bottom[y], &products[x][y]);
         }
     }
 
+    uint128_t tmp, tmp2, fourth64, third64, second64, first64;
     UPPER(fourth64) = 0;
-    LOWER(fourth64) = LOWER(products[0][3]);
+    LOWER(fourth64) = LOWER(products[3][3]);
     UPPER(tmp) = 0;
-    LOWER(tmp) = LOWER(products[0][2]);
+    LOWER(tmp) = LOWER(products[3][2]);
     UPPER(tmp2) = 0;
-    LOWER(tmp2) = UPPER(products[0][3]);
+    LOWER(tmp2) = UPPER(products[3][3]);
     add128(&tmp, &tmp2, &third64);
     UPPER(tmp) = 0;
-    LOWER(tmp) = LOWER(products[0][1]);
+    LOWER(tmp) = LOWER(products[3][1]);
     UPPER(tmp2) = 0;
-    LOWER(tmp2) = UPPER(products[0][2]);
+    LOWER(tmp2) = UPPER(products[3][2]);
     add128(&tmp, &tmp2, &second64);
     UPPER(tmp) = 0;
-    LOWER(tmp) = LOWER(products[0][0]);
+    LOWER(tmp) = LOWER(products[3][0]);
     UPPER(tmp2) = 0;
-    LOWER(tmp2) = UPPER(products[0][1]);
-    add128(&tmp, &tmp2, &first64);
-
-    UPPER(tmp) = 0;
-    LOWER(tmp) = LOWER(products[1][3]);
-    add128(&tmp, &third64, &tmp2);
-    copy128(&third64, &tmp2);
-    UPPER(tmp) = 0;
-    LOWER(tmp) = LOWER(products[1][2]);
-    add128(&tmp, &second64, &tmp2);
-    UPPER(tmp) = 0;
-    LOWER(tmp) = UPPER(products[1][3]);
-    add128(&tmp, &tmp2, &second64);
-    UPPER(tmp) = 0;
-    LOWER(tmp) = LOWER(products[1][1]);
-    add128(&tmp, &first64, &tmp2);
-    UPPER(tmp) = 0;
-    LOWER(tmp) = UPPER(products[1][2]);
+    LOWER(tmp2) = UPPER(products[3][1]);
     add128(&tmp, &tmp2, &first64);
 
     UPPER(tmp) = 0;
     LOWER(tmp) = LOWER(products[2][3]);
-    add128(&tmp, &second64, &tmp2);
-    copy128(&second64, &tmp2);
+    add128(&tmp, &third64, &third64);
     UPPER(tmp) = 0;
     LOWER(tmp) = LOWER(products[2][2]);
-    add128(&tmp, &first64, &tmp2);
+    add128(&tmp, &second64, &tmp2);
     UPPER(tmp) = 0;
     LOWER(tmp) = UPPER(products[2][3]);
+    add128(&tmp, &tmp2, &second64);
+    UPPER(tmp) = 0;
+    LOWER(tmp) = LOWER(products[2][1]);
+    add128(&tmp, &first64, &tmp2);
+    UPPER(tmp) = 0;
+    LOWER(tmp) = UPPER(products[2][2]);
     add128(&tmp, &tmp2, &first64);
 
     UPPER(tmp) = 0;
-    LOWER(tmp) = LOWER(products[3][3]);
+    LOWER(tmp) = LOWER(products[1][3]);
+    add128(&tmp, &second64, &second64);
+    UPPER(tmp) = 0;
+    LOWER(tmp) = LOWER(products[1][2]);
     add128(&tmp, &first64, &tmp2);
-    copy128(&first64, &tmp2);
+    UPPER(tmp) = 0;
+    LOWER(tmp) = UPPER(products[1][3]);
+    add128(&tmp, &tmp2, &first64);
 
+    UPPER(tmp) = 0;
+    LOWER(tmp) = LOWER(products[0][3]);
+    add128(&tmp, &first64, &first64);
+
+    uint256_t target1, target2;
     clear256(&target1);
-    shiftl128(&first64, 64, &UPPER(target1));
+    UPPER(UPPER(target1)) = LOWER(first64);
     clear256(&target2);
-    UPPER(UPPER(target2)) = UPPER(third64);
-    shiftl128(&third64, 64, &LOWER(target2));
+    LOWER(UPPER(target2)) = UPPER(third64);
+    UPPER(LOWER(target2)) = LOWER(third64);
     add256(&target1, &target2, target);
     clear256(&target1);
     copy128(&UPPER(target1), &second64);
