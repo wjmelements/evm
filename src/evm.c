@@ -161,12 +161,11 @@ stateChanges_t *getCurrentAccountStateChanges(result_t *result, context_t *conte
 // for debugging
 static inline void dumpStack(context_t *context) {
     uint256_t *pos = context->top;
-    char *buf = calloc(67, 1);
+    char buf[67];
     while (--pos >= context->bottom) {
         tostring256(pos, 16, buf, 67);
-        fprintf(stderr, "%lu: %s [%llx %llx %llx %llx]\n", pos - context->bottom, buf, UPPER(UPPER_P(pos)), LOWER(UPPER_P(pos)), UPPER(LOWER_P(pos)), LOWER(LOWER_P(pos)));
+        fprintf(stderr, "%lu: %s\n", pos - context->bottom, buf);
     }
-    free(buf);
 }
 
 static inline void dumpCallData(context_t *context) {
@@ -248,6 +247,7 @@ void evmSetDebug(uint64_t flags) {
 #define SHOW_MEMORY (debugFlags & EVM_DEBUG_MEMORY)
 #define SHOW_OPS (debugFlags & EVM_DEBUG_OPS)
 #define SHOW_GAS (debugFlags & EVM_DEBUG_GAS)
+#define SHOW_PC (debugFlags & EVM_DEBUG_PC)
 
 void evmInit() {
     callstack.next = callstack.bottom;
@@ -468,6 +468,9 @@ static result_t doCall(context_t *callContext) {
             dumpMemory(&callContext->memory);
         }
         if (SHOW_OPS) {
+            if (SHOW_PC) {
+                fprintf(stderr, "%llu: ", pc - 1);
+            }
             if (SHOW_GAS) {
                 fprintf(stderr, "gas %llu ", callContext->gas);
             }
