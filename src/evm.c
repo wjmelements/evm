@@ -994,6 +994,13 @@ static result_t doCall(context_t *callContext) {
                     changes->storageChanges = change;
                 }
                 break;
+            case TIMESTAMP:
+                // TODO allwo configuration for timestamp
+                UPPER(UPPER_P(callContext->top - 1)) = 0;
+                LOWER(UPPER_P(callContext->top - 1)) = 0;
+                UPPER(LOWER_P(callContext->top - 1)) = 0;
+                LOWER(LOWER_P(callContext->top - 1)) = 0x65712600;
+                break;
             case NUMBER:
                 // TODO allow configuration for blockNumber
                 UPPER(UPPER_P(callContext->top - 1)) = 0;
