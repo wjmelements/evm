@@ -147,6 +147,13 @@ void disassembleNextOp(const char **iter) {
         statement_append(&op_statement, ')');
     }
     statement_stack_append(&stack, op_statement);
+    if (retCount[op] != 1) {
+        for (size_t i = 0; i < stack.num_statements; i++) {
+            puts(stack.statements[i].schars);
+            free(stack.statements[i].schars);
+        }
+        stack.num_statements = 0;
+    }
     pc++;
 }
 
