@@ -352,7 +352,7 @@ op_t scanNextOp(const char **iter) {
             // because we can one data entry at a time, the stack size is the dataSize
             jump.dataSize = scanstackIndex;
             registerLabel(jump);
-            return scanNextOp(iter);
+            return scanstackPop();
         } else if (type == CODESIZE) {
             jump.len = 1;
             labelQueuePush(jump, type);

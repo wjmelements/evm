@@ -1,0 +1,16 @@
+CODECOPY(0, one, #one)
+#one
+CODECOPY(DUP3, a, #a)
+#a ADD
+CODECOPY(DUP3, b, #b)
+#b ADD
+CODECOPY(DUP3, c, #c)
+#c
+RETURN(0, ADD)
+STOP
+{
+    one: 0x112233445566778899,
+    a: 0xaa,
+    b: 0xbb,
+    c: 0xcc
+}
