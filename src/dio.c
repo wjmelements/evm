@@ -457,7 +457,7 @@ static void jsonScanLog(const char **iter, logChanges_t **prev) {
 }
 
 static void jsonScanAccountLogs(const char **iter, logsEntry_t **prev) {
-    logsEntry_t *accountLogs = malloc(sizeof(logsEntry_t));
+    logsEntry_t *accountLogs = calloc(1, sizeof(logsEntry_t));
     accountLogs->prev = *prev;
     *prev = accountLogs;
 
