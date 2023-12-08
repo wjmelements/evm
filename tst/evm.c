@@ -153,6 +153,7 @@ void test_shl() {
     };
     assert(result.returnData.size == sizeof(expected));
     assert(memcmp(result.returnData.content, expected, sizeof(expected)) == 0);
+    assert(result.gasRemaining == 0);
 
     evmFinalize();
 }
