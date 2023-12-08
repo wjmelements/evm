@@ -676,6 +676,16 @@ static result_t doCall(context_t *callContext) {
                     }
                 }
                 break;
+            case SHL:
+                {
+                    uint256_t *shiftAmount = callContext->top;
+                    if (UPPER(UPPER_P(shiftAmount)) || LOWER(UPPER_P(shiftAmount)) || UPPER(LOWER_P(shiftAmount)) || LOWER(LOWER_P(shiftAmount)) > 256) {
+                        clear256(callContext->top - 1);
+                    } else {
+                        shiftl256(callContext->top - 1, LOWER(LOWER_P(shiftAmount)), callContext->top - 1);
+                    }
+                }
+                break;
             case SHR:
                 {
                     uint256_t *shiftAmount = callContext->top;
