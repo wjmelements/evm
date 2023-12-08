@@ -272,6 +272,52 @@ void test_exp() {
     assert(LOWER(LOWER(c)) == 0x4644e3998d6db881);
 }
 
+void test_signextend() {
+    // first, test positive sign extension
+    uint256_t a, b;
+    UPPER(UPPER(a)) = 0x7777777777777777;
+    LOWER(UPPER(a)) = 0x7777777777777777;
+    UPPER(LOWER(a)) = 0x7777777777777777;
+    LOWER(LOWER(a)) = 0x7777777777777777;
+
+    signextend256(&a, 128, &b);
+    assert(UPPER(UPPER(b)) == 0);
+    assert(LOWER(UPPER(b)) == 0);
+    assert(UPPER(LOWER(b)) == 0x7777777777777777);
+    assert(LOWER(LOWER(b)) == 0x7777777777777777);
+
+    signextend256(&a, 192, &b);
+    assert(UPPER(UPPER(b)) == 0);
+    assert(LOWER(UPPER(b)) == 0x7777777777777777);
+    assert(UPPER(LOWER(b)) == 0x7777777777777777);
+    assert(LOWER(LOWER(b)) == 0x7777777777777777);
+
+    signextend256(&a, 200, &b);
+    assert(UPPER(UPPER(b)) == 0x77);
+    assert(LOWER(UPPER(b)) == 0x7777777777777777);
+    assert(UPPER(LOWER(b)) == 0x7777777777777777);
+    assert(LOWER(LOWER(b)) == 0x7777777777777777);
+
+    // NOTE unsure if this is the correct specification
+    signextend256(&a, 0, &b);
+    assert(UPPER(UPPER(b)) == 0x0000000000000000);
+    assert(LOWER(UPPER(b)) == 0x0000000000000000);
+    assert(UPPER(LOWER(b)) == 0x0000000000000000);
+    assert(LOWER(LOWER(b)) == 0x0000000000000000);
+
+    // next, test negative sign extension
+    signextend256(&a, 199, &b);
+    assert(UPPER(UPPER(b)) == 0xfffffffffffffff7);
+    assert(LOWER(UPPER(b)) == 0x7777777777777777);
+    assert(UPPER(LOWER(b)) == 0x7777777777777777);
+    assert(LOWER(LOWER(b)) == 0x7777777777777777);
+
+    signextend256(&a, 1, &b);
+    assert(UPPER(UPPER(b)) == 0xffffffffffffffff);
+    assert(LOWER(UPPER(b)) == 0xffffffffffffffff);
+    assert(UPPER(LOWER(b)) == 0xffffffffffffffff);
+    assert(LOWER(LOWER(b)) == 0xffffffffffffffff);
+}
 
 int main() {
     test_bitwise();
@@ -279,5 +325,6 @@ int main() {
     test_math();
     test_shiftar();
     test_exp();
+    test_signextend();
     return 0;
 }
