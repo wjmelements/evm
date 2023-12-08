@@ -182,6 +182,33 @@ void shiftr256(const uint256_t *number, uint32_t value, uint256_t *target) {
     }
 }
 
+void shiftar256(const uint256_t *number, uint32_t value, uint256_t *target) {
+    bool positive = (UPPER(UPPER_P(number)) < 0x8000000000000000);
+    shiftr256(number, value, target);
+    if (positive) return;
+    if (!value) return;
+    if (value >= 64) {
+        UPPER(UPPER_P(target)) = 0xffffffffffffffffllu;
+        if (value >= 128) {
+            LOWER(UPPER_P(target)) = 0xffffffffffffffffllu;
+            if (value >= 192) {
+                UPPER(LOWER_P(target)) = 0xffffffffffffffffllu;
+                if (value >= 256) {
+                    LOWER(LOWER_P(target)) = 0xffffffffffffffffllu;
+                } else {
+                    LOWER(LOWER_P(target)) |= 0xffffffffffffffffllu - ((1llu << (256 - value)) - 1llu);
+                }
+            } else {
+                UPPER(LOWER_P(target)) |= 0xffffffffffffffffllu - ((1llu << (192 - value)) - 1llu);
+            }
+        } else {
+            LOWER(UPPER_P(target)) |= 0xffffffffffffffffllu - ((1llu << (128 - value)) - 1llu);
+        }
+    } else {
+        UPPER(UPPER_P(target)) |= 0xffffffffffffffffllu - ((1llu << (64 - value)) - 1llu);
+    }
+}
+
 uint32_t bits128(const uint128_t *number) {
     uint32_t result = 0;
     if (UPPER_P(number)) {
@@ -479,6 +506,11 @@ void exp256(const uint256_t *base, const uint256_t *power, uint256_t *target) {
         shiftr256(&remaining, 1, &remaining);
     }
     copy256(target, &result);
+}
+
+void signextend256(const uint256_t *base, uint8_t signBit, uint256_t *target) {
+    shiftl256(base, 256 - signBit, target);
+    shiftar256(target, 256 - signBit, target);
 }
 
 void divmod128(const uint128_t *l, const uint128_t *r, uint128_t *retDiv,

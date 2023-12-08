@@ -147,6 +147,95 @@ void test_math() {
     assert(LOWER(LOWER(a)) == 0x8db5fb39f2c17b81);
 }
 
+void test_shiftar() {
+    uint256_t a;
+
+    UPPER(UPPER(a)) = 0x8000000000000000;
+    LOWER(UPPER(a)) = 0x8000000000000000;
+    UPPER(LOWER(a)) = 0x8000000000000000;
+    LOWER(LOWER(a)) = 0x8000000000000000;
+
+    shiftar256(&a, 0, &a);
+
+    assert(UPPER(UPPER(a)) == 0x8000000000000000);
+    assert(LOWER(UPPER(a)) == 0x8000000000000000);
+    assert(UPPER(LOWER(a)) == 0x8000000000000000);
+    assert(LOWER(LOWER(a)) == 0x8000000000000000);
+
+    shiftar256(&a, 1, &a);
+
+    assert(UPPER(UPPER(a)) == 0xc000000000000000);
+    assert(LOWER(UPPER(a)) == 0x4000000000000000);
+    assert(UPPER(LOWER(a)) == 0x4000000000000000);
+    assert(LOWER(LOWER(a)) == 0x4000000000000000);
+
+    shiftar256(&a, 1, &a);
+
+    assert(UPPER(UPPER(a)) == 0xe000000000000000);
+    assert(LOWER(UPPER(a)) == 0x2000000000000000);
+    assert(UPPER(LOWER(a)) == 0x2000000000000000);
+    assert(LOWER(LOWER(a)) == 0x2000000000000000);
+
+    shiftar256(&a, 1, &a);
+
+    assert(UPPER(UPPER(a)) == 0xf000000000000000);
+    assert(LOWER(UPPER(a)) == 0x1000000000000000);
+    assert(UPPER(LOWER(a)) == 0x1000000000000000);
+    assert(LOWER(LOWER(a)) == 0x1000000000000000);
+
+    shiftar256(&a, 60, &a);
+
+    assert(UPPER(UPPER(a)) == 0xffffffffffffffff);
+    assert(LOWER(UPPER(a)) == 0x0000000000000001);
+    assert(UPPER(LOWER(a)) == 0x0000000000000001);
+    assert(LOWER(LOWER(a)) == 0x0000000000000001);
+
+    shiftar256(&a, 60, &a);
+
+    assert(UPPER(UPPER(a)) == 0xffffffffffffffff);
+    assert(LOWER(UPPER(a)) == 0xfffffffffffffff0);
+    assert(UPPER(LOWER(a)) == 0x0000000000000010);
+    assert(LOWER(LOWER(a)) == 0x0000000000000010);
+
+    shiftar256(&a, 128, &a);
+
+    assert(UPPER(UPPER(a)) == 0xffffffffffffffff);
+    assert(LOWER(UPPER(a)) == 0xffffffffffffffff);
+    assert(UPPER(LOWER(a)) == 0xffffffffffffffff);
+    assert(LOWER(LOWER(a)) == 0xfffffffffffffff0);
+
+    shiftar256(&a, 1, &a);
+
+    assert(UPPER(UPPER(a)) == 0xffffffffffffffff);
+    assert(LOWER(UPPER(a)) == 0xffffffffffffffff);
+    assert(UPPER(LOWER(a)) == 0xffffffffffffffff);
+    assert(LOWER(LOWER(a)) == 0xfffffffffffffff8);
+
+    UPPER(UPPER(a)) = 0x8760000000000000;
+    LOWER(UPPER(a)) = 0x0800000000000000;
+    UPPER(LOWER(a)) = 0x0080000000000000;
+    LOWER(LOWER(a)) = 0x0008000000000000;
+
+    shiftar256(&a, 196, &a);
+
+    assert(UPPER(UPPER(a)) == 0xffffffffffffffff);
+    assert(LOWER(UPPER(a)) == 0xffffffffffffffff);
+    assert(UPPER(LOWER(a)) == 0xffffffffffffffff);
+    assert(LOWER(LOWER(a)) == 0xf876000000000000);
+
+    UPPER(UPPER(a)) = 0x8000000000000000;
+    LOWER(UPPER(a)) = 0x0000000000000000;
+    UPPER(LOWER(a)) = 0x0000000000000000;
+    LOWER(LOWER(a)) = 0x0000000000000000;
+
+    shiftar256(&a, 256, &a);
+
+    assert(UPPER(UPPER(a)) == 0xffffffffffffffff);
+    assert(LOWER(UPPER(a)) == 0xffffffffffffffff);
+    assert(UPPER(LOWER(a)) == 0xffffffffffffffff);
+    assert(LOWER(LOWER(a)) == 0xffffffffffffffff);
+}
+
 void test_exp() {
     uint256_t a, b, c;
 
@@ -188,6 +277,7 @@ int main() {
     test_bitwise();
     test_bits();
     test_math();
+    test_shiftar();
     test_exp();
     return 0;
 }

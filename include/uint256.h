@@ -46,6 +46,7 @@ void shiftl128(const uint128_t *number, uint32_t value, uint128_t *target);
 void shiftr128(const uint128_t *number, uint32_t value, uint128_t *target);
 void shiftl256(const uint256_t *number, uint32_t value, uint256_t *target);
 void shiftr256(const uint256_t *number, uint32_t value, uint256_t *target);
+void shiftar256(const uint256_t *number, uint32_t value, uint256_t *target);
 uint32_t bits128(const uint128_t *number);
 uint32_t bits256(const uint256_t *number);
 bool equal128(const uint128_t *number1, const uint128_t *number2);
@@ -70,6 +71,7 @@ void not256(const uint256_t *number, uint256_t *target);
 void mul128(const uint128_t *number1, const uint128_t *number2, uint128_t *target);
 void mul256(const uint256_t *number1, const uint256_t *number2, uint256_t *target);
 void exp256(const uint256_t *base, const uint256_t *power, uint256_t *target);
+void signextend256(const uint256_t *base, uint8_t signBit, uint256_t *target);
 void divmod128(const uint128_t *l, const uint128_t *r, uint128_t *div, uint128_t *mod);
 void divmod256(const uint256_t *l, const uint256_t *r, uint256_t *div, uint256_t *mod);
 bool tostring128(const uint128_t *number, uint32_t base, char *out,
