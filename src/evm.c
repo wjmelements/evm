@@ -696,6 +696,23 @@ static result_t doCall(context_t *callContext) {
                     }
                 }
                 break;
+            case SAR:
+                {
+                    uint256_t *shiftAmount = callContext->top;
+                    if (UPPER(UPPER_P(shiftAmount)) || LOWER(UPPER_P(shiftAmount)) || UPPER(LOWER_P(shiftAmount)) || LOWER(LOWER_P(shiftAmount)) > 256) {
+                        if (UPPER(UPPER_P(callContext->top - 1)) < 0x8000000000000000) {
+                            clear256(callContext->top - 1);
+                        } else {
+                            UPPER(UPPER_P(callContext->top - 1)) = 0xffffffffffffffff;
+                            LOWER(UPPER_P(callContext->top - 1)) = 0xffffffffffffffff;
+                            UPPER(LOWER_P(callContext->top - 1)) = 0xffffffffffffffff;
+                            LOWER(LOWER_P(callContext->top - 1)) = 0xffffffffffffffff;
+                        }
+                    } else {
+                        shiftar256(callContext->top - 1, LOWER(LOWER_P(shiftAmount)), callContext->top - 1);
+                    }
+                }
+                break;
             case EXP:
                 {
                     uint32_t bitLen = bits256(callContext->top - 1);
@@ -706,6 +723,15 @@ static result_t doCall(context_t *callContext) {
                     }
                     callContext->gas -= gasCost;
                     exp256(callContext->top, callContext->top - 1, callContext->top - 1);
+                }
+                break;
+            case SIGNEXTEND:
+                {
+                    if (UPPER(UPPER_P(callContext->top)) || LOWER(UPPER_P(callContext->top)) || UPPER(LOWER_P(callContext->top)) || LOWER(LOWER_P(callContext->top)) > 30) {
+                        break;
+                    }
+                    uint8_t signBit = 248 - 8 * LOWER(LOWER_P(callContext->top));
+                    signextend256(callContext->top - 1, signBit, callContext->top - 1);
                 }
                 break;
             case LT:
