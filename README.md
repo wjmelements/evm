@@ -152,9 +152,9 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | MUL | ✅ |✅ |
 | SUB | ✅ |✅ |
 | DIV | ✅ |✅ |
-| SDIV | ✅ |❓ |
-| MOD | ✅ |❓ |
-| SMOD | ✅ |❓ |
+| SDIV | ✅ |✅ |
+| MOD | ✅ |✅ |
+| SMOD | ✅ |✅ |
 | ADDMOD | ✅ |❓ |
 | MULMOD | ✅ |❓ |
 | EXP | ✅ |✅ |
