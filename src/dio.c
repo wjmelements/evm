@@ -125,7 +125,10 @@ static void derivePath() {
     while (*pathWalk) {
         if (*pathWalk == '/') {
             // relative path
-            getwd(relativePath);
+            if (getcwd(relativePath, MAXPATHLEN + 1) == NULL) {
+                perror("getcwd");
+                exit(1);
+            }
             size_t offset = strlen(relativePath);
             relativePath[offset++] = '/';
             relativePath[offset] = '\0';

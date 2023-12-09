@@ -641,6 +641,25 @@ static result_t doCall(context_t *callContext) {
             case DIV:
                 divmod256(callContext->top, callContext->top - 1, callContext->top - 1, callContext->top + 1);
                 break;
+            case SDIV:
+                {
+                    bool negative = false;
+                    uint256_t zero;
+                    clear256(&zero);
+                    if (UPPER(UPPER_P(callContext->top)) >= 0x8000000000000000) {
+                        negative = !negative;
+                        minus256(&zero, callContext->top, callContext->top);
+                    }
+                    if (UPPER(UPPER_P(callContext->top - 1)) >= 0x8000000000000000) {
+                        negative = !negative;
+                        minus256(&zero, callContext->top - 1, callContext->top - 1);
+                    }
+                    divmod256(callContext->top, callContext->top - 1, callContext->top - 1, callContext->top + 1);
+                    if (negative) {
+                        minus256(&zero, callContext->top - 1, callContext->top - 1);
+                    }
+                }
+                break;
             case MOD:
                 divmod256(callContext->top, callContext->top - 1, callContext->top + 1, callContext->top - 1);
                 break;
