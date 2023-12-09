@@ -630,16 +630,13 @@ static result_t doCall(context_t *callContext) {
             case JUMPDEST:
                 break;
             case ADD:
-                add256(callContext->top, callContext->top - 1, callContext->top + 1);
-                copy256(callContext->top - 1, callContext->top + 1);
+                add256(callContext->top, callContext->top - 1, callContext->top - 1);
                 break;
             case SUB:
-                minus256(callContext->top, callContext->top - 1, callContext->top + 1);
-                copy256(callContext->top - 1, callContext->top + 1);
+                minus256(callContext->top, callContext->top - 1, callContext->top - 1);
                 break;
             case MUL:
-                mul256(callContext->top, callContext->top - 1, callContext->top + 1);
-                copy256(callContext->top - 1, callContext->top + 1);
+                mul256(callContext->top, callContext->top - 1, callContext->top - 1);
                 break;
             case DIV:
                 divmod256(callContext->top, callContext->top - 1, callContext->top + 1, callContext->top + 2);
