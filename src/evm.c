@@ -730,7 +730,7 @@ static result_t doCall(context_t *callContext) {
                     if (UPPER(UPPER_P(callContext->top)) || LOWER(UPPER_P(callContext->top)) || UPPER(LOWER_P(callContext->top)) || LOWER(LOWER_P(callContext->top)) > 30) {
                         break;
                     }
-                    uint8_t signBit = 8 * LOWER(LOWER_P(callContext->top));
+                    uint8_t signBit = 8 * LOWER(LOWER_P(callContext->top)) + 8;
                     signextend256(callContext->top - 1, signBit, callContext->top - 1);
                 }
                 break;
