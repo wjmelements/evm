@@ -639,12 +639,10 @@ static result_t doCall(context_t *callContext) {
                 mul256(callContext->top, callContext->top - 1, callContext->top - 1);
                 break;
             case DIV:
-                divmod256(callContext->top, callContext->top - 1, callContext->top + 1, callContext->top + 2);
-                copy256(callContext->top - 1, callContext->top + 1);
+                divmod256(callContext->top, callContext->top - 1, callContext->top - 1, callContext->top + 1);
                 break;
             case MOD:
-                divmod256(callContext->top, callContext->top - 1, callContext->top + 2, callContext->top + 1);
-                copy256(callContext->top - 1, callContext->top + 1);
+                divmod256(callContext->top, callContext->top - 1, callContext->top + 1, callContext->top - 1);
                 break;
             case XOR:
                 xor256(callContext->top, callContext->top - 1, callContext->top - 1);
