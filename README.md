@@ -153,8 +153,8 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | SUB | ✅ |✅ |
 | DIV | ✅ |✅ |
 | SDIV | ✅ |✅ |
-| MOD | ✅ |❓ |
-| SMOD | ✅ |❓ |
+| MOD | ✅ |✅ |
+| SMOD | ✅ |✅ |
 | ADDMOD | ✅ |❓ |
 | MULMOD | ✅ |❓ |
 | EXP | ✅ |✅ |
