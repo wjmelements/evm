@@ -745,6 +745,13 @@ static result_t doCall(context_t *callContext) {
                     }
                 }
                 break;
+            case MULMOD:
+                if (zero256(callContext->top - 1)) {
+                    clear256(callContext->top - 1);
+                } else {
+                    mulmod256(callContext->top + 1, callContext->top, callContext->top - 1, callContext->top - 1); 
+                }
+                break;
             case EXP:
                 {
                     uint32_t bitLen = bits256(callContext->top - 1);

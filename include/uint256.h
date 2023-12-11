@@ -20,12 +20,15 @@
 #ifndef _UINT256_H_
 #define _UINT256_H_
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
 
 typedef struct uint128_t { uint64_t elements[2]; } __attribute__((__packed__)) uint128_t;
 
 typedef struct uint256_t { uint128_t elements[2]; } __attribute__((__packed__)) uint256_t;
+
+typedef struct uint512_t { uint256_t elements[2]; } __attribute__((__packed__)) uint512_t;
 
 #define UPPER_P(x) (x)->elements[0]
 #define LOWER_P(x) (x)->elements[1]
@@ -36,6 +39,9 @@ void readu128BE(const uint8_t *buffer, uint128_t *target);
 void readu256BE(const uint8_t *buffer, uint256_t *target);
 void dumpu128BE(const uint128_t *source, uint8_t *target);
 void dumpu256BE(const uint256_t *source, uint8_t *target);
+void fprint128(FILE *, const uint128_t *);
+void fprint256(FILE *, const uint256_t *);
+void fprint512(FILE *, const uint512_t *);
 bool zero128(const uint128_t *number);
 bool zero256(const uint256_t *number);
 void copy128(uint128_t *target, const uint128_t *number);
@@ -70,6 +76,7 @@ void not128(const uint128_t *number, uint128_t *target);
 void not256(const uint256_t *number, uint256_t *target);
 void mul128(const uint128_t *number1, const uint128_t *number2, uint128_t *target);
 void mul256(const uint256_t *number1, const uint256_t *number2, uint256_t *target);
+void mulmod256(const uint256_t *number1, const uint256_t *number2, const uint256_t *divisor, uint256_t *target);
 void exp256(const uint256_t *base, const uint256_t *power, uint256_t *target);
 void signextend256(const uint256_t *base, uint8_t signBit, uint256_t *target);
 void divmod128(const uint128_t *l, const uint128_t *r, uint128_t *div, uint128_t *mod);

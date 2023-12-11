@@ -319,6 +319,35 @@ void test_signextend() {
     assert(LOWER(LOWER(b)) == 0xffffffffffffffff);
 }
 
+void test_mulmod() {
+    uint256_t a, b, c, d;
+
+    UPPER(UPPER(a)) = 0xeeeeeeeeeeeeeeee;
+    LOWER(UPPER(a)) = 0xeeeeeeeeeeeeeeee;
+    UPPER(LOWER(a)) = 0xeeeeeeeeeeeeeeee;
+    LOWER(LOWER(a)) = 0xeeeeeeeeeeeeeeee;
+    UPPER(UPPER(b)) = 0xeeeeeeeeeeeeeeee;
+    LOWER(UPPER(b)) = 0xeeeeeeeeeeeeeeee;
+    UPPER(LOWER(b)) = 0xeeeeeeeeeeeeeeee;
+    LOWER(LOWER(b)) = 0xeeeeeeeeeeeeeeee;
+    UPPER(UPPER(c)) = 0xdddddddddddddddd;
+    LOWER(UPPER(c)) = 0xdddddddddddddddd;
+    UPPER(LOWER(c)) = 0xdddddddddddddddd;
+    LOWER(LOWER(c)) = 0xdddddddddddddddd;
+
+    mulmod256(&a, &b, &c, &d);
+    assert(UPPER(UPPER(d)) == 0x1111111111111111);
+    assert(UPPER(LOWER(d)) == 0x1111111111111111);
+    assert(LOWER(UPPER(d)) == 0x1111111111111111);
+    assert(LOWER(LOWER(d)) == 0x1111111111111111);
+
+    mulmod256(&a, &b, &a, &d);
+    assert(UPPER(UPPER(d)) == 0x0000000000000000);
+    assert(UPPER(LOWER(d)) == 0x0000000000000000);
+    assert(LOWER(UPPER(d)) == 0x0000000000000000);
+    assert(LOWER(LOWER(d)) == 0x0000000000000000);
+}
+
 int main() {
     test_bitwise();
     test_bits();
@@ -326,5 +355,6 @@ int main() {
     test_shiftar();
     test_exp();
     test_signextend();
+    test_mulmod();
     return 0;
 }
