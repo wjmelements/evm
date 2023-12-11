@@ -167,7 +167,7 @@ void shiftl512(const uint512_t *number, uint32_t value, uint512_t *target) {
         clear256(&LOWER_P(target));
     } else if (value == 0) {
         copy512(target, number);
-    } else if (value < 128) {
+    } else if (value < 256) {
         uint256_t tmp1;
         uint256_t tmp2;
         uint512_t result;
