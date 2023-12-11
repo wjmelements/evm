@@ -156,7 +156,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | MOD | ✅ |✅ |
 | SMOD | ✅ |✅ |
 | ADDMOD | ✅ |❓ |
-| MULMOD | ✅ |❓ |
+| MULMOD | ✅ |✅ |
 | EXP | ✅ |✅ |
 | SIGNEXTEND | ✅ |✅ |
 | LT | ✅ |✅ |
@@ -250,9 +250,9 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | DUP1 | ✅ |✅ |
 | DUP2 | ✅ |✅ |
 | DUP3 | ✅ |✅ |
-| DUP4 | ✅ |❓ |
-| DUP5 | ✅ |❓ |
-| DUP6 | ✅ |❓ |
+| DUP4 | ✅ |✅ |
+| DUP5 | ✅ |✅ |
+| DUP6 | ✅ |✅ |
 | DUP7 | ✅ |❓ |
 | DUP8 | ✅ |❓ |
 | DUP9 | ✅ |❓ |
