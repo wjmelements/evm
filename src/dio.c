@@ -216,10 +216,10 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
                 if (!LogsEqual(expectedLog, actualLog)) {
                     // mismatch
                     fputs("logs expected:\n", stderr);
-                    fprintLog(stderr, expectedLogs->logs, false);
+                    fprintLog(stderr, expectedLog, false);
                     fputc('\n', stderr);
                     fputs("logs actual:\n", stderr);
-                    fprintLog(stderr, actualLogs->logChanges, false);
+                    fprintLogDiff(stderr, actualLog, expectedLog, false);
                     fputc('\n', stderr);
                     testFailure = anyTestFailure = 1;
                 }
@@ -232,38 +232,38 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
             }
             expectedLogs = expectedLogs->prev;
         }
+    }
 
-        if (result.returnData.size != test->output.size || memcmp(result.returnData.content, test->output.content, test->output.size)) {
-            fputs("Output data mismatch\nactual:\n", stderr);
+    if (result.returnData.size != test->output.size || memcmp(result.returnData.content, test->output.content, test->output.size)) {
+        fputs("Output data mismatch\nactual:\n", stderr);
 
-            for (size_t i = 0; i < result.returnData.size; i++) {
-                fprintf(stderr, "%02x", result.returnData.content[i]);
-            }
-            fputs("\nexpected:\n", stderr);
-            for (size_t i = 0; i < test->output.size; i++) {
-                fprintf(stderr, "%02x", test->output.content[i]);
-            }
+        for (size_t i = 0; i < result.returnData.size; i++) {
+            fprintf(stderr, "%02x", result.returnData.content[i]);
+        }
+        fputs("\nexpected:\n", stderr);
+        for (size_t i = 0; i < test->output.size; i++) {
+            fprintf(stderr, "%02x", test->output.content[i]);
+        }
 
-            fputc('\n', stderr);
-            testFailure = anyTestFailure = 1;
-        } else if (test->gasUsed) {
-            uint64_t gasUsed = gas - result.gasRemaining;
-            if (test->gasUsed < gasUsed) {
-                // more actual gasUsed than expected
-                fprintf(stderr, "gasUsed \033[0;31m%llu\033[0m expected %llu (\033[0;31m+%llu\033[0m)\n", gasUsed, test->gasUsed, gasUsed - test->gasUsed);
-            } else if (test->gasUsed > gas - result.gasRemaining) {
-                // less actual gasUsed than expected
-                fprintf(stderr, "gasUsed \033[0;32m%llu\033[0m expected %llu (\033[0;32m-%llu\033[0m)\n", gasUsed, test->gasUsed, test->gasUsed - gasUsed);
-            } else if (testFailure) {
-                fprintf(stderr, "\033[0;31mfail\033[0m\n");
-            } else {
-                fprintf(stderr, "\033[0;32mpass\033[0m\n");
-            }
+        fputc('\n', stderr);
+        testFailure = anyTestFailure = 1;
+    } else if (test->gasUsed) {
+        uint64_t gasUsed = gas - result.gasRemaining;
+        if (test->gasUsed < gasUsed) {
+            // more actual gasUsed than expected
+            fprintf(stderr, "gasUsed \033[0;31m%llu\033[0m expected %llu (\033[0;31m+%llu\033[0m)\n", gasUsed, test->gasUsed, gasUsed - test->gasUsed);
+        } else if (test->gasUsed > gas - result.gasRemaining) {
+            // less actual gasUsed than expected
+            fprintf(stderr, "gasUsed \033[0;32m%llu\033[0m expected %llu (\033[0;32m-%llu\033[0m)\n", gasUsed, test->gasUsed, test->gasUsed - gasUsed);
         } else if (testFailure) {
             fprintf(stderr, "\033[0;31mfail\033[0m\n");
         } else {
             fprintf(stderr, "\033[0;32mpass\033[0m\n");
         }
+    } else if (testFailure) {
+        fprintf(stderr, "\033[0;31mfail\033[0m\n");
+    } else {
+        fprintf(stderr, "\033[0;32mpass\033[0m\n");
     }
 
     free(test);
