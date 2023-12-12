@@ -40,6 +40,74 @@ uint16_t fprintLog(FILE *file, const logChanges_t *log, int showLogIndex) {
     return items + 1;
 }
 
+uint16_t fprintLogDiff(FILE *file, const logChanges_t *log, const logChanges_t *expected, int showLogIndex) {
+    if (log == NULL) {
+        return 0;
+    }
+    if (expected == NULL) {
+        return fprintLog(file, log, showLogIndex);
+    }
+    uint16_t items = fprintLogDiff(file, log->prev, expected->prev, showLogIndex);
+    if (items) {
+        fputc(',', file);
+    }
+    if (showLogIndex) {
+        fprintf(file, "{\"logIndex\":\"0x%x\",\"data\":\"0x", log->logIndex);
+    } else {
+        fprintf(file, "{\"data\":\"0x");
+    }
+    if (log->data.size == expected->data.size) {
+        for (size_t i = 0; i < log->data.size; i++) {
+            if (log->data.content[i] == expected->data.content[i]) {
+                fprintf(file, "%02x", log->data.content[i]);
+            } else {
+                fprintf(file, "\033[0;31m%02x\033[0m", log->data.content[i]);
+            }
+        }
+    } else {
+        for (size_t i = 0; i < log->data.size; i++) {
+            fprintf(file, "%02x", log->data.content[i]);
+        }
+    }
+    fputs("\",\"topics\":[", file);
+    if (log->topicCount == expected->topicCount) {
+        for (uint8_t i = log->topicCount; i-->0;) {
+            fputs("\"0x", file);
+            for (uint16_t j = 0; j < 32; j++) {
+                uint64_t topicPart = log->topics[i].elements[j / 16].elements[(j % 16) / 8];
+                topicPart >>= (56 - 8 * (j % 8));
+                topicPart &= 0xff;
+                uint64_t expectedPart = expected->topics[i].elements[j / 16].elements[(j % 16) / 8];
+                expectedPart >>= (56 - 8 * (j % 8));
+                expectedPart &= 0xff;
+                if (topicPart == expectedPart) {
+                    fprintf(file, "%02llx", topicPart);
+                } else {
+                    fprintf(file, "\033[0;31m%02llx\033[0m", topicPart);
+                }
+            }
+            fputc('"', file);
+            if (i) {
+                fputc(',', file);
+            }
+        }
+    } else {
+        for (uint8_t i = log->topicCount; i-->0;) {
+            fprintf(file, "\"0x%016llx%016llx%016llx%016llx\"",
+                UPPER(UPPER(log->topics[i])),
+                LOWER(UPPER(log->topics[i])),
+                UPPER(LOWER(log->topics[i])),
+                LOWER(LOWER(log->topics[i]))
+            );
+            if (i) {
+                fputc(',', file);
+            }
+        }
+    }
+    fputs("]}", file);
+    return items + 1;
+}
+
 static uint16_t _fprintLogs(FILE *file, const stateChanges_t *account, int showLogIndex) {
     if (account == NULL) {
         return 0;
@@ -749,7 +817,7 @@ static result_t doCall(context_t *callContext) {
                 if (zero256(callContext->top - 1)) {
                     clear256(callContext->top - 1);
                 } else {
-                    mulmod256(callContext->top + 1, callContext->top, callContext->top - 1, callContext->top - 1); 
+                    mulmod256(callContext->top + 1, callContext->top, callContext->top - 1, callContext->top - 1);
                 }
                 break;
             case EXP:

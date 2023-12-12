@@ -68,6 +68,7 @@ typedef struct stateChanges {
 // returns the number of items printed
 uint16_t fprintLogs(FILE *, const stateChanges_t *, int showLogIndex);
 uint16_t fprintLog(FILE *, const logChanges_t *, int showLogIndex);
+uint16_t fprintLogDiff(FILE *, const logChanges_t *, const logChanges_t *, int showLogIndex);
 
 typedef struct callResult {
     data_t returnData;

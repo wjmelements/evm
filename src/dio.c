@@ -216,10 +216,10 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
                 if (!LogsEqual(expectedLog, actualLog)) {
                     // mismatch
                     fputs("logs expected:\n", stderr);
-                    fprintLog(stderr, expectedLogs->logs, false);
+                    fprintLog(stderr, expectedLog, false);
                     fputc('\n', stderr);
                     fputs("logs actual:\n", stderr);
-                    fprintLog(stderr, actualLogs->logChanges, false);
+                    fprintLogDiff(stderr, actualLog, expectedLog, false);
                     fputc('\n', stderr);
                     testFailure = anyTestFailure = 1;
                 }
