@@ -1,5 +1,6 @@
 #include "dio.h"
 
+#include <fcntl.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/param.h>
@@ -76,6 +77,18 @@ typedef struct logsEntry {
     struct logsEntry *prev;
 } logsEntry_t;
 
+typedef struct testResult {
+    struct testResult *next;
+    uint64_t gasUsed;
+    const char *gasUsedBegin;
+    const char *gasUsedEnd;
+} testResult_t;
+
+static struct {
+    testResult_t *head;
+    testResult_t **tail;
+} testResults;
+
 typedef struct testEntry {
     char *name;
     op_t op;
@@ -89,6 +102,7 @@ typedef struct testEntry {
     uint64_t gasUsed;
     logsEntry_t *logs;
     uint64_t debug;
+    testResult_t result;
 
     struct testEntry *prev;
 } testEntry_t;
@@ -183,6 +197,8 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
     }
     // TODO support evmStaticCall
     result_t result = txCall(test->from, gas, *entry->address, test->value, test->input, test->accessList);
+    uint64_t gasUsed = gas - result.gasRemaining;
+    test->result.gasUsed = gasUsed;
 
     if (test->name) {
         fputs(test->name, stderr);
@@ -248,7 +264,6 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
         fputc('\n', stderr);
         testFailure = anyTestFailure = 1;
     } else if (test->gasUsed) {
-        uint64_t gasUsed = gas - result.gasRemaining;
         if (test->gasUsed < gasUsed) {
             // more actual gasUsed than expected
             fprintf(stderr, "gasUsed \033[0;31m%llu\033[0m expected %llu (\033[0;31m+%llu\033[0m)\n", gasUsed, test->gasUsed, gasUsed - test->gasUsed);
@@ -575,6 +590,8 @@ static void jsonScanEntry(const char **iter) {
                         jsonScanWaste(iter);
 
                         testEntry_t *test = calloc(1, sizeof(testEntry_t));
+                        *(testResults.tail) = &test->result;
+                        testResults.tail = &test->result.next;
                         test->prev = entry.tests;
                         LOWER(LOWER(test->status)) = 1;
                         entry.tests = test;
@@ -716,7 +733,9 @@ static void jsonScanEntry(const char **iter) {
                                     // gasUsed
                                     jsonSkipExpectedChar(&testValue, '0');
                                     jsonSkipExpectedChar(&testValue, 'x');
+                                    test->result.gasUsedBegin = testValue;
                                     testValueLength -= 2;
+                                    test->result.gasUsedEnd = testValue + testValueLength;
                                     for (size_t i = 0; i < testValueLength; i++) {
                                         test->gasUsed <<= 4;
                                         test->gasUsed |= hexString8ToUint8(testValue[i]);
@@ -761,6 +780,10 @@ static void jsonScanEntry(const char **iter) {
                                 break;
                             }
                         } while (1);
+
+                        if (test->result.gasUsedBegin == NULL) {
+                            test->result.gasUsedBegin = test->result.gasUsedEnd = *iter;
+                        }
 
                         jsonSkipExpectedChar(iter, '}');
                         if (**iter == ',') {
@@ -830,7 +853,10 @@ static void jsonScanEntry(const char **iter) {
 }
 
 void applyConfig(const char *json) {
+    testResults.head = NULL;
+    testResults.tail = &testResults.head;
     lineNumber = 1;
+
     jsonScanChar(&json, '[');
     do {
         jsonScanEntry(&json);
@@ -847,4 +873,51 @@ void applyConfig(const char *json) {
     if (anyTestFailure) {
         _exit(1);
     }
+}
+
+void updateConfig(const char *configContents, const char *dstPath) {
+    int fd = open(dstPath, O_WRONLY);
+    if (fd == -1) {
+        perror(dstPath);
+        exit(1);
+    }
+    const char *start = configContents;
+    ssize_t written;
+    const testResult_t *testResult = testResults.head;
+    while (testResult) {
+        const char *end = testResult->gasUsedBegin;
+        written = write(fd, start, end - start);
+        if (written == -1) {
+            perror(dstPath);
+            exit(1);
+        }
+        start = testResult->gasUsedEnd;
+        if (start == end) {
+            // need to add gasUsed key
+            const char gasUsedHeader[] = ",\"gasUsed\":\"0x";
+            written = write(fd, gasUsedHeader, sizeof(gasUsedHeader) - 1);
+            if (written == -1) {
+                perror(dstPath);
+                exit(1);
+            }
+        }
+        char buffer[64];
+        int gasUsedLen = snprintf(buffer, sizeof(buffer), "%llx", testResult->gasUsed);
+        written = write(fd, buffer, gasUsedLen - 1);
+        if (written == -1) {
+            perror(dstPath);
+            exit(1);
+        }
+        if (start == end) {
+            written = write(fd, "\"", 1);
+        }
+        testResult = testResult->next;
+    }
+    written = write(fd, start, strlen(start));
+    if (written == -1) {
+        perror(dstPath);
+        exit(1);
+    }
+
+    close(fd);
 }

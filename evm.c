@@ -23,6 +23,7 @@ static int includeGas = 0;
 static int includeStatus = 0;
 static int includeLogs = 0;
 static const char *configFile = NULL;
+static int updateConfigFile = 0;
 
 static void assemble(const char *contents) {
     op_t *programStart = &ops[CONSTRUCTOR_OFFSET];
@@ -107,6 +108,9 @@ static void runConfig(const char *_configFile) {
         char *configContents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
         dioInit(selfPath);
         applyConfig(configContents);
+        if (updateConfigFile) {
+            updateConfig(configContents, _configFile);
+        }
         munmap(configContents, fstatus.st_size);
         close(fd);
     }
@@ -185,7 +189,7 @@ int main(int argc, char *const argv[]) {
     selfPath = argv[0];
     int option;
     char *contents = NULL;
-    while ((option = getopt (argc, argv, "cdgjlo:sw:x")) != -1)
+    while ((option = getopt (argc, argv, "cdgjlo:suw:x")) != -1)
         switch (option) {
             case 'c':
                 wrapConstructor = 1;
@@ -210,6 +214,9 @@ int main(int argc, char *const argv[]) {
                 break;
             case 'l':
                 includeLogs = 1;
+                break;
+            case 'u':
+                updateConfigFile = 1;
                 break;
             case 'w':
                 if (configFile == NULL) {
