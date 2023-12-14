@@ -1,4 +1,5 @@
 #include "dio.h"
+#include "vector.h"
 
 #include <fcntl.h>
 #include <string.h>
@@ -281,7 +282,6 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
         fprintf(stderr, "\033[0;32mpass\033[0m\n");
     }
 
-    free(test);
     return ++testsRun;
 }
 
@@ -771,6 +771,9 @@ static void jsonScanEntry(const char **iter) {
                                     fputc('\n', stderr);
                                 }
                             }
+                            if (test->result.gasUsedEnd == NULL) {
+                                test->result.gasUsedEnd = *iter;
+                            }
                             jsonScanWaste(iter);
                             if (**iter == ',') {
                                 jsonSkipExpectedChar(iter, ',');
@@ -782,7 +785,7 @@ static void jsonScanEntry(const char **iter) {
                         } while (1);
 
                         if (test->result.gasUsedBegin == NULL) {
-                            test->result.gasUsedBegin = test->result.gasUsedEnd = *iter;
+                            test->result.gasUsedBegin = test->result.gasUsedEnd;
                         }
 
                         jsonSkipExpectedChar(iter, '}');
@@ -875,49 +878,50 @@ void applyConfig(const char *json) {
     }
 }
 
+typedef char char_t;
+VECTOR(char, file);
+
 void updateConfig(const char *configContents, const char *dstPath) {
+    file_t file;
+    file_init(&file, 500000);
+    const char *start = configContents;
+    const testResult_t *testResult = testResults.head;
+    while (testResult) {
+        const char *end = testResult->gasUsedBegin;
+        file_ensure(&file, file.num_chars + (end - start));
+        memcpy(file.chars + file.num_chars, start, end - start);
+        file.num_chars += (end - start);
+        start = testResult->gasUsedEnd;
+        if (start == end) {
+            // need to add gasUsed key
+            const char gasUsedHeader[] = ",\n                \"gasUsed\": \"0x";
+            file_ensure(&file, file.num_chars + (end - start));
+            memcpy(file.chars + file.num_chars, gasUsedHeader, sizeof(gasUsedHeader) - 1);
+            file.num_chars += sizeof(gasUsedHeader) - 1;
+        }
+        file_ensure(&file, file.num_chars + 18);
+        file.num_chars += snprintf(file.chars + file.num_chars, file.buffer_size - file.num_chars, "%llx", testResult->gasUsed);
+        if (start == end) {
+            file.chars[file.num_chars] = '"';
+            file.num_chars += 1;
+        }
+        testResult = testResult->next;
+    }
+
+    size_t remaining = strlen(start);
+    memcpy(file.chars + file.num_chars, start, remaining);
+    file.num_chars += remaining;
+
     int fd = open(dstPath, O_WRONLY);
     if (fd == -1) {
         perror(dstPath);
         exit(1);
     }
-    const char *start = configContents;
-    ssize_t written;
-    const testResult_t *testResult = testResults.head;
-    while (testResult) {
-        const char *end = testResult->gasUsedBegin;
-        written = write(fd, start, end - start);
-        if (written == -1) {
-            perror(dstPath);
-            exit(1);
-        }
-        start = testResult->gasUsedEnd;
-        if (start == end) {
-            // need to add gasUsed key
-            const char gasUsedHeader[] = ",\"gasUsed\":\"0x";
-            written = write(fd, gasUsedHeader, sizeof(gasUsedHeader) - 1);
-            if (written == -1) {
-                perror(dstPath);
-                exit(1);
-            }
-        }
-        char buffer[64];
-        int gasUsedLen = snprintf(buffer, sizeof(buffer), "%llx", testResult->gasUsed);
-        written = write(fd, buffer, gasUsedLen - 1);
-        if (written == -1) {
-            perror(dstPath);
-            exit(1);
-        }
-        if (start == end) {
-            written = write(fd, "\"", 1);
-        }
-        testResult = testResult->next;
-    }
-    written = write(fd, start, strlen(start));
+    ssize_t written = write(fd, file.chars, file.num_chars);
     if (written == -1) {
         perror(dstPath);
         exit(1);
     }
-
     close(fd);
+    file_destroy(&file);
 }

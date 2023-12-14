@@ -16,7 +16,7 @@ static inline void vector ## _init(vector ## _t *vector, uint32_t buffer_size) {
 static inline void vector ## _destroy(vector ## _t *vector) {\
     free(vector->type ## s);\
 }\
-static inline void vector ## _append(vector ## _t *vector, type ## _t type) {\
+static inline void vector ## _append(vector ## _t *vector, type ## _t t) {\
     if (vector->num_ ## type ## s >= vector->buffer_size) {\
         vector->buffer_size <<= 1;\
         type ## _t *buffer = calloc(vector->buffer_size, sizeof(*buffer));\
@@ -24,7 +24,7 @@ static inline void vector ## _append(vector ## _t *vector, type ## _t type) {\
         free(vector->type ## s);\
         vector->type ## s = buffer;\
     }\
-    vector->type ## s[vector->num_ ## type ## s++] = type;\
+    vector->type ## s[vector->num_ ## type ## s++] = t;\
 }\
 static inline void vector ## _ensure(vector ## _t *vector, uint32_t capacity) {\
     if (vector->buffer_size < capacity) {\
