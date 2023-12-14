@@ -81,7 +81,6 @@ RETURN(RETURNDATASIZE,CODESIZE)
 ```
 #### Configuration
 By using `-w config.json`, you can define the precondition state before execution.
-Including configuration 
 ```json
 [
     {
@@ -123,6 +122,26 @@ evm -w tst/quine.json
 ```
 # tst/in/quine.evm
 ignores calldata: pass
+```
+##### Update Config
+A `gasUsed` test field can be supplied (or updated) in-place with `-u`
+```sh
+evm -uw tst/quine.json
+git diff tst/quine.json
+```
+```sh
+diff --git a/tst/quine.json b/tst/quine.json
+index 361c65f..1e8a9f4 100644
+--- a/tst/quine.json
++++ b/tst/quine.json
+@@ -5,6 +5,7 @@
+         "tests": [
+             {
+                 "name": "ignores calldata",
++                "gasUsed": "0x525b",
+                 "input": "0xdeadbeef",
+                 "output": "0x383d3d39383df3"
+             }
 ```
 #### JSON Output
 Using any of the following `-x` options will output JSON instead of the returndata.
