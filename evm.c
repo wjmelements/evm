@@ -183,7 +183,7 @@ static void execute(const char *contents) {
 
 }
 
-#define USAGE fputs("usage: evm [ [-w json] [-x [-g] [-s] ] | [-c] [-j] | [-d] ] [-o input] [file...]\n", stderr)
+#define USAGE fputs("usage: evm [ [-w json-file [-u] ] [-x [-gs] ] | [-cj] | -d ] [-o input] [file...]\n", stderr)
 
 int main(int argc, char *const argv[]) {
     selfPath = argv[0];
