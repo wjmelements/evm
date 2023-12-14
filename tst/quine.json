@@ -5,6 +5,7 @@
         "tests": [
             {
                 "name": "ignores calldata",
+                "gasUsed": "0x525b",
                 "input": "0xdeadbeef",
                 "output": "0x383d3d39383df3"
             }
