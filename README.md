@@ -174,7 +174,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | SDIV | ✅ |✅ |
 | MOD | ✅ |✅ |
 | SMOD | ✅ |✅ |
-| ADDMOD | ✅ |❓ |
+| ADDMOD | ✅ | ❌ |
 | MULMOD | ✅ |✅ |
 | EXP | ✅ |✅ |
 | SIGNEXTEND | ✅ |✅ |
@@ -195,7 +195,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | SHA3 | ✅ |✅ |
 | ADDRESS | ✅ |✅ |
 | BALANCE | ✅ |✅ |
-| ORIGIN | ✅ |❓ |
+| ORIGIN | ✅ | ❌ |
 | CALLER | ✅ |✅ |
 | CALLVALUE | ✅ |✅ |
 | CALLDATALOAD | ✅ |✅ |
@@ -203,21 +203,21 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | CALLDATACOPY | ✅ |✅ |
 | CODESIZE | ✅ |✅ |
 | CODECOPY | ✅ |✅ |
-| GASPRICE | ✅ |❓ |
+| GASPRICE | ✅ | ❌ |
 | EXTCODESIZE | ✅ |✅ |
 | EXTCODECOPY | ✅ |✅ |
 | RETURNDATASIZE | ✅ |✅ |
 | RETURNDATACOPY | ✅ |✅ |
-| EXTCODEHASH | ✅ |❓ |
-| BLOCKHASH | ✅ |❓ |
-| COINBASE | ✅ |❓ |
+| EXTCODEHASH | ✅ | ❌ |
+| BLOCKHASH | ✅ | ❌ |
+| COINBASE | ✅ | ❌ |
 | TIMESTAMP | ✅ |❓ |
 | NUMBER | ✅ |❓ |
-| DIFFICULTY | ✅ |❓ |
-| GASLIMIT | ✅ |❓ |
-| CHAINID | ✅ |❓ |
+| DIFFICULTY | ✅ | ❌ |
+| GASLIMIT | ✅ | ❌ |
+| CHAINID | ✅ | ❌ |
 | SELFBALANCE | ✅ |✅ |
-| BASEFEE | ✅ |❓ |
+| BASEFEE | ✅ | ❌ |
 | POP | ✅ |❓ |
 | MLOAD | ✅ |❓ |
 | MSTORE | ✅ |✅ |
@@ -230,9 +230,9 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | MSIZE | ✅ |✅ |
 | GAS | ✅ |✅ |
 | JUMPDEST | ✅ |✅ |
-| TLOAD | ✅ |❓ |
-| TSTORE | ✅ |❓ |
-| MCOPY | ✅ |❓ |
+| TLOAD | ✅ | ❌ |
+| TSTORE | ✅ | ❌ |
+| MCOPY | ✅ | ❌ |
 | PUSH0 | ✅ |✅ |
 | PUSH1 | ✅ |✅ |
 | PUSH2 | ✅ |✅ |
@@ -305,15 +305,15 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | LOG4 | ✅ |✅ |
 | CREATE | ✅ |❓ |
 | CALL | ✅ |✅ |
-| CALLCODE | ✅ |❓ |
+| CALLCODE | ✅ | ❌ |
 | RETURN | ✅ |✅ |
 | DELEGATECALL | ✅ |✅ |
 | CREATE2 | ✅ |❓ |
-| AUTH | ✅ |❓ |
-| AUTHCALL | ✅ |❓ |
+| AUTH | ✅ | ❌ |
+| AUTHCALL | ✅ | ❌ |
 | STATICCALL | ✅ |✅ |
 | REVERT | ✅ |✅ |
-| INVALID | ✅ |❓ |
+| INVALID | ✅ | ❌ |
 | SELFDESTRUCT | ✅ |❓ |
 # Contributing
 Please use camelCase for methods and variables but snake\_case for types.
