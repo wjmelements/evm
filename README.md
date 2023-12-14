@@ -81,7 +81,6 @@ RETURN(RETURNDATASIZE,CODESIZE)
 ```
 #### Configuration
 By using `-w config.json`, you can define the precondition state before execution.
-Including configuration 
 ```json
 [
     {
