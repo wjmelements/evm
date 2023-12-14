@@ -128,8 +128,9 @@ ignores calldata: pass
 A `gasUsed` test field can be supplied (or updated) in-place with `-u`
 ```sh
 evm -uw tst/quine.json
-
 git diff tst/quine.json
+```
+```sh
 diff --git a/tst/quine.json b/tst/quine.json
 index 361c65f..1e8a9f4 100644
 --- a/tst/quine.json
