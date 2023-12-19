@@ -929,6 +929,50 @@ void test_callBounce() {
     }
     assert(result.gasRemaining == 0);
 }
+
+void test_coinbase() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    uint64_t gas = 0xcffc;
+    val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
+
+    evmMockBalance(from, value);
+
+    op_t payCoinbase[] = {
+        PUSH0, PUSH0, PUSH0, PUSH0, CALLVALUE, COINBASE, GAS, CALL
+    };
+
+    data_t input;
+    input.content = payCoinbase;
+    input.size = sizeof(payCoinbase);
+
+    result_t result = txCreate(from, gas, value, input);
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0x80d9b122);
+    assert(UPPER(LOWER(result.status)) == 0xdc3a16fdc41f96cf);
+    assert(LOWER(LOWER(result.status)) == 0x010ffe7e38d227c3);
+    assert(result.returnData.size == 0);
+    assert(result.gasRemaining == 0);
+
+    gas = 0xf324;
+    value[2] = 1;
+    evmMockBalance(from, value);
+
+    result = txCreate(from, gas, value, input);
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0x47784b21);
+    assert(UPPER(LOWER(result.status)) == 0x780d1e1d5efcd005);
+    assert(LOWER(LOWER(result.status)) == 0xc5fe542813b6d71e);
+    assert(result.returnData.size == 0);
+    assert(result.gasRemaining == G_CALLSTIPEND);
+
+    evmFinalize();
+}
+
 void test_extcodecopy() {
     evmInit();
 
@@ -1756,6 +1800,7 @@ int main() {
     test_selfbalance();
     test_callEmpty();
     test_callBounce();
+    test_coinbase();
     test_extcodecopy();
     test_deepCall();
     test_revertStorage();

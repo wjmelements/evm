@@ -318,6 +318,21 @@ void evmSetDebug(uint64_t flags) {
 #define SHOW_GAS (debugFlags & EVM_DEBUG_GAS)
 #define SHOW_PC (debugFlags & EVM_DEBUG_PC)
 
+static account_t *getAccount(const address_t address) {
+    account_t *result = accounts;
+    while (result < emptyAccount && !AddressEqual(&result->address, &address)) result++;
+    if (result == emptyAccount) {
+        emptyAccount++;
+        AddressCopy(result->address, address);
+        result->code.size = 0;
+        result->nonce = 0;
+        result->balance[0] = 0;
+        result->balance[1] = 0;
+        result->balance[2] = 0;
+    }
+    return result;
+}
+
 void evmInit() {
     callstack.next = callstack.bottom;
     while (emptyAccount --> accounts) {
@@ -341,24 +356,13 @@ void evmInit() {
     refundCounter = 0;
     logIndex = 0;
     coinbase = AddressFromHex42("0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97");
+    account_t *coinbaseAccount = getAccount(coinbase);
+    coinbaseAccount->balance[0] = 0x1;
+    coinbaseAccount->balance[1] = 0xd82f5899;
+    coinbaseAccount->balance[2] = 0x461084bd;
 }
 
 void evmFinalize() {
-}
-
-static account_t *getAccount(const address_t address) {
-    account_t *result = accounts;
-    while (result < emptyAccount && !AddressEqual(&result->address, &address)) result++;
-    if (result == emptyAccount) {
-        emptyAccount++;
-        AddressCopy(result->address, address);
-        result->code.size = 0;
-        result->nonce = 0;
-        result->balance[0] = 0;
-        result->balance[1] = 0;
-        result->balance[2] = 0;
-    }
-    return result;
 }
 
 void evmMockBalance(address_t from, const val_t balance) {
