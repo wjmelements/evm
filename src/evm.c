@@ -305,6 +305,7 @@ static account_t const *dnfAccount = &accounts[1024];
 static uint64_t evmIteration = 0;
 static uint16_t logIndex = 0;
 static uint64_t refundCounter = 0;
+static address_t coinbase;
 static uint64_t debugFlags = 0;
 
 void evmSetDebug(uint64_t flags) {
@@ -339,6 +340,7 @@ void evmInit() {
     evmIteration++;
     refundCounter = 0;
     logIndex = 0;
+    coinbase = AddressFromHex42("0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97");
 }
 
 void evmFinalize() {
@@ -513,6 +515,7 @@ static storage_t *warmStorage(context_t *callContext, uint256_t *key, uint64_t w
 
 static result_t evmStaticCall(address_t from, uint64_t gas, address_t to, data_t input);
 static result_t evmDelegateCall(uint64_t gas, account_t *codeSource, data_t input);
+static result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input);
 
 static result_t doCall(context_t *callContext) {
     //dumpCallData(callContext);
@@ -1139,10 +1142,7 @@ static result_t doCall(context_t *callContext) {
                 break;
             case COINBASE:
                 // TODO allow configuration for coinbase
-                UPPER(UPPER_P(callContext->top - 1)) = 0;
-                LOWER(UPPER_P(callContext->top - 1)) = 0x4838b106;
-                UPPER(LOWER_P(callContext->top - 1)) = 0xfce9647bdf1e7877;
-                LOWER(LOWER_P(callContext->top - 1)) = 0xbf73ce8b0bad5f97;
+                AddressToUint256(callContext->top - 1, &coinbase);
                 break;
             case TIMESTAMP:
                 // TODO allow configuration for timestamp
@@ -1431,7 +1431,7 @@ static result_t evmStaticCall(address_t from, uint64_t gas, address_t to, data_t
     return result;
 }
 
-result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input) {
+static result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input) {
     context_t *callContext = callstack.next;
     callContext->gas = gas;
     account_t *fromAccount = getAccount(from);
@@ -1539,12 +1539,6 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
     return result;
 }
 
-result_t evmCreate(address_t from, uint64_t gas, val_t value, data_t input) {
-    account_t *fromAccount = getAccount(from);
-    fromAccount->warm = evmIteration;
-    return _evmConstruct(from, createNewAccount(fromAccount), gas, value, input);
-}
-
 result_t evmConstruct(address_t from, address_t to, uint64_t gas, val_t value, data_t input) {
     return _evmConstruct(from, getAccount(to), gas, value, input);
 }
@@ -1552,6 +1546,8 @@ result_t evmConstruct(address_t from, address_t to, uint64_t gas, val_t value, d
 result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input, const accessList_t *accessList) {
     account_t *fromAccount = getAccount(from);
     fromAccount->warm = evmIteration;
+    account_t *coinbaseAccount = getAccount(coinbase);
+    coinbaseAccount->warm = evmIteration;
     uint64_t intrinsicGas = G_TX + calldataGas(&input, false);
     while (accessList) {
         intrinsicGas += G_ACCESSLIST_ACCOUNT;
@@ -1583,9 +1579,16 @@ result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t 
     return result;
 }
 
+result_t evmCreate(account_t *fromAccount, uint64_t gas, val_t value, data_t input) {
+    return _evmConstruct(fromAccount->address, createNewAccount(fromAccount), gas, value, input);
+}
 
 result_t txCreate(address_t from, uint64_t gas, val_t value, data_t input) {
-    result_t result = evmCreate(from, gas, value, input);
+    account_t *fromAccount = getAccount(from);
+    fromAccount->warm = evmIteration;
+    account_t *coinbaseAccount = getAccount(coinbase);
+    coinbaseAccount->warm = evmIteration;
+    result_t result = evmCreate(fromAccount, gas, value, input);
     evmIteration++;
     return result;
 }
