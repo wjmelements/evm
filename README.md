@@ -210,7 +210,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | RETURNDATACOPY | ✅ |✅ |
 | EXTCODEHASH | ✅ | ❌ |
 | BLOCKHASH | ✅ | ❌ |
-| COINBASE | ✅ | ❌ |
+| COINBASE | ✅ |❓ |
 | TIMESTAMP | ✅ |❓ |
 | NUMBER | ✅ |❓ |
 | DIFFICULTY | ✅ | ❌ |

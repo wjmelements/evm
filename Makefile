@@ -86,7 +86,7 @@ tst/bin/%: tst/%.c | tst/bin
 	$(CC) $(CFLAGS) $(INCLUDE) $^ -o $@
 
 
-make/.ops.out: make/ops.sh bin/ops src/ops.c tst/evm.c 
+make/.ops.out: make/ops.sh bin/ops src/ops.c tst/evm.c src/evm.c
 	make/ops.sh > $@
 README.md: make/.ops.out make/.rme.md CONTRIBUTING.md
 	cat make/.rme.md make/.ops.out CONTRIBUTING.md > $@

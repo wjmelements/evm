@@ -1137,8 +1137,15 @@ static result_t doCall(context_t *callContext) {
                     changes->storageChanges = change;
                 }
                 break;
+            case COINBASE:
+                // TODO allow configuration for coinbase
+                UPPER(UPPER_P(callContext->top - 1)) = 0;
+                LOWER(UPPER_P(callContext->top - 1)) = 0x4838b106;
+                UPPER(LOWER_P(callContext->top - 1)) = 0xfce9647bdf1e7877;
+                LOWER(LOWER_P(callContext->top - 1)) = 0xbf73ce8b0bad5f97;
+                break;
             case TIMESTAMP:
-                // TODO allwo configuration for timestamp
+                // TODO allow configuration for timestamp
                 UPPER(UPPER_P(callContext->top - 1)) = 0;
                 LOWER(UPPER_P(callContext->top - 1)) = 0;
                 UPPER(LOWER_P(callContext->top - 1)) = 0;
