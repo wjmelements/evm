@@ -97,6 +97,7 @@ typedef struct testEntry {
     val_t value;
     data_t input;
     data_t output;
+    bool outputSpecified;
     uint64_t gas;
     accessList_t *accessList;
     uint256_t status;
@@ -251,7 +252,7 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
         }
     }
 
-    if (result.returnData.size != test->output.size || memcmp(result.returnData.content, test->output.content, test->output.size)) {
+    if (test->outputSpecified && (result.returnData.size != test->output.size || memcmp(result.returnData.content, test->output.content, test->output.size))) {
         fputs("Output data mismatch\nactual:\n", stderr);
 
         for (size_t i = 0; i < result.returnData.size; i++) {
@@ -701,6 +702,7 @@ static void jsonScanEntry(const char **iter) {
                                     }
                                 } else if (testHeadingLen == 6 && *testHeading == 'o') {
                                     // output
+                                    test->outputSpecified = true;
                                     jsonSkipExpectedChar(&testValue, '0');
                                     jsonSkipExpectedChar(&testValue, 'x');
                                     test->output.size = (testValueLength - 2) / 2;
