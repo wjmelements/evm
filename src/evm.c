@@ -1172,6 +1172,13 @@ static result_t doCall(context_t *callContext) {
                 LOWER(LOWER_P(callContext->top - 1)) = callContext->callValue[2] | ((uint64_t) callContext->callValue[1] << 32);
 
                 break;
+            case CHAINID:
+                // TODO allow configuration for chainId
+                UPPER(UPPER_P(callContext->top - 1)) = 0;
+                LOWER(UPPER_P(callContext->top - 1)) = 0;
+                UPPER(LOWER_P(callContext->top - 1)) = 0;
+                LOWER(LOWER_P(callContext->top - 1)) = 1;
+                break;
             case SELFBALANCE:
                 UPPER(UPPER_P(callContext->top - 1)) = 0;
                 LOWER(UPPER_P(callContext->top - 1)) = 0;
