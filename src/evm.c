@@ -700,6 +700,9 @@ static result_t doCall(context_t *callContext) {
             case CALLER:
                 AddressToUint256(callContext->top - 1, &callContext->caller);
                 break;
+            case ORIGIN:
+                AddressToUint256(callContext->top - 1, &callstack.bottom[0].caller);
+                break;
             case POP:
                 // intentional fallthrough
             case JUMPDEST:
