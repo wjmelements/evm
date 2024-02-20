@@ -700,6 +700,9 @@ static result_t doCall(context_t *callContext) {
             case CALLER:
                 AddressToUint256(callContext->top - 1, &callContext->caller);
                 break;
+            case ORIGIN:
+                AddressToUint256(callContext->top - 1, &callstack.bottom[0].caller);
+                break;
             case POP:
                 // intentional fallthrough
             case JUMPDEST:
@@ -1168,6 +1171,13 @@ static result_t doCall(context_t *callContext) {
                 UPPER(LOWER_P(callContext->top - 1)) = callContext->callValue[0];
                 LOWER(LOWER_P(callContext->top - 1)) = callContext->callValue[2] | ((uint64_t) callContext->callValue[1] << 32);
 
+                break;
+            case CHAINID:
+                // TODO allow configuration for chainId
+                UPPER(UPPER_P(callContext->top - 1)) = 0;
+                LOWER(UPPER_P(callContext->top - 1)) = 0;
+                UPPER(LOWER_P(callContext->top - 1)) = 0;
+                LOWER(LOWER_P(callContext->top - 1)) = 1;
                 break;
             case SELFBALANCE:
                 UPPER(UPPER_P(callContext->top - 1)) = 0;
