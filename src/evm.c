@@ -1003,19 +1003,19 @@ static result_t doCall(context_t *callContext) {
                     log->logIndex = logIndex++;
                     log->topicCount = topicCount;
                     if (topicCount) {
-                        size_t size = topicCount * sizeof(uint256_t);
-                        log->topics = malloc(size);
-                        memcpy(log->topics, callContext->top, size);
+                        size_t topicSize = topicCount * sizeof(uint256_t);
+                        log->topics = malloc(topicSize);
+                        memcpy(log->topics, callContext->top, topicSize);
                     } else {
                         log->topics = NULL;
                     }
-                    if (zero256(callContext->top)) {
-                        log->data.size = 0;
-                        log->data.content = NULL;
-                    } else {
+                    if (size) {
                         log->data.size = size;
                         log->data.content = malloc(size);
                         memcpy(log->data.content, callContext->memory.uint8s + src, log->data.size);
+                    } else {
+                        log->data.size = 0;
+                        log->data.content = NULL;
                     }
 
                     stateChanges_t *stateChanges = getCurrentAccountStateChanges(&result, callContext);
