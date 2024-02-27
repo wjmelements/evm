@@ -27,10 +27,12 @@ static inline int shouldIgnore(char ch) {
 
 static uint32_t programCounter;
 static bool inDataSection;
+static uint32_t lineNumber;
 
 void scanInit() {
     programCounter = (uint32_t)-1;
     inDataSection = false;
+    lineNumber = 1;
     labelQueueInit();
 }
 
@@ -179,8 +181,11 @@ op_t parseConstant(const char **iter) {
 
 static void scanChar(const char **iter, char expected) {
     for (char ch; (ch = **iter) != expected; (*iter)++) {
+        if (ch == '\n') {
+            lineNumber++;
+        }
         if (!shouldIgnore(ch)) {
-            fprintf(stderr, "When seeking %c found unexpected character %c, before: %s", expected, ch, *iter);
+            fprintf(stderr, "When seeking %c found unexpected character %c at line %u", expected, ch, lineNumber);
             assert(expected == ch);
         }
     }
@@ -189,12 +194,17 @@ static void scanChar(const char **iter, char expected) {
 
 static void scanComment(const char **iter) {
     for (char ch; (ch = **iter) != '\n'; (*iter)++);
+    lineNumber++;
     (*iter)++;
 }
 
 static inline char scanWaste(const char **iter) {
     char ch;
-    for (; shouldIgnore(ch = **iter) && ch; (*iter)++);
+    for (; shouldIgnore(ch = **iter) && ch; (*iter)++) {
+        if (ch == '\n') {
+            lineNumber++;
+        }
+    }
     if (ch == '/') {
         scanComment(iter);
         return scanWaste(iter);
@@ -224,15 +234,15 @@ static void scanDataSection(const char **iter) {
 
     const char *start = *iter;
     if (!isLowerCase(*start)) {
-        fprintf(stderr, "Data section keys should be lowercase; instead found unexpected character %c\n", *start);
-        assert(false);
+        fprintf(stderr, "Data section keys should be lowercase; instead found unexpected character %c at line %u\n", *start, lineNumber);
+        exit(1);
     }
     for (char ch; isLowerCase(**iter); (*iter)++);
     const char *end = *iter;
     char next = scanWaste(iter);
     if (next != ':') {
-        fprintf(stderr, "Data section expects colon after key; instead found unexpected character %c\n", next);
-        assert(false);
+        fprintf(stderr, "Data section expects colon after key; instead found unexpected character %c at line %u\n", next, lineNumber);
+        exit(1);
     }
     (*iter)++;
     scanWaste(iter);
@@ -249,7 +259,7 @@ static void scanDataSection(const char **iter) {
         (*iter)++;
         scanWaste(iter);
     } else if (**iter != ',') {
-        fprintf(stderr, "Data section expecting ',' or '}'; instead found unexpected character %c\n", **iter);
+        fprintf(stderr, "Data section expecting ',' or '}'; instead found unexpected character %c at line %u\n", **iter, lineNumber);
         assert(false);
     }
 }
@@ -259,7 +269,7 @@ static void scanDataLen(const char **iter) {
     scanWaste(iter);
     const char *start = *iter;
     if (!isLowerCase(*start)) {
-        fprintf(stderr, "Data section #keys should be lowercase; instead found unexpected character %c\n", *start);
+        fprintf(stderr, "Data section #keys should be lowercase; instead found unexpected character %c at line %u\n", *start, lineNumber);
     }
     for (char ch; isLowerCase(**iter); (*iter)++);
     const char *end = *iter;
@@ -288,8 +298,8 @@ static void scanOp(const char **iter) {
     }
     if (**iter == ',') {
         if (!inDataSection) {
-            fprintf(stderr, "Found unexpected comma when scanning for next op\n");
-            assert(false);
+            fprintf(stderr, "Found unexpected comma when scanning for next op at line %u\n", lineNumber);
+            exit(1);
         }
         scanDataSection(iter);
         return;
