@@ -186,7 +186,7 @@ static void scanChar(const char **iter, char expected) {
         }
         if (!shouldIgnore(ch)) {
             fprintf(stderr, "When seeking %c found unexpected character %c at line %u", expected, ch, lineNumber);
-            assert(expected == ch);
+            exit(1);
         }
     }
     (*iter)++;
@@ -260,7 +260,7 @@ static void scanDataSection(const char **iter) {
         scanWaste(iter);
     } else if (**iter != ',') {
         fprintf(stderr, "Data section expecting ',' or '}'; instead found unexpected character %c at line %u\n", **iter, lineNumber);
-        assert(false);
+        exit(1);
     }
 }
 
@@ -332,8 +332,8 @@ static void scanOp(const char **iter) {
             op_t next = parseOp(*iter, &end);
             // TODO maybe next can be read from stack after scanOp instead of parsing twice
             if (!retCount[next]) {
-                fprintf(stderr, "When reading args for op %s found unexpected op %s, near: %s", opString[op], opString[next], *iter);
-                assert(retCount[next] != 0);
+                fprintf(stderr, "When reading args for op %s found unexpected op %s, at line %u", opString[op], opString[next], lineNumber);
+                exit(1);
             }
             i += (retCount[next] - 1);
             scanOp(iter);
