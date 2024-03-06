@@ -1,0 +1,28 @@
+[
+    {
+        "construct": "tst/in/echo.evm",
+        "tests": [
+            {
+                "name": "echo",
+                "input": "0xaa",
+                "output": "0xaa"
+            },
+            {
+                "name": "space",
+                "input": "0xaa bb",
+                "output": "0xaabb"
+            },
+            {
+                "name": "two spaces",
+                "input": "0xaa  bb",
+                "output": "0xaabb"
+            },
+            {
+                "name": "newline",
+                "input": "0xaa
+                bb",
+                "output": "0xaabb"
+            }
+        ]
+    }
+]

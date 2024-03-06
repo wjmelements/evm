@@ -683,8 +683,16 @@ static void jsonScanEntry(const char **iter) {
                                     jsonSkipExpectedChar(&testValue, 'x');
                                     test->input.size = (testValueLength - 2) / 2;
                                     test->input.content = malloc(test->input.size);
+                                    uint32_t whitespaceCount = 0;
                                     for (size_t i = 0; i < test->input.size; i++) {
-                                        test->input.content[i] = hexString16ToUint8(testValue + i * 2);
+                                        if (jsonIgnores(testValue[i * 2 + whitespaceCount])) {
+                                            if (whitespaceCount++ & 1) {
+                                                test->input.size--;
+                                            }
+                                            i--;
+                                            continue;
+                                        }
+                                        test->input.content[i] = hexString16ToUint8(testValue + i * 2 + whitespaceCount);
                                     }
                                 } else if (testHeadingLen == 4 && *testHeading == 'n') {
                                     // name
