@@ -5,7 +5,7 @@
         "tests": [
             {
                 "name": "no calldata",
-                "gasUsed": "0x525b",
+                "gasUsed": "0x521b",
                 "output": "0x383d3d39383df3"
             },
             {
