@@ -113,6 +113,7 @@ typedef struct entry {
     address_t *address;
     val_t balance;
     uint64_t nonce;
+    data_t initCode;
     data_t code;
     storageEntry_t *storage;
     testEntry_t *tests;
@@ -286,6 +287,27 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
     return ++testsRun;
 }
 
+
+static void verifyConstructResult(result_t *constructResult, entry_t *entry) {
+    if (entry->code.size) {
+        // verify result code matches entry->code if present
+        if (constructResult->returnData.size != entry->code.size || memcmp(constructResult->returnData.content, entry->code.content, entry->code.size)) {
+            fputs("Code mismatch at address ", stderr);
+            fprintAddress(stderr, (*entry->address));
+            fprintf(stderr, ":\n`%s -c %s`:\n", derivedPath, entry->constructPath);
+            for (size_t i = 0; i < constructResult->returnData.size; i++) {
+                fprintf(stderr, "%02x", constructResult->returnData.content[i]);
+            }
+            fprintf(stderr, "\nexpected:\n");
+            for (size_t i = 0; i < entry->code.size; i++) {
+                fprintf(stderr, "%02x", entry->code.content[i]);
+            }
+            fputc('\n', stderr);
+            _exit(-1);
+        }
+    }
+}
+
 static void applyEntry(entry_t *entry) {
     if (entry->address == NULL) {
         entry->address = calloc(1, sizeof(address_t));
@@ -367,23 +389,18 @@ static void applyEntry(entry_t *entry) {
 
         evmSetDebug(0);
         result_t constructResult = evmConstruct(from, *entry->address, gas, value, input);
-        if (entry->code.size) {
-            // verify result code matches entry->code if present
-            if (constructResult.returnData.size != entry->code.size || memcmp(constructResult.returnData.content, entry->code.content, entry->code.size)) {
-                fputs("Code mismatch at address ", stderr);
-                fprintAddress(stderr, (*entry->address));
-                fprintf(stderr, ":\n`%s -c %s`:\n", derivedPath, entry->constructPath);
-                for (size_t i = 0; i < constructResult.returnData.size; i++) {
-                    fprintf(stderr, "%02x", constructResult.returnData.content[i]);
-                }
-                fprintf(stderr, "\nexpected:\n");
-                for (size_t i = 0; i < entry->code.size; i++) {
-                    fprintf(stderr, "%02x", entry->code.content[i]);
-                }
-                fputc('\n', stderr);
-                _exit(-1);
-            }
-        }
+        verifyConstructResult(&constructResult, entry);
+    } else if (entry->initCode.size) {
+        // TODO support these parameters
+        address_t from;
+        uint64_t gas = 0xffffffffffffffff;
+        val_t value;
+        value[0] = 0;
+        value[1] = 0;
+        value[2] = 0;
+
+        result_t constructResult = evmConstruct(from, *entry->address, gas, value, entry->initCode);
+        verifyConstructResult(&constructResult, entry);
     } else if (entry->code.size) {
         evmMockCode(*entry->address, entry->code);
     }
@@ -556,6 +573,20 @@ static void jsonScanEntry(const char **iter) {
                     (*iter)++;
                 }
                 jsonSkipExpectedChar(iter, '"');
+                break;
+            case 'tini':
+                // init, initcode, initCode
+                {
+                    const char *start = jsonScanStr(iter);
+                    jsonSkipExpectedChar(&start, '0');
+                    jsonSkipExpectedChar(&start, 'x');
+                    entry.initCode.size = (*iter - start) / 2;
+                    entry.initCode.content = calloc(entry.initCode.size, 1);
+                    for (unsigned int i = 0; i < entry.initCode.size; i++) {
+                        entry.initCode.content[i] = hexString16ToUint8(start);
+                        start += 2;
+                    }
+                }
                 break;
             case 'edoc':
                 // code
