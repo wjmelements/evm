@@ -4,6 +4,11 @@
         "code": "0x383d3d39383df3",
         "tests": [
             {
+                "name": "no calldata",
+                "gasUsed": "0x525b",
+                "output": "0x383d3d39383df3"
+            },
+            {
                 "name": "ignores calldata",
                 "gasUsed": "0x525b",
                 "input": "0xdeadbeef",
