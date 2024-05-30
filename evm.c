@@ -91,30 +91,7 @@ static void disassemble(const char *contents) {
 
 static char *selfPath;
 
-static void runConfig(const char *_configFile) {
-    if (_configFile != NULL) {
-        int fd = open(_configFile, O_RDONLY);
-        if (fd == -1) {
-            perror(_configFile);
-            _exit(1);
-        }
 
-        struct stat fstatus;
-        int fstatSuccess = fstat(fd, &fstatus);
-        if (fstatSuccess == -1) {
-            perror(_configFile);
-            _exit(1);
-        }
-        char *configContents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
-        dioInit(selfPath);
-        applyConfig(configContents);
-        if (updateConfigFile) {
-            updateConfig(configContents, _configFile);
-        }
-        munmap(configContents, fstatus.st_size);
-        close(fd);
-    }
-}
 
 static void execute(const char *contents) {
     if (configFile == NULL) {
@@ -223,7 +200,8 @@ int main(int argc, char *const argv[]) {
                     evmInit();
                 }
                 configFile = optarg;
-                runConfig(configFile);
+                dioInit(selfPath);
+                loadConfig(configFile, updateConfigFile);
                 break;
             case '?':
             default:

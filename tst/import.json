@@ -1,0 +1,22 @@
+[
+    {
+        "address": "0x844C3Ef08D2609D7a6A0fEb034950656dBCaAa3d",
+        "balance": "0x2752632c208226"
+    },
+    {
+        "import": "tst/weth.json"
+    },
+    {
+        "tests": [
+            {
+                "name": "imported weth withdraw",
+                "from": "0x844C3Ef08D2609D7a6A0fEb034950656dBCaAa3d",
+                "to": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+                "op": "CALL",
+                "input": "0x2e1a7d4d000000000000000000000000000000000000000000000000016345785d8a0000",
+                "gasUsed": "0x8984",
+                "gas": "0x9bec"
+            }
+        ]
+    }
+]
