@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/mman.h>
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -94,6 +95,7 @@ typedef struct testEntry {
     char *name;
     op_t op;
     address_t from;
+    address_t *to;
     val_t value;
     data_t input;
     data_t output;
@@ -118,6 +120,7 @@ typedef struct entry {
     storageEntry_t *storage;
     testEntry_t *tests;
     char *constructPath;
+    char *importPath;
 } entry_t;
 
 static char *selfPath;
@@ -199,7 +202,7 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
         gas = test->gas;
     }
     // TODO support evmStaticCall
-    result_t result = txCall(test->from, gas, *entry->address, test->value, test->input, test->accessList);
+    result_t result = txCall(test->from, gas, test->to ? *test->to : *entry->address, test->value, test->input, test->accessList);
     uint64_t gasUsed = gas - result.gasRemaining;
     test->result.gasUsed = gasUsed;
 
@@ -309,6 +312,10 @@ static void verifyConstructResult(result_t *constructResult, entry_t *entry) {
 }
 
 static void applyEntry(entry_t *entry) {
+    if (entry->importPath) {
+        loadConfig(entry->importPath, false);
+        return;
+    }
     if (entry->address == NULL) {
         entry->address = calloc(1, sizeof(address_t));
         entry->address->address[0] = 0xaa;
@@ -602,6 +609,16 @@ static void jsonScanEntry(const char **iter) {
                     }
                 }
                 break;
+            case 'opmi':
+                // import
+                {
+                    const char *start = jsonScanStr(iter);
+                    size_t len = *iter - start - 1;
+                    entry.importPath = malloc(len + 1);
+                    memcpy(entry.importPath, start, len);
+                    entry.importPath[len] = '\0';
+                }
+                break;
             case 'snoc':
                 // construct
                 {
@@ -770,6 +787,18 @@ static void jsonScanEntry(const char **iter) {
                                         test->from.address[i] = hexString16ToUint8(testValue);
                                         testValue += 2;
                                     }
+                                } else if (testHeadingLen == 2 && *testHeading == 't') {
+                                    // to
+                                    jsonSkipExpectedChar(&testValue, '0');
+                                    jsonSkipExpectedChar(&testValue, 'x');
+                                    if (test->to) {
+                                        free(test->to);
+                                    }
+                                    test->to = malloc(sizeof(address_t));
+                                    for (unsigned int i = 0; i < 20; i++) {
+                                        test->to->address[i] = hexString16ToUint8(testValue);
+                                        testValue += 2;
+                                    }
                                 } else if (testHeadingLen == 7 && *testHeading == 'g') {
                                     // gasUsed
                                     jsonSkipExpectedChar(&testValue, '0');
@@ -922,7 +951,7 @@ void applyConfig(const char *json) {
 typedef char char_t;
 VECTOR(char, file);
 
-void updateConfig(const char *configContents, const char *dstPath) {
+static void updateConfig(const char *configContents, const char *dstPath) {
     file_t file;
     file_init(&file, 500000);
     const char *start = configContents;
@@ -965,4 +994,28 @@ void updateConfig(const char *configContents, const char *dstPath) {
     }
     close(fd);
     file_destroy(&file);
+}
+
+void loadConfig(const char *_configFile, int updateConfigFile) {
+    if (_configFile != NULL) {
+        int fd = open(_configFile, O_RDONLY);
+        if (fd == -1) {
+            perror(_configFile);
+            _exit(1);
+        }
+
+        struct stat fstatus;
+        int fstatSuccess = fstat(fd, &fstatus);
+        if (fstatSuccess == -1) {
+            perror(_configFile);
+            _exit(1);
+        }
+        char *configContents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
+        applyConfig(configContents);
+        if (updateConfigFile) {
+            updateConfig(configContents, _configFile);
+        }
+        munmap(configContents, fstatus.st_size);
+        close(fd);
+    }
 }
