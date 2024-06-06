@@ -21,7 +21,7 @@ static void disassembleWaste(const char **iter) {
         (*iter)++;
     }
     if (**iter == '0' && *(*iter + 1) == 'x') {
-        (*iter) += 2;
+        *iter += 2;
         disassembleWaste(iter);
     }
 }

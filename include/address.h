@@ -9,7 +9,7 @@ typedef struct address {
     uint8_t address[20];
 } __attribute__((__packed__)) address_t;
 
-#define AddressCopy(dst, src) memcpy(dst.address, src.address, 20)
+#define AddressCopy(dst, src) memcpy((dst).address, (src).address, 20)
 
 static inline int AddressEqual(const address_t *expected, const address_t *actual) {
     for (int i = 0; i < 20; i ++) {

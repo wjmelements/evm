@@ -115,6 +115,7 @@ typedef struct entry {
     address_t *address;
     val_t balance;
     uint64_t nonce;
+    address_t *creator;
     data_t initCode;
     data_t code;
     storageEntry_t *storage;
@@ -386,8 +387,11 @@ static void applyEntry(entry_t *entry) {
         input.content = (uint8_t *)content;
         input.size /= 2;
 
-        // TODO support these parameters
         address_t from;
+        if (entry->creator) {
+            AddressCopy(from, *entry->creator);
+        }
+        // TODO support these parameters
         uint64_t gas = 0xffffffffffffffff;
         val_t value;
         value[0] = 0;
@@ -398,8 +402,11 @@ static void applyEntry(entry_t *entry) {
         result_t constructResult = evmConstruct(from, *entry->address, gas, value, input);
         verifyConstructResult(&constructResult, entry);
     } else if (entry->initCode.size) {
-        // TODO support these parameters
         address_t from;
+        if (entry->creator) {
+            AddressCopy(from, *entry->creator);
+        }
+        // TODO support these parameters
         uint64_t gas = 0xffffffffffffffff;
         val_t value;
         value[0] = 0;
@@ -530,6 +537,24 @@ static void jsonScanAccountLogs(const char **iter, logsEntry_t **prev) {
     jsonSkipExpectedChar(iter, ']');
 }
 
+static address_t *jsonReadAddress(const char **iter) {
+    jsonSkipExpectedChar(iter, '0');
+    jsonSkipExpectedChar(iter, 'x');
+    address_t *address = malloc(sizeof(address_t));
+    for (unsigned int i = 0; i < 20; i++) {
+        address->address[i] = hexString16ToUint8(*iter);
+        *iter += 2;
+    }
+    return address;
+}
+
+static address_t *jsonReadAddressString(const char **iter) {
+    jsonSkipExpectedChar(iter, '"');
+    address_t *address = jsonReadAddress(iter);
+    jsonSkipExpectedChar(iter, '"');
+    return address;
+}
+
 static void jsonScanEntry(const char **iter) {
     entry_t entry;
     bzero(&entry, sizeof(entry_t));
@@ -541,15 +566,7 @@ static void jsonScanEntry(const char **iter) {
         switch(*(uint32_t *)heading) {
             case 'rdda':
                 // address
-                jsonSkipExpectedChar(iter, '"');
-                jsonSkipExpectedChar(iter, '0');
-                jsonSkipExpectedChar(iter, 'x');
-                entry.address = malloc(sizeof(address_t));
-                for (unsigned int i = 0; i < 20; i++) {
-                    entry.address->address[i] = hexString16ToUint8(*iter);
-                    (*iter) += 2;
-                }
-                jsonSkipExpectedChar(iter, '"');
+                entry.address = jsonReadAddressString(iter);
                 break;
             case 'alab':
                 // balance
@@ -580,6 +597,10 @@ static void jsonScanEntry(const char **iter) {
                     (*iter)++;
                 }
                 jsonSkipExpectedChar(iter, '"');
+                break;
+            case 'aerc':
+                // creator
+                entry.creator = jsonReadAddressString(iter);
                 break;
             case 'tini':
                 // init, initcode, initCode
@@ -789,16 +810,10 @@ static void jsonScanEntry(const char **iter) {
                                     }
                                 } else if (testHeadingLen == 2 && *testHeading == 't') {
                                     // to
-                                    jsonSkipExpectedChar(&testValue, '0');
-                                    jsonSkipExpectedChar(&testValue, 'x');
                                     if (test->to) {
                                         free(test->to);
                                     }
-                                    test->to = malloc(sizeof(address_t));
-                                    for (unsigned int i = 0; i < 20; i++) {
-                                        test->to->address[i] = hexString16ToUint8(testValue);
-                                        testValue += 2;
-                                    }
+                                    test->to = jsonReadAddress(&testValue);
                                 } else if (testHeadingLen == 7 && *testHeading == 'g') {
                                     // gasUsed
                                     jsonSkipExpectedChar(&testValue, '0');
