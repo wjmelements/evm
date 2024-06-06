@@ -543,7 +543,7 @@ static address_t *jsonReadAddress(const char **iter) {
     address_t *address = malloc(sizeof(address_t));
     for (unsigned int i = 0; i < 20; i++) {
         address->address[i] = hexString16ToUint8(*iter);
-        (*iter) += 2;
+        *iter += 2;
     }
     return address;
 }

@@ -164,7 +164,7 @@ static int parseNegative(const char **iter) {
 
 op_t parseConstant(const char **iter) {
     if (isHexConstantPrefix(*iter)) {
-        (*iter) += 2;
+        *iter += 2;
         return parseHex(iter);
     } else {
         int negative = 0;
@@ -249,7 +249,7 @@ static void scanDataSection(const char **iter) {
     if (**iter == '"') {
         // TODO parse ascii
     } else if (isHexConstantPrefix(*iter)) {
-        (*iter) += 2;
+        *iter += 2;
         parseHex(iter);
     }
     scanstackPushLabel(start, end - start, CODECOPY);
