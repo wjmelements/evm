@@ -389,7 +389,7 @@ static void applyEntry(entry_t *entry) {
 
         address_t from;
         if (entry->creator) {
-            AddressCopy(from, *entry->creator);
+            AddressCopy(from, (*entry->creator));
         }
         // TODO support these parameters
         uint64_t gas = 0xffffffffffffffff;
@@ -404,7 +404,7 @@ static void applyEntry(entry_t *entry) {
     } else if (entry->initCode.size) {
         address_t from;
         if (entry->creator) {
-            AddressCopy(from, *entry->creator);
+            AddressCopy(from, (*entry->creator));
         }
         // TODO support these parameters
         uint64_t gas = 0xffffffffffffffff;
