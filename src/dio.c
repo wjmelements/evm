@@ -10,6 +10,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+
+static inline int fprintData(FILE* file, data_t data) {
+    for (size_t i = 0; i < data.size; i++) {
+        fprintf(file, "%02x", data.content[i]);
+    }
+}
+
 #define MAX_LOG_TOPICS 4
 
 static inline int jsonIgnores(char ch) {
@@ -216,7 +223,13 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
     int testFailure = 0;
     if (!equal256(&result.status, &test->status) || test->op == CREATE) {
         if (zero256(&result.status)) {
-            fputs("\033[0;31mreverted\033[0m\n", stderr);
+            if (result.returnData.size) {
+                fputs("\033[0;31mreverted: ", stderr);
+                fprintData(stderr, result.returnData);
+                fputs("\033[0m\n", stderr);
+            } else {
+                fputs("\033[0;31mreverted\033[0m\n", stderr);
+            }
         } else {
             fputs("\033[0;31mshould revert\033[0m\n", stderr);
         }
@@ -260,14 +273,9 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
     if (test->outputSpecified && (result.returnData.size != test->output.size || memcmp(result.returnData.content, test->output.content, test->output.size))) {
         fputs("Output data mismatch\nactual:\n", stderr);
 
-        for (size_t i = 0; i < result.returnData.size; i++) {
-            fprintf(stderr, "%02x", result.returnData.content[i]);
-        }
+        fprintData(stderr, result.returnData);
         fputs("\nexpected:\n", stderr);
-        for (size_t i = 0; i < test->output.size; i++) {
-            fprintf(stderr, "%02x", test->output.content[i]);
-        }
-
+        fprintData(stderr, test->output);
         fputc('\n', stderr);
         testFailure = anyTestFailure = 1;
     } else if (test->gasUsed) {
@@ -299,13 +307,9 @@ static void verifyConstructResult(result_t *constructResult, entry_t *entry) {
             fputs("Code mismatch at address ", stderr);
             fprintAddress(stderr, (*entry->address));
             fprintf(stderr, ":\n`%s -c %s`:\n", derivedPath, entry->constructPath);
-            for (size_t i = 0; i < constructResult->returnData.size; i++) {
-                fprintf(stderr, "%02x", constructResult->returnData.content[i]);
-            }
+            fprintData(stderr, constructResult->returnData);
             fprintf(stderr, "\nexpected:\n");
-            for (size_t i = 0; i < entry->code.size; i++) {
-                fprintf(stderr, "%02x", entry->code.content[i]);
-            }
+            fprintData(stderr, entry->code);
             fputc('\n', stderr);
             _exit(-1);
         }
