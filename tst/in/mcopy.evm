@@ -1,0 +1,24 @@
+MSTORE(MSIZE, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
+MSTORE(MSIZE, 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee)
+
+MCOPY(32, 28, 4)
+MCOPY(28, 36, 4)
+
+MCOPY(20, 28, 8)
+MCOPY(0, 0, 64)
+MCOPY(64, CALLDATALOAD(32), 64)
+
+MCOPY(16, 24, 12)
+MCOPY(16, 24, 16)
+
+MCOPY(12, 24, 16)
+
+MCOPY(22, 12, 16)
+
+MCOPY(CALLDATALOAD(0), 64, 4)
+
+MCOPY(136, 8, 24)
+MCOPY(8, 0, 24)
+
+
+RETURN(0, MSIZE)

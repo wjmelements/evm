@@ -232,7 +232,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | JUMPDEST | ✅ |✅ |
 | TLOAD | ✅ |❓ |
 | TSTORE | ✅ |❓ |
-| MCOPY | ✅ | ❌ |
+| MCOPY | ✅ |❓ |
 | PUSH0 | ✅ |✅ |
 | PUSH1 | ✅ |✅ |
 | PUSH2 | ✅ |✅ |
