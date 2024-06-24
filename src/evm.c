@@ -267,13 +267,18 @@ static inline void dumpMemory(memory_t *memory) {
     fputc('\n', stderr);
 }
 
+static const uint64_t OVERFLOW_WORDS = 3109888487392;
+
 static uint64_t memoryGasCost(uint64_t capacity) {
+    if (capacity > OVERFLOW_WORDS) {
+        // this maximum value should be large enough to signal out of gas
+        return 0xffffffffffffffffull;
+    }
     uint64_t words = (capacity + 31) >> 5;
     return words * G_MEM + words * words / G_QUADDIV;
 }
 
 static inline bool ensureMemory(context_t *callContext, uint64_t capacity) {
-    memory_ensure(&callContext->memory, capacity);
     if (callContext->memory.num_uint8s < capacity) {
         uint64_t memoryGas = memoryGasCost(capacity) - memoryGasCost(callContext->memory.num_uint8s);
         callContext->memory.num_uint8s = capacity;
@@ -282,6 +287,7 @@ static inline bool ensureMemory(context_t *callContext, uint64_t capacity) {
         }
         callContext->gas -= memoryGas;
     }
+    memory_ensure(&callContext->memory, capacity);
     return true;
 }
 
