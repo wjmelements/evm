@@ -1192,8 +1192,8 @@ static result_t doCall(context_t *callContext) {
                 break;
             case TSTORE:
                 {
-                    tstorage_t *storage = getAccountTransientStorage(callContext->account, callContext->top);
-                    copy256(&storage->value, callContext->top - 1);
+                    tstorage_t *storage = getAccountTransientStorage(callContext->account, callContext->top + 1);
+                    copy256(&storage->value, callContext->top);
                     storage->warm = evmIteration;
                 }
                 break;
