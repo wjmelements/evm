@@ -4,11 +4,11 @@
 
 #define VECTOR(type, vector)\
 typedef struct vector {\
-    uint32_t num_ ## type ## s;\
-    uint32_t buffer_size;\
+    size_t num_ ## type ## s;\
     type ## _t *type ## s;\
+    size_t buffer_size;\
 } vector ## _t;\
-static inline void vector ## _init(vector ## _t *vector, uint32_t buffer_size) {\
+static inline void vector ## _init(vector ## _t *vector, size_t buffer_size) {\
     vector->num_ ## type ## s = 0;\
     vector->buffer_size = buffer_size;\
     vector->type ## s = calloc(buffer_size, sizeof(type ## _t));\
@@ -26,7 +26,7 @@ static inline void vector ## _append(vector ## _t *vector, type ## _t t) {\
     }\
     vector->type ## s[vector->num_ ## type ## s++] = t;\
 }\
-static inline void vector ## _ensure(vector ## _t *vector, uint32_t capacity) {\
+static inline void vector ## _ensure(vector ## _t *vector, size_t capacity) {\
     if (vector->buffer_size < capacity) {\
         vector->buffer_size = capacity;\
         type ## _t *buffer = calloc(capacity, sizeof(*buffer));\

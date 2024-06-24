@@ -273,7 +273,6 @@ static uint64_t memoryGasCost(uint64_t capacity) {
 }
 
 static inline bool ensureMemory(context_t *callContext, uint64_t capacity) {
-    // TODO gas from memory expansion
     memory_ensure(&callContext->memory, capacity);
     if (callContext->memory.num_uint8s < capacity) {
         uint64_t memoryGas = memoryGasCost(capacity) - memoryGasCost(callContext->memory.num_uint8s);
@@ -1059,23 +1058,35 @@ static result_t doCall(context_t *callContext) {
             case CALLDATACOPY:
             case EXTCODECOPY:
             case RETURNDATACOPY:
+            case MCOPY:
             case CODECOPY:
                 {
                     const data_t *code;
-                    if (op == EXTCODECOPY) {
-                        account_t *account = warmAccount(callContext, AddressFromUint256(callContext->top + 3));
-                        if (account == NULL) {
-                            OUT_OF_GAS;
+                    uint64_t start = LOWER(LOWER_P(callContext->top + 1));
+                    uint64_t size = LOWER(LOWER_P(callContext->top));
+                    switch (op) {
+                    case EXTCODECOPY:
+                        {
+                            account_t *account = warmAccount(callContext, AddressFromUint256(callContext->top + 3));
+                            if (account == NULL) {
+                                OUT_OF_GAS;
+                            }
+                            code = &account->code;
                         }
-                        code = &account->code;
-                    } else if (op == CALLDATACOPY) {
+                        break;
+                    case CALLDATACOPY:
                         code = &callContext->callData;
-                    } else if (op == RETURNDATACOPY) {
+                        break;
+                    case RETURNDATACOPY:
                         code = &callContext->returnData;
-                    } else {
+                        break;
+                    case MCOPY:
+                        ensureMemory(callContext, start + size);
+                        code = (data_t *)(&callContext->memory);
+                        break;
+                    case CODECOPY:
                         code = &callContext->code;
                     }
-                    uint64_t size = LOWER(LOWER_P(callContext->top));
                     uint64_t dst = LOWER(LOWER_P(callContext->top + 2));
                     if (
                         UPPER(LOWER_P(callContext->top + 2)) || LOWER(UPPER_P(callContext->top + 2)) || UPPER(UPPER_P(callContext->top + 2))
@@ -1091,7 +1102,6 @@ static result_t doCall(context_t *callContext) {
                         OUT_OF_GAS;
                     }
                     callContext->gas -= gasCost;
-                    uint64_t start = LOWER(LOWER_P(callContext->top + 1));
                     if (
                             UPPER(LOWER_P(callContext->top + 1)) || LOWER(UPPER_P(callContext->top + 1)) || UPPER(UPPER_P(callContext->top + 1))
                             || start > code->size

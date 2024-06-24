@@ -46,8 +46,8 @@ static void disassemblePushDecimal(op_t op, uint8_t pushlen, const char **iter) 
     int strLength = snprintf(str, bufLength, "%llu", value);
     statement_t pushDec = {
         strLength,
-        bufLength,
-        str
+        str,
+        bufLength
     };
     statement_stack_append(&stack, pushDec);
 }
@@ -75,17 +75,17 @@ static void disassemblePushHex(op_t op, uint8_t pushlen, const char **iter) {
     }
     statement_t pushHex = {
         strLength,
-        strLength,
-        str
+        str,
+        strLength
     };
     statement_stack_append(&stack, pushHex);
 }
 
 
 statement_t labelForPc(pc_t pc) {
-    const uint32_t bufLen = 8;
+    const size_t bufLen = 8;
     char *str = calloc(bufLen, 1);
-    uint32_t strLen = (uint32_t) snprintf(str, bufLen, "%u:", pc);
+    size_t strLen = (size_t) snprintf(str, bufLen, "%u:", pc);
     /*  TODO label
     for (uint8_t i = 0; i < strLen - 1; i++) {
         str[i] += 'a' - '0';
@@ -93,8 +93,8 @@ statement_t labelForPc(pc_t pc) {
     */
     return (statement_t) {
         strLen,
-        bufLen,
         str,
+        bufLen,
     };
 }
 
@@ -121,14 +121,14 @@ void disassembleNextOp(const char **iter) {
         pcs_append(&jumpdests, pc);
         op_statement = labelForPc(pc);
     } else {
-        uint32_t bufLen = 15;
+        size_t bufLen = 15;
         char *str = calloc(bufLen, 1);
         char *end = stpncpy(str, opString[op], bufLen);
-        uint32_t strLen = end - str;
+        size_t strLen = end - str;
         op_statement = (statement_t){
             strLen,
-            bufLen,
-            str
+            str,
+            bufLen
         };
     }
     int argc = argCount[op];
@@ -136,7 +136,7 @@ void disassembleNextOp(const char **iter) {
         statement_append(&op_statement, '(');
         while (argc--) {
             statement_t arg = statement_stack_pop(&stack);
-            for (uint32_t i = 0; i < arg.num_schars; i++) {
+            for (size_t i = 0; i < arg.num_schars; i++) {
                 statement_append(&op_statement,arg.schars[i]);
             }
             free(arg.schars);
@@ -164,7 +164,7 @@ int disassembleValid(const char **iter) {
 
 void disassembleFinalize() {
     for (size_t j = 0; j < jumpdests.num_pcs; j++) {
-        uint32_t jumpdest = jumpdests.pcs[j]; 
+        size_t jumpdest = jumpdests.pcs[j]; 
         for (size_t i = 0; i < stack.num_statements; i++) {
             // TODO scan for label
         }

@@ -11,7 +11,7 @@
 #include <unistd.h>
 
 
-static inline int fprintData(FILE* file, data_t data) {
+static inline void fprintData(FILE* file, data_t data) {
     for (size_t i = 0; i < data.size; i++) {
         fprintf(file, "%02x", data.content[i]);
     }
