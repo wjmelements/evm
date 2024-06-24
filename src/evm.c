@@ -176,12 +176,19 @@ static inline bool BalanceSub(val_t from, val_t amount) {
 
 typedef uint256_t evmStack_t[1024];
 
-typedef struct storage {
+typedef struct transientStorage {
+    uint256_t key;
+    uint256_t value;
+    uint64_t warm;
+    struct transientStorage *next;
+} tstorage_t;
+
+typedef struct accountStorage {
     uint256_t key;
     uint256_t value;
     uint256_t original;
     uint64_t warm;
-    struct storage *next;
+    struct accountStorage *next;
 } storage_t;
 
 typedef struct account {
@@ -190,7 +197,8 @@ typedef struct account {
     data_t code;
     uint64_t nonce;
     uint64_t warm;
-    storage_t *next;
+    storage_t *storage;
+    tstorage_t *tstorage;
 } account_t;
 
 static bool AccountDead(account_t *account) {
@@ -336,13 +344,20 @@ static account_t *getAccount(const address_t address) {
 void evmInit() {
     callstack.next = callstack.bottom;
     while (emptyAccount --> accounts) {
-        storage_t *storage = emptyAccount->next;
+        storage_t *storage = emptyAccount->storage;
         while (storage != NULL) {
             void *toFree = storage;
             storage = storage->next;
             free(toFree);
         }
-        emptyAccount->next = NULL;
+        tstorage_t *tstorage = emptyAccount->tstorage;
+        while (tstorage != NULL) {
+            void *toFree = tstorage;
+            tstorage = tstorage->next;
+            free(toFree);
+        }
+        emptyAccount->storage = NULL;
+        emptyAccount->tstorage = NULL;
         emptyAccount->warm = 0;
         bzero(emptyAccount->address.address, 20);
         op_t *code = emptyAccount->code.content;
@@ -449,7 +464,7 @@ static account_t *warmAccount(context_t *callContext, const address_t address) {
 }
 
 static storage_t *getAccountStorage(account_t *account, const uint256_t *key) {
-    storage_t **storage = &account->next;
+    storage_t **storage = &account->storage;
     while (*storage != NULL) {
         if (equal256(&(*storage)->key, key)) {
             return *storage;
@@ -459,6 +474,19 @@ static storage_t *getAccountStorage(account_t *account, const uint256_t *key) {
     *storage = calloc(1, sizeof(storage_t));
     copy256(&(*storage)->key, key);
     return *storage;
+}
+
+static tstorage_t *getAccountTransientStorage(account_t *account, const uint256_t *key) {
+    tstorage_t **tstorage = &account->tstorage;
+    while (*tstorage != NULL) {
+        if (equal256(&(*tstorage)->key, key)) {
+            return *tstorage;
+        }
+        tstorage = &(*tstorage)->next;
+    }
+    *tstorage = calloc(1, sizeof(tstorage_t));
+    copy256(&(*tstorage)->key, key);
+    return *tstorage;
 }
 
 // NOTE this sometimes dismantles and reuses the elements of src
@@ -1149,6 +1177,23 @@ static result_t doCall(context_t *callContext) {
                     change->warm = warmBefore;
                     change->prev = changes->storageChanges;
                     changes->storageChanges = change;
+                }
+                break;
+            case TLOAD:
+                {
+                    tstorage_t *storage = getAccountTransientStorage(callContext->account, callContext->top -1);
+                    if (storage->warm == evmIteration) {
+                        copy256(callContext->top - 1, &storage->value);
+                    } else {
+                        clear256(callContext->top - 1);
+                    }
+                }
+                break;
+            case TSTORE:
+                {
+                    tstorage_t *storage = getAccountTransientStorage(callContext->account, callContext->top);
+                    copy256(&storage->value, callContext->top - 1);
+                    storage->warm = evmIteration;
                 }
                 break;
             case COINBASE:
