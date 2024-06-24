@@ -1,0 +1,11 @@
+[
+    {
+        "construct": "tst/in/mcopy.evm",
+        "tests": [
+            {
+                "name": "overlaps",
+                "output": "0xffffffffffffffffffffffffffffffffffffffffffffffffeeeeeeeeffffffffffffeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeffffffffffffffffffffffffffffffffffffffffeeeeeeeeffffffffeeeeeeeeffffffffeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000ffffffffffffffffeeeeeeeeffffffffffffeeeeeeeeffff"
+            }
+        ]
+    }
+]
