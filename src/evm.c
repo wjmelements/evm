@@ -611,6 +611,7 @@ static result_t doCall(context_t *callContext) {
         case CREATE2:
         case SELFDESTRUCT:
         case SSTORE:
+        case TSTORE:
             if (callContext->readonly) {
                 fprintf(stderr, "Attempted %s inside STATICCALL\n", opString[op]);
                 callContext->gas = 0;
