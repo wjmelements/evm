@@ -230,8 +230,8 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | MSIZE | ✅ |✅ |
 | GAS | ✅ |✅ |
 | JUMPDEST | ✅ |✅ |
-| TLOAD | ✅ | ❌ |
-| TSTORE | ✅ | ❌ |
+| TLOAD | ✅ |❓ |
+| TSTORE | ✅ |❓ |
 | MCOPY | ✅ | ❌ |
 | PUSH0 | ✅ |✅ |
 | PUSH1 | ✅ |✅ |
