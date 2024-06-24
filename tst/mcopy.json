@@ -7,12 +7,32 @@
                 "output": "0xffffffffffffffffffffffffffffffffffffffffffffffffeeeeeeeeffffffffffffeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeffffffffffffffffffffffffffffffffffffffffeeeeeeeeffffffffeeeeeeeeffffffffeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000ffffffffffffffffeeeeeeeeffffffffffffeeeeeeeeffff"
             },
             {
-                "name": "out of gas from dst",
+                "name": "out of gas from dst upper lower",
+                "status": "0x0",
+                "input": "0x00000000000000000000000000000000ff"
+            },
+            {
+                "name": "out of gas from dst lower upper",
+                "status": "0x0",
+                "input": "0x0000000000000000ff"
+            },
+            {
+                "name": "out of gas from dst upper upper",
                 "status": "0x0",
                 "input": "0xff"
             },
             {
-                "name": "out of gas from src",
+                "name": "out of gas from src upper lower",
+                "status": "0x0",
+                "input": "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ff"
+            },
+            {
+                "name": "out of gas from src lower upper",
+                "status": "0x0",
+                "input": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000ff"
+            },
+            {
+                "name": "out of gas from src upper upper",
                 "status": "0x0",
                 "input": "0x0000000000000000000000000000000000000000000000000000000000000000ff"
             }
