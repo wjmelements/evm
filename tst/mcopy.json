@@ -5,6 +5,16 @@
             {
                 "name": "overlaps",
                 "output": "0xffffffffffffffffffffffffffffffffffffffffffffffffeeeeeeeeffffffffffffeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeffffffffffffffffffffffffffffffffffffffffeeeeeeeeffffffffeeeeeeeeffffffffeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000ffffffffffffffffeeeeeeeeffffffffffffeeeeeeeeffff"
+            },
+            {
+                "name": "out of gas from dst",
+                "status": "0x0",
+                "input": "0xff"
+            },
+            {
+                "name": "out of gas from src",
+                "status": "0x0",
+                "input": "0x0000000000000000000000000000000000000000000000000000000000000000ff"
             }
         ]
     }
