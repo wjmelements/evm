@@ -2,6 +2,7 @@
 #include "vector.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,7 +27,7 @@ uint16_t fprintLog(FILE *file, const logChanges_t *log, int showLogIndex) {
     }
     fputs("\",\"topics\":[", file);
     for (uint8_t i = log->topicCount; i-->0;) {
-        fprintf(file, "\"0x%016llx%016llx%016llx%016llx\"",
+        fprintf(file, "\"0x%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "\"",
             UPPER(UPPER(log->topics[i])),
             LOWER(UPPER(log->topics[i])),
             UPPER(LOWER(log->topics[i])),
@@ -81,9 +82,9 @@ uint16_t fprintLogDiff(FILE *file, const logChanges_t *log, const logChanges_t *
                 expectedPart >>= (56 - 8 * (j % 8));
                 expectedPart &= 0xff;
                 if (topicPart == expectedPart) {
-                    fprintf(file, "%02llx", topicPart);
+                    fprintf(file, "%02" PRIx64, topicPart);
                 } else {
-                    fprintf(file, "\033[0;31m%02llx\033[0m", topicPart);
+                    fprintf(file, "\033[0;31m%02" PRIx64 "\033[0m", topicPart);
                 }
             }
             fputc('"', file);
@@ -93,7 +94,7 @@ uint16_t fprintLogDiff(FILE *file, const logChanges_t *log, const logChanges_t *
         }
     } else {
         for (uint8_t i = log->topicCount; i-->0;) {
-            fprintf(file, "\"0x%016llx%016llx%016llx%016llx\"",
+            fprintf(file, "\"0x%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "\"",
                 UPPER(UPPER(log->topics[i])),
                 LOWER(UPPER(log->topics[i])),
                 UPPER(LOWER(log->topics[i])),
@@ -443,7 +444,7 @@ static account_t *createNewAccount(account_t *from) {
         inputBuffer[25] = nonce >> 8;
         inputBuffer[26] = nonce;
     } else {
-        fprintf(stderr, "Unsupported nonce %llu\n", nonce);
+        fprintf(stderr, "Unsupported nonce %" PRIu64 "\n", nonce);
         return NULL;
     }
     inputBuffer[1] = 0x94;
@@ -577,10 +578,10 @@ static result_t doCall(context_t *callContext) {
         }
         if (SHOW_OPS) {
             if (SHOW_PC) {
-                fprintf(stderr, "%llu: ", pc - 1);
+                fprintf(stderr, "%" PRIu64 ": ", pc - 1);
             }
             if (SHOW_GAS) {
-                fprintf(stderr, "gas %llu ", callContext->gas);
+                fprintf(stderr, "gas %" PRIu64 " ", callContext->gas);
             }
             fprintf(stderr, "op %s\n", opString[op]);
         }
@@ -590,13 +591,13 @@ static result_t doCall(context_t *callContext) {
             || (op >= SWAP1 && op <= SWAP16 && callContext->top - (op - DUP15) < callContext->bottom)
         ) {
             // stack underflow
-            fprintf(stderr, "Stack underflow at pc %llu op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom);
+            fprintf(stderr, "Stack underflow at pc %" PRIu64 " op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom);
             callContext->gas = 0;
             result.returnData.size = 0;
             return result;
         }
 #define OUT_OF_GAS \
-            fprintf(stderr, "Out of gas at pc %llu op %s\n", pc - 1, opString[op]);\
+            fprintf(stderr, "Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]);\
             result.returnData.size = 0; \
             return result
         // Check staticcall
@@ -925,13 +926,13 @@ static result_t doCall(context_t *callContext) {
             case JUMP:
                 pc = LOWER(LOWER_P(callContext->top + (op - JUMP)));
                 if (pc >= callContext->code.size) {
-                    fprintf(stderr, "%s out of bounds %llu >= %lu\n", opString[op], pc, callContext->code.size);
+                    fprintf(stderr, "%s out of bounds %" PRIu64 " >= %lu\n", opString[op], pc, callContext->code.size);
                     result.returnData.size = 0;
                     callContext->gas = 0;
                     return result;
                 }
                 if (callContext->code.content[pc] != JUMPDEST) {
-                    fprintf(stderr, "%s to invalid destination %llu (%s)\n", opString[op], pc, opString[callContext->code.content[pc]]);
+                    fprintf(stderr, "%s to invalid destination %" PRIu64 " (%s)\n", opString[op], pc, opString[callContext->code.content[pc]]);
                     result.returnData.size = 0;
                     callContext->gas = 0;
                     return result;
@@ -1570,7 +1571,7 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
         callContext->gas -= calldataGas(&input, true);
         if (gas < callContext->gas) {
             // underflow indicates insufficient initial gas
-            fprintf(stderr, "Insufficient intrinsic gas %llu (need %llu)\n", gas, gas - callContext->gas);
+            fprintf(stderr, "Insufficient intrinsic gas %" PRIu64 " (need %" PRIu64 ")\n", gas, gas - callContext->gas);
             result_t result;
             result.gasRemaining = 0;
             clear256(&result.status);
@@ -1598,7 +1599,7 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
     if (!zero256(&result.status)) {
         uint64_t codeGas = result.returnData.size * G_PER_CODEBYTE;
         if (codeGas > callContext->gas) {
-            fprintf(stderr, "Insufficient gas to insert code, codeGas %llu > gas %llu\n", codeGas, callContext->gas);
+            fprintf(stderr, "Insufficient gas to insert code, codeGas %" PRIu64 " > gas %" PRIu64 "\n", codeGas, callContext->gas);
             LOWER(LOWER(result.status)) = 0;
         } else {
             result.gasRemaining -= codeGas;
@@ -1648,7 +1649,7 @@ result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t 
         accessList = accessList->prev;
     }
     if (gas < intrinsicGas) {
-        fprintf(stderr, "Insufficient intrinsic gas %llu (need %llu)\n", gas, intrinsicGas);
+        fprintf(stderr, "Insufficient intrinsic gas %" PRIu64 " (need %" PRIu64 ")\n", gas, intrinsicGas);
         result_t result;
         result.gasRemaining = 0;
         clear256(&result.status);

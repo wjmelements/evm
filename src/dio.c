@@ -2,6 +2,7 @@
 #include "vector.h"
 
 #include <fcntl.h>
+#include <inttypes.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/mman.h>
@@ -50,7 +51,7 @@ static void jsonScanChar(const char **iter, char expected) {
                 lineNumber++;
             }
         } else {
-            fprintf(stderr, "Config: when seeking '%c' found unexpected character '%c' on line %llu\n", expected, ch, lineNumber);
+            fprintf(stderr, "Config: when seeking '%c' found unexpected character '%c' on line %" PRIu64 "\n", expected, ch, lineNumber);
             _exit(1);
         }
     }
@@ -61,7 +62,7 @@ static void jsonSkipExpectedChar(const char **iter, char expected) {
     if (**iter == expected) {
         (*iter)++;
     } else {
-        fprintf(stderr, "Config: expecting '%c', found '%c' on line %llu\n", expected, **iter, lineNumber);
+        fprintf(stderr, "Config: expecting '%c', found '%c' on line %" PRIu64 "\n", expected, **iter, lineNumber);
         _exit(1);
     }
 }
@@ -217,7 +218,7 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
     if (test->name) {
         fputs(test->name, stderr);
     } else {
-        fprintf(stderr, "%llu", testsRun);
+        fprintf(stderr, "%" PRIu64, testsRun);
     }
     fputs(": ", stderr);
     int testFailure = 0;
@@ -281,10 +282,10 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
     } else if (test->gasUsed) {
         if (test->gasUsed < gasUsed) {
             // more actual gasUsed than expected
-            fprintf(stderr, "gasUsed \033[0;31m%llu\033[0m expected %llu (\033[0;31m+%llu\033[0m)\n", gasUsed, test->gasUsed, gasUsed - test->gasUsed);
+            fprintf(stderr, "gasUsed \033[0;31m%" PRIu64 "\033[0m expected %" PRIu64 " (\033[0;31m+%" PRIu64 "\033[0m)\n", gasUsed, test->gasUsed, gasUsed - test->gasUsed);
         } else if (test->gasUsed > gas - result.gasRemaining) {
             // less actual gasUsed than expected
-            fprintf(stderr, "gasUsed \033[0;32m%llu\033[0m expected %llu (\033[0;32m-%llu\033[0m)\n", gasUsed, test->gasUsed, test->gasUsed - gasUsed);
+            fprintf(stderr, "gasUsed \033[0;32m%" PRIu64 "\033[0m expected %" PRIu64 " (\033[0;32m-%" PRIu64 "\033[0m)\n", gasUsed, test->gasUsed, test->gasUsed - gasUsed);
         } else if (testFailure) {
             fprintf(stderr, "\033[0;31mfail\033[0m\n");
         } else {
@@ -989,7 +990,7 @@ static void updateConfig(const char *configContents, const char *dstPath) {
             file.num_chars += sizeof(gasUsedHeader) - 1;
         }
         file_ensure(&file, file.num_chars + 18);
-        file.num_chars += snprintf(file.chars + file.num_chars, file.buffer_size - file.num_chars, "%llx", testResult->gasUsed);
+        file.num_chars += snprintf(file.chars + file.num_chars, file.buffer_size - file.num_chars, "%" PRIx64, testResult->gasUsed);
         if (start == end) {
             file.chars[file.num_chars] = '"';
             file.num_chars += 1;
