@@ -17,6 +17,7 @@
 
 // Adapted from https://github.com/calccrypto/uint256_t
 
+#include <inttypes.h>
 #include <stdlib.h>
 
 #include "uint256.h"
@@ -62,8 +63,8 @@ void dumpu256BE(const uint256_t *source, uint8_t *target) {
 }
 
 void fprint128(FILE *fp, const uint128_t *number) {
-    fprintf(fp, "%016llx", UPPER_P(number));
-    fprintf(fp, "%016llx", LOWER_P(number));
+    fprintf(fp, "%016" PRIx64, UPPER_P(number));
+    fprintf(fp, "%016" PRIx64, LOWER_P(number));
 }
 
 void fprint256(FILE *fp, const uint256_t *number) {

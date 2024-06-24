@@ -4,6 +4,7 @@
 
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <inttypes.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
@@ -134,7 +135,7 @@ static void execute(const char *contents) {
     if (outputJson) {
         fputs("{\"", stdout);
         if (includeGas) {
-            printf("gasUsed\":%llu,\"", gas - result.gasRemaining);
+            printf("gasUsed\":%" PRIu64 ",\"", gas - result.gasRemaining);
         }
         if (includeLogs) {
             fputs("logs\":", stdout);
@@ -143,7 +144,7 @@ static void execute(const char *contents) {
         }
         if (includeStatus) {
             printf(
-                "status\":\"0x%08llx%08llx%08llx%08llx\",\"",
+                "status\":\"0x%08" PRIx64 "%08" PRIx64 "%08" PRIx64 "%08" PRIx64 "\",\"",
                 UPPER(UPPER(result.status)),
                 LOWER(UPPER(result.status)),
                 UPPER(LOWER(result.status)),
