@@ -1081,7 +1081,13 @@ static result_t doCall(context_t *callContext) {
                         code = &callContext->returnData;
                         break;
                     case MCOPY:
-                        ensureMemory(callContext, start + size);
+                        if (
+                                UPPER(LOWER_P(callContext->top + 1))
+                                || LOWER(UPPER_P(callContext->top + 1))
+                                || UPPER(UPPER_P(callContext->top + 1))
+                                || !ensureMemory(callContext, start + size)) {
+                            OUT_OF_GAS;
+                        }
                         code = (data_t *)(&callContext->memory);
                         break;
                     case CODECOPY:
