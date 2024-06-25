@@ -280,15 +280,16 @@ static uint64_t memoryGasCost(uint64_t capacity) {
 }
 
 static inline bool ensureMemory(context_t *callContext, uint64_t capacity) {
-    if (callContext->memory.num_uint8s < capacity) {
-        uint64_t memoryGas = memoryGasCost(capacity) - memoryGasCost(callContext->memory.num_uint8s);
-        callContext->memory.num_uint8s = capacity;
+    memory_t *memory = &callContext->memory;
+    if (memory->num_uint8s < capacity) {
+        uint64_t memoryGas = memoryGasCost(capacity) - memoryGasCost(memory->num_uint8s);
         if (memoryGas > callContext->gas) {
             return false;
         }
         callContext->gas -= memoryGas;
+        memory_ensure(memory, capacity);
+        memory->num_uint8s = capacity;
     }
-    memory_ensure(&callContext->memory, capacity);
     return true;
 }
 
