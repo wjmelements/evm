@@ -26,15 +26,15 @@ HEX(8) \
 HEX(9) \
 
 static inline uint8_t hexString8ToUint8(const uint8_t hexString8) {
-	if ('0' <= hexString8 && hexString8 <= '9') {
-		return hexString8 - '0';
-	}
-	if ('a' <= hexString8 && hexString8 <= 'f') {
-		return hexString8 - 'a' + 0xa;
-	}
-	if ('A' <= hexString8 && hexString8 <= 'F') {
-		return hexString8 - 'A' + 0xa;
-	}
+    if ('0' <= hexString8 && hexString8 <= '9') {
+        return hexString8 - '0';
+    }
+    if ('a' <= hexString8 && hexString8 <= 'f') {
+        return hexString8 - 'a' + 0xa;
+    }
+    if ('A' <= hexString8 && hexString8 <= 'F') {
+        return hexString8 - 'A' + 0xa;
+    }
     fprintf(stderr, "hexString8ToUint8: unexpected hex string %u (%c)\n", hexString8, hexString8);
     return 0xff;
 }
@@ -42,14 +42,14 @@ static inline uint8_t hexString16ToUint8(const char *hexString16) {
     return hexString8ToUint8(hexString16[0]) * 16 + hexString8ToUint8(hexString16[1]);
 }
 static inline int isHex(char h) {
-	if ('0' <= h && h <= '9') {
-		return 1;
-	}
-	if ('a' <= h && h <= 'f') {
-		return 1;
-	}
-	if ('A' <= h && h <= 'F') {
-		return 1;
-	}
-	return 0;
+    if ('0' <= h && h <= '9') {
+        return 1;
+    }
+    if ('a' <= h && h <= 'f') {
+        return 1;
+    }
+    if ('A' <= h && h <= 'F') {
+        return 1;
+    }
+    return 0;
 }
