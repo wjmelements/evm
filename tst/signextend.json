@@ -4,8 +4,43 @@
         "tests": [
             {
                 "name": "zero",
+                "input": "0x0000000000000000000000000000000000000000000000000000000000000000fffffffffffffffffffffffffffffffffffffffffffffff3ed467e105ce32783",
+                "output": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff83"
+            },
+            {
+                "name": "one",
+                "input": "0x0000000000000000000000000000000000000000000000000000000000000001fffffffffffffffffffffffffffffffffffffffffffffff3ed467e105ce32783",
+                "output": "0x0000000000000000000000000000000000000000000000000000000000002783"
+            },
+            {
+                "name": "seven",
+                "input": "0x0000000000000000000000000000000000000000000000000000000000000007fffffffffffffffffffffffffffffffffffffffffffffff3ed467e105ce32783",
+                "output": "0xffffffffffffffffffffffffffffffffffffffffffffffffed467e105ce32783"
+            },
+            {
+                "name": "eight",
+                "input": "0x0000000000000000000000000000000000000000000000000000000000000008fffffffffffffffffffffffffffffffffffffffffffffff3ed467e105ce32783",
+                "output": "0xfffffffffffffffffffffffffffffffffffffffffffffff3ed467e105ce32783"
+            },
+            {
+                "name": "fifteen",
                 "input": "0x000000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffffffffffffffffffff3ed467e105ce32783",
                 "output": "0xfffffffffffffffffffffffffffffffffffffffffffffff3ed467e105ce32783"
+            },
+            {
+                "name": "sixteen",
+                "input": "0x00000000000000000000000000000000000000000000000000000000000000100fff0000fffffffffffffffffffffffffffffffffffffff3ed467e105ce32783",
+                "output": "0xfffffffffffffffffffffffffffffffffffffffffffffff3ed467e105ce32783"
+            },
+            {
+                "name": "thirty",
+                "input": "0x000000000000000000000000000000000000000000000000000000000000001e0fff0000fffffffffffffffffffffffffffffffffffffff3ed467e105ce32783",
+                "output": "0xffff0000fffffffffffffffffffffffffffffffffffffff3ed467e105ce32783"
+            },
+            {
+                "name": "thirty-one",
+                "input": "0x000000000000000000000000000000000000000000000000000000000000001f0fff0000fffffffffffffffffffffffffffffffffffffff3ed467e105ce32783",
+                "output": "0x0fff0000fffffffffffffffffffffffffffffffffffffff3ed467e105ce32783"
             }
         ]
     }
