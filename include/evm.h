@@ -96,6 +96,7 @@ void evmFinalize();
 #define EVM_DEBUG_GAS (EVM_DEBUG_OPS + 8)
 #define EVM_DEBUG_PC (EVM_DEBUG_OPS + 16)
 #define EVM_DEBUG_CALLS 32
+#define EVM_DEBUG_LOGS 64
 void evmSetDebug(uint64_t flags);
 
 void evmMockBalance(address_t to, const val_t balance);

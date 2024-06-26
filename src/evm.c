@@ -344,6 +344,7 @@ void evmSetDebug(uint64_t flags) {
 #define SHOW_GAS (debugFlags & EVM_DEBUG_GAS)
 #define SHOW_PC (debugFlags & EVM_DEBUG_PC)
 #define SHOW_CALLS (debugFlags & EVM_DEBUG_CALLS)
+#define SHOW_LOGS (debugFlags & EVM_DEBUG_LOGS)
 
 static account_t *getAccount(const address_t address) {
     account_t *result = accounts;
@@ -1085,6 +1086,11 @@ static result_t doCall(context_t *callContext) {
                     }
 
                     stateChanges_t *stateChanges = getCurrentAccountStateChanges(&result, callContext);
+                    if (SHOW_LOGS) {
+                        fprintf(stderr, "\033[94m");
+                        fprintLog(stderr, log, true);
+                        fprintf(stderr, "\033[0m\n");
+                    }
                     log->prev = stateChanges->logChanges;
                     stateChanges->logChanges = log;
                 }
