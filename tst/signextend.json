@@ -1,0 +1,12 @@
+[
+    {
+        "construct": "tst/in/signextend.evm",
+        "tests": [
+            {
+                "name": "zero",
+                "input": "0x000000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffffffffffffffffffff3ed467e105ce32783",
+                "output": "0xfffffffffffffffffffffffffffffffffffffffffffffff3ed467e105ce32783"
+            }
+        ]
+    }
+]
