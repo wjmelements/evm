@@ -221,6 +221,7 @@ typedef struct {
     bool readonly;
 } context_t;
 
+
 stateChanges_t *getCurrentAccountStateChanges(result_t *result, context_t *context) {
     stateChanges_t **stateChanges = &result->stateChanges;
     while (*stateChanges != NULL) {
@@ -323,6 +324,16 @@ static uint64_t refundCounter = 0;
 static address_t coinbase;
 static uint64_t debugFlags = 0;
 
+uint16_t depthOf(context_t *context) {
+    return context - callstack.bottom;
+}
+
+void fRepeat(FILE *file, const char *str, uint16_t times) {
+    if (!times) return;
+    fputs(str, file);
+    fRepeat(file, str, times - 1);
+}
+
 void evmSetDebug(uint64_t flags) {
     debugFlags = flags;
 }
@@ -332,6 +343,7 @@ void evmSetDebug(uint64_t flags) {
 #define SHOW_OPS (debugFlags & EVM_DEBUG_OPS)
 #define SHOW_GAS (debugFlags & EVM_DEBUG_GAS)
 #define SHOW_PC (debugFlags & EVM_DEBUG_PC)
+#define SHOW_CALLS (debugFlags & EVM_DEBUG_CALLS)
 
 static account_t *getAccount(const address_t address) {
     account_t *result = accounts;
@@ -557,7 +569,21 @@ static result_t evmDelegateCall(uint64_t gas, account_t *codeSource, data_t inpu
 static result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input);
 
 static result_t doCall(context_t *callContext) {
-    //dumpCallData(callContext);
+    if (SHOW_CALLS) {
+        fRepeat(stderr, "\t", depthOf(callContext));
+        fprintf(stderr, "from: ");
+        fprintAddress(stderr, callContext->caller);
+        fprintf(stderr, "\n");
+        if (callContext->account) {
+            fRepeat(stderr, "\t", depthOf(callContext));
+            fprintf(stderr, "to: ");
+            fprintAddress(stderr, callContext->account->address);
+            fprintf(stderr, "\n");
+        }
+        fRepeat(stderr, "\t", depthOf(callContext));
+        fprintf(stderr, "input: ");
+        dumpCallData(callContext);
+    }
     result_t result;
     result.stateChanges = NULL;
     clear256(&result.status);
@@ -1423,6 +1449,18 @@ static result_t doCall(context_t *callContext) {
                 }
                 result.returnData.content = callContext->memory.uint8s + LOWER(LOWER_P(callContext->top + 1));
                 result.returnData.size = LOWER(LOWER_P(callContext->top));
+                if (SHOW_CALLS) {
+                    fRepeat(stderr, "\t", depthOf(callContext));
+                    if (zero256(&result.status)) {
+                        fprintf(stderr, "\033[0;31m");
+                    }
+                    fprintf(stderr, "output: ");
+                    fprintData(stderr, result.returnData);
+                    fprintf(stderr, "\n");
+                    if (zero256(&result.status)) {
+                        fprintf(stderr, "\033[0m");
+                    }
+                }
                 return result;
         }
     }

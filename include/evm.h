@@ -13,6 +13,12 @@ typedef struct data {
     uint8_t *content;
 } data_t;
 
+static inline void fprintData(FILE* file, data_t data) {
+    for (size_t i = 0; i < data.size; i++) {
+        fprintf(file, "%02x", data.content[i]);
+    }
+}
+
 static inline int DataEqual(const data_t *expected, const data_t *actual) {
     return expected->size == actual->size && memcmp(expected->content, actual->content, actual->size) == 0;
 }
@@ -89,6 +95,7 @@ void evmFinalize();
 #define EVM_DEBUG_OPS 4
 #define EVM_DEBUG_GAS (EVM_DEBUG_OPS + 8)
 #define EVM_DEBUG_PC (EVM_DEBUG_OPS + 16)
+#define EVM_DEBUG_CALLS 32
 void evmSetDebug(uint64_t flags);
 
 void evmMockBalance(address_t to, const val_t balance);
