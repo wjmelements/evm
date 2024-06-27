@@ -269,13 +269,13 @@ void shiftar256(const uint256_t *number, uint32_t value, uint256_t *target) {
                 UPPER(LOWER_P(target)) = 0xffffffffffffffffllu;
                 if (value >= 256) {
                     LOWER(LOWER_P(target)) = 0xffffffffffffffffllu;
-                } else {
+                } else if (value > 192) {
                     LOWER(LOWER_P(target)) |= 0xffffffffffffffffllu - ((1llu << (256 - value)) - 1llu);
                 }
-            } else {
+            } else if (value > 128) {
                 UPPER(LOWER_P(target)) |= 0xffffffffffffffffllu - ((1llu << (192 - value)) - 1llu);
             }
-        } else {
+        } else if (value > 64) {
             LOWER(UPPER_P(target)) |= 0xffffffffffffffffllu - ((1llu << (128 - value)) - 1llu);
         }
     } else {
