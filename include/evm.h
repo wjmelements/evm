@@ -92,9 +92,9 @@ void evmFinalize();
 
 #define EVM_DEBUG_STACK 1
 #define EVM_DEBUG_MEMORY 2
-#define EVM_DEBUG_OPS 4
-#define EVM_DEBUG_GAS (EVM_DEBUG_OPS + 8)
-#define EVM_DEBUG_PC (EVM_DEBUG_OPS + 16)
+#define EVM_DEBUG_OPS (4 + 8 + 16)
+#define EVM_DEBUG_GAS 8
+#define EVM_DEBUG_PC 16
 #define EVM_DEBUG_CALLS 32
 #define EVM_DEBUG_LOGS 64
 void evmSetDebug(uint64_t flags);
