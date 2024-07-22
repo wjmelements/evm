@@ -759,9 +759,13 @@ static void jsonScanEntry(const char **iter) {
                                     test->input.content = malloc(test->input.size);
                                     uint32_t whitespaceCount = 0;
                                     for (size_t i = 0; i < test->input.size; i++) {
-                                        if (jsonIgnores(testValue[i * 2 + whitespaceCount])) {
+                                        char curr = testValue[i * 2 + whitespaceCount];
+                                        if (jsonIgnores(curr)) {
                                             if (whitespaceCount++ & 1) {
                                                 test->input.size--;
+                                            }
+                                            if (curr == '\n') {
+                                                lineNumber++;
                                             }
                                             i--;
                                             continue;
@@ -1031,7 +1035,12 @@ void loadConfig(const char *_configFile, int updateConfigFile) {
             _exit(1);
         }
         char *configContents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
-        applyConfig(configContents);
+        {
+            uint64_t prevLineNumber = lineNumber;
+            lineNumber = 0;
+            applyConfig(configContents);
+            lineNumber = prevLineNumber;
+        }
         if (updateConfigFile) {
             updateConfig(configContents, _configFile);
         }
