@@ -94,7 +94,7 @@ typedef struct testResult {
     const char *gasUsedEnd;
 } testResult_t;
 
-static struct {
+static struct testResults {
     testResult_t *head;
     testResult_t **tail;
 } testResults;
@@ -1037,12 +1037,15 @@ void loadConfig(const char *_configFile, int updateConfigFile) {
         char *configContents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
         {
             uint64_t prevLineNumber = lineNumber;
-            lineNumber = 0;
+            struct testResults results = testResults;
+
             applyConfig(configContents);
+            if (updateConfigFile) {
+                updateConfig(configContents, _configFile);
+            }
+
             lineNumber = prevLineNumber;
-        }
-        if (updateConfigFile) {
-            updateConfig(configContents, _configFile);
+            testResults = results;
         }
         munmap(configContents, fstatus.st_size);
         close(fd);
