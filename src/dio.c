@@ -12,12 +12,6 @@
 #include <unistd.h>
 
 
-static inline void fprintData(FILE* file, data_t data) {
-    for (size_t i = 0; i < data.size; i++) {
-        fprintf(file, "%02x", data.content[i]);
-    }
-}
-
 #define MAX_LOG_TOPICS 4
 
 static inline int jsonIgnores(char ch) {
