@@ -1516,11 +1516,22 @@ static result_t _evmCall(context_t *callContext) {
 
     memory_init(&callContext->memory, 0);
 
+    uint64_t startGas = callContext->gas;
+
     callstack.next += 1;
     result_t result = doCall(callContext);
     callstack.next -= 1;
 
     result.gasRemaining = callContext->gas;
+    if (SHOW_CALLS) {
+        fRepeat(stderr, "\t", depthOf(callContext));
+        fprintf(stderr, "gasUsed: %" PRIu64, startGas - callContext->gas);
+        if (startGas < 600000000) {
+            fprintf(stderr, " / %" PRIu64, startGas);
+        }
+        fputc('\n', stderr);
+    }
+
     if (zero256(&result.status)) {
         evmRevert(&result.stateChanges);
     }
