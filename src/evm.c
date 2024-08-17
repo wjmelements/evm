@@ -1510,77 +1510,54 @@ static void evmRevert(stateChanges_t **changes) {
     *changes = NULL;
 }
 
+static result_t _evmCall(context_t *callContext) {
+    callContext->top = callContext->bottom;
+    callContext->returnData.size = 0;
+
+    memory_init(&callContext->memory, 0);
+
+    callstack.next += 1;
+    result_t result = doCall(callContext);
+    callstack.next -= 1;
+
+    result.gasRemaining = callContext->gas;
+    if (zero256(&result.status)) {
+        evmRevert(&result.stateChanges);
+    }
+
+    return result;
+}
+
 static result_t evmDelegateCall(uint64_t gas, account_t *codeSource, data_t input) {
     context_t *parent = callstack.next - 1;
-    context_t *callContext  = callstack.next;
+    context_t *callContext = callstack.next;
 
     callContext->gas = gas;
-    callContext->top = callContext->bottom;
     callContext->readonly = parent->readonly;
     BalanceCopy(callContext->callValue, parent->callValue);
     AddressCopy(callContext->caller, parent->caller);
     callContext->account = parent->account;
     callContext->code = codeSource->code;
     callContext->callData = input;
-    callContext->returnData.size = 0;
-
-    memory_init(&callContext->memory, 0);
-
-    callstack.next += 1;
-    result_t result = doCall(callContext);
-    callstack.next -= 1;
-    result.gasRemaining = callContext->gas;
-    if (zero256(&result.status)) {
-        evmRevert(&result.stateChanges);
-    }
-
-    return result;
+    return _evmCall(callContext);
 }
 
 static result_t evmStaticCall(address_t from, uint64_t gas, address_t to, data_t input) {
     context_t *callContext = callstack.next;
     callContext->gas = gas;
 
-    callContext->top = callContext->bottom;
     callContext->readonly = true;
     callContext->callValue[0] = callContext->callValue[1] = callContext->callValue[2] = 0;
     AddressCopy(callContext->caller, from);
     callContext->account = getAccount(to);
     callContext->code = callContext->account->code;
     callContext->callData = input;
-    callContext->returnData.size = 0;
 
-    memory_init(&callContext->memory, 0);
-
-    callstack.next += 1;
-    result_t result = doCall(callContext);
-    callstack.next -= 1;
-    result.gasRemaining = callContext->gas;
-    if (zero256(&result.status)) {
-        evmRevert(&result.stateChanges);
-    }
-
-    return result;
+    return _evmCall(callContext);
 }
 
 static result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input) {
-    context_t *callContext = callstack.next;
-    callContext->gas = gas;
     account_t *fromAccount = getAccount(from);
-    if (callstack.next == callstack.bottom) {
-        callContext->readonly = false;
-    } else {
-        callContext->readonly = callContext[-1].readonly;
-    }
-
-    callContext->top = callContext->bottom;
-    BalanceCopy(callContext->callValue, value);
-    AddressCopy(callContext->caller, from);
-    callContext->account = getAccount(to);
-    callContext->code = callContext->account->code;
-    callContext->callData = input;
-    callContext->returnData.size = 0;
-
     if (!BalanceSub(fromAccount->balance, value)) {
         fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for call (need [0x%08x%08x%08x])\n",
             fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
@@ -1594,18 +1571,23 @@ static result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value,
         result.returnData.size = 0;
         return result;
     }
-    BalanceAdd(callContext->account->balance, value);
-    memory_init(&callContext->memory, 0);
 
-    callstack.next += 1;
-    result_t result = doCall(callContext);
-    callstack.next -= 1;
-    result.gasRemaining = callContext->gas;
-    if (zero256(&result.status)) {
-        evmRevert(&result.stateChanges);
+    context_t *callContext = callstack.next;
+    callContext->gas = gas;
+    if (callstack.next == callstack.bottom) {
+        callContext->readonly = false;
+    } else {
+        callContext->readonly = callContext[-1].readonly;
     }
 
-    return result;
+    BalanceCopy(callContext->callValue, value);
+    AddressCopy(callContext->caller, from);
+    callContext->account = getAccount(to);
+    BalanceAdd(callContext->account->balance, value);
+    callContext->code = callContext->account->code;
+    callContext->callData = input;
+
+    return _evmCall(callContext);
 }
 
 static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t value, data_t input) {
@@ -1626,7 +1608,6 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
     }
     callContext->readonly = false;
 
-    callContext->top = callContext->bottom;
     BalanceCopy(callContext->callValue, value);
     AddressCopy(callContext->caller, from);
     callContext->account = to;
@@ -1634,13 +1615,9 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
     BalanceAdd(callContext->account->balance, value);
     callContext->code = input;
     callContext->callData.size = 0;
-    memory_init(&callContext->memory, 0);
-    callContext->returnData.size = 0;
 
-    callstack.next += 1;
-    result_t result = doCall(callContext);
-    callstack.next -= 1;
-    result.gasRemaining = callContext->gas;
+    result_t result = _evmCall(callContext);
+
     if (!zero256(&result.status)) {
         uint64_t codeGas = result.returnData.size * G_PER_CODEBYTE;
         if (codeGas > callContext->gas) {
