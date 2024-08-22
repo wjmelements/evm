@@ -321,6 +321,7 @@ static account_t const *dnfAccount = &accounts[1024];
 static uint64_t evmIteration = 0;
 static uint16_t logIndex = 0;
 static uint64_t refundCounter = 0;
+static uint64_t blockNumber = 20587048;
 static address_t coinbase;
 static uint64_t debugFlags = 0;
 
@@ -332,6 +333,10 @@ void fRepeat(FILE *file, const char *str, uint16_t times) {
     if (!times) return;
     fputs(str, file);
     fRepeat(file, str, times - 1);
+}
+
+void evmSetBlockNumber(uint64_t _blockNumber) {
+    blockNumber = _blockNumber;
 }
 
 void evmSetDebug(uint64_t flags) {
@@ -1265,11 +1270,10 @@ static result_t doCall(context_t *callContext) {
                 LOWER(LOWER_P(callContext->top - 1)) = 0x65712600;
                 break;
             case NUMBER:
-                // TODO allow configuration for blockNumber
                 UPPER(UPPER_P(callContext->top - 1)) = 0;
                 LOWER(UPPER_P(callContext->top - 1)) = 0;
                 UPPER(LOWER_P(callContext->top - 1)) = 0;
-                LOWER(LOWER_P(callContext->top - 1)) = 0x11cfe8a;
+                LOWER(LOWER_P(callContext->top - 1)) = blockNumber;
                 break;
             case CALLVALUE:
                 UPPER(UPPER_P(callContext->top - 1)) = 0;
