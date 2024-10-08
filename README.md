@@ -80,7 +80,7 @@ CODECOPY(RETURNDATASIZE,RETURNDATASIZE,CODESIZE)
 RETURN(RETURNDATASIZE,CODESIZE)
 ```
 #### Configuration (Dio)
-![The World Tarot Card](https://upload.wikimedia.org/wikipedia/commons/f/ff/RWS_Tarot_21_World.jpg)
+<img alt="The World Tarot Card" src="https://upload.wikimedia.org/wikipedia/commons/f/ff/RWS_Tarot_21_World.jpg" height=120>
 
 By using `-w config.json`, you can define the precondition state before execution.
 ```json
