@@ -113,7 +113,7 @@ If `code` is also supplied for the entry, the code will be used to verify the re
 | `code` | account code; validated if `initcode` or `construct` specified | `0x383d3d39383df3` | `0x` |
 | `construct` | specify `code` by file | `tst/in/quine.evm` | `code` |
 | `import` | load another configuration | `tst/quine.json` | |
-| `tests` | transactions executed sequentially, after account configuration | `[{"input":"0x18160ddd","output":"0x115eec47f6cf7e35000000"}]` | `[]` |
+| `tests` | transactions executed sequentially, after account configuration | <pre>[<br>    {<br>    "input": "0x18160ddd",<br>        "output":"0x115eec47f6cf7e35000000"<br>    }<br>]</pre> | `[]` |
 
 See the next section for test configuration.
 
@@ -154,7 +154,7 @@ ignores calldata: pass
 | `to` | account called | `0x83F20F44975D03b1b09e64809B757c47f942BEeA` | account `address` |
 | `status` | expected return status | `0x0` (revert) | `0x1` (success) |
 | `output` | expected return or revert data | `0x0000000000000000000000000000000000000000000000000000000000000012` | ignored |
-| `logs` | expected logs by account | `{"0x6b175474e89094c44da98b954eedeac495271d0f": [{"topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0xae461ca67b15dc8dc81ce7615e0320da1a9ab8d5","0x650c1c32c383290a300ff952d2a1d238ee08e62f"],"data":"0x000000000000000000000000000000000000000000000000000717500b588103"}]}` | ignored |
+| `logs` | expected logs by account | <pre>{<br>    "0x6b175474e89094c44da98b954eedeac495271d0f": [<br>        {<br>            "topics": [<br>                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",<br>                "0xae461ca67b15dc8dc81ce7615e0320da1a9ab8d5",<br>                "0x650c1c32c383290a300ff952d2a1d238ee08e62f"<br>            ],<br>        "data": "0x000000000000000000000000000000000000000000000000000717500b588103"<br>    }<br>    ]}</pre> | ignored |
 | `gasUsed` | expected gas used | `0x5208` | ignored |
 | `accessList` | [EIP-2929](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-2929.md) | `[{"0x22d8432cc7aa4f8712a655fc4cdfb1baec29fca9":["0x6"]}] | `{}` |
 | `blockNumber` | `block.number` | `0x1312d00` | `0x13a2228` |
