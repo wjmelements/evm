@@ -79,7 +79,9 @@ $ evm -c quine.evm | evm -x | evm -d
 CODECOPY(RETURNDATASIZE,RETURNDATASIZE,CODESIZE)
 RETURN(RETURNDATASIZE,CODESIZE)
 ```
-#### Configuration
+#### Configuration (Dio)
+![The World Tarot Card](https://upload.wikimedia.org/wikipedia/commons/f/ff/RWS_Tarot_21_World.jpg)
+
 By using `-w config.json`, you can define the precondition state before execution.
 ```json
 [
@@ -97,8 +99,25 @@ By using `-w config.json`, you can define the precondition state before executio
 Account configuration fields are optional and default to zero.
 If you exclude address, one will be generated for you.
 
-Besides declaring code, contracts can be constructed from assembly source.
-If code is also supplied for the entry, the code will be used to verify the result of the constructor.
+Besides declaring code, contracts can be `construct`ed from assembly source.
+If `code` is also supplied for the entry, the code will be used to verify the result of the constructor.
+
+| Dio Key | Description | Example Value | Default Value or Behavior |
+| :-----: | ----------- | ------------- | :-----------------------: |
+| `address` | address for the account | `0x83F20F44975D03b1b09e64809B757c47f942BEeA` | |
+| `balance` | value in the account | `0xde0b6b3a7640000` | `0x0` |
+| `nonce` | nonce of the account | `0x1` | `0x0` |
+| `storage` | account storage | `{"0x1":"0x115eec47f6cf7e35000000"}` | `{}` |
+| `creator` | address of the account creating this contract | `0x3249936bDdF8bF739d3f06d26C40EEfC81029BD1` | `0x0000000000000000000000000000000000000000` |
+| `initcode` | account creation code | `0x66383d3d39383df33d5260076019f3` | `code` mocked without constructor |
+| `code` | account code; validated if `initcode` or `construct` specified | `0x383d3d39383df3` | `0x` |
+| `construct` | specify `code` by file | `tst/in/quine.evm` | `code` |
+| `import` | load another configuration | `tst/quine.json` | |
+| `tests` | transactions executed sequentially, after account configuration | `[{"input":"0x18160ddd","output":"0x115eec47f6cf7e35000000"}]` | `[]` |
+
+See the next section for test configuration.
+
+##### Testing
 ```json
 [
     {
@@ -123,6 +142,36 @@ evm -w tst/quine.json
 # tst/in/quine.evm
 ignores calldata: pass
 ```
+
+| Test Key | Description | Example Value | Default Value or Behavior | 
+| :------: | ----------- | :-----------: | :-----------------------: |
+| `name` | label for the test case | `"decimals() = 18"` | index of the testcase |
+| `input` | `msg.data` | `0x313ce567` | `0x` |
+| `value` | `msg.value` | `0x38d7ea4c68000` | `0x0` |
+| `from` | `tx.origin` | `0xd1236a6A111879d9862f8374BA15344b6B233Fbd` | `0x0000000000000000000000000000000000000000` |
+| `gas` | `tx.gasLimit` | `0x5208` | `0xffffffffffffffff` |
+| `op` | type of call | `STATICCALL` | `CALL` |
+| `to` | account called | `0x83F20F44975D03b1b09e64809B757c47f942BEeA` | account `address` |
+| `status` | expected return status | `0x0` (revert) | `0x1` (success) |
+| `output` | expected return or revert data | `0x0000000000000000000000000000000000000000000000000000000000000012` | ignored |
+| `logs` | expected logs by account | `{"0x6b175474e89094c44da98b954eedeac495271d0f": [{"topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef","0xae461ca67b15dc8dc81ce7615e0320da1a9ab8d5","0x650c1c32c383290a300ff952d2a1d238ee08e62f"],"data":"0x000000000000000000000000000000000000000000000000000717500b588103"}]}` | ignored |
+| `gasUsed` | expected gas used | `0x5208` | ignored |
+| `accessList` | [EIP-2929](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-2929.md) | `[{"0x22d8432cc7aa4f8712a655fc4cdfb1baec29fca9":["0x6"]}] | `{}` |
+| `blockNumber` | `block.number` | `0x1312d00` | `0x13a2228` |
+| `debug` | debug flags | `0x20` | `0x0` |
+
+The current `debug` flags:
+
+| Debug Flag | Description |
+| :--------: | ----------- |
+| 0x1 | Stack |
+| 0x2 | Memory |
+| 0x4 | Opcodes |
+| 0x8 | Gas |
+| 0x10 | PC |
+| 0x20 | Calls |
+| 0x40 | Logs |
+
 ##### Update Config
 A `gasUsed` test field can be supplied (or updated) in-place with `-u`
 ```sh
