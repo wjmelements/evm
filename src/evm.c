@@ -608,8 +608,9 @@ static result_t doSupportedPrecompile(precompile_t precompile, data_t input, uin
             return result;
         case IDENTITY:
             APPLY_GAS_COST(15 + 3 * ((input.size + 31) / 32));
-            // XXX do we need to copy the returnData?
-            result.returnData = input;
+            result.returnData.size = input.size;
+            result.returnData.content = malloc(input.size);
+            memcpy(result.returnData.content, input.content, input.size);
             return result;
         default:
             assert(0);
