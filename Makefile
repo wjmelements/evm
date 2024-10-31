@@ -8,7 +8,7 @@ CXXFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) $(CXXSTD) -fno-exceptions -Wno-write-
 OCFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) -fmodules
 MKDIRS=lib bin tst/bin .pass .pass/tst/bin .make .make/bin .make/tst/bin .make/lib .pass/tst/in .pass/tst/diotst
 INCLUDE=$(addprefix -I,include)
-EXECS=$(addprefix bin/,evm ops)
+EXECS=$(addprefix bin/,evm ops precompiles)
 TESTS=$(addprefix tst/bin/,address dio evm hex keccak label ops scanstack scan uint256 vector)
 SRC=$(wildcard src/*.cpp) $(wildcard src/*.m)
 LIBS=$(patsubst src/%.cpp, lib/%.o, $(wildcard src/*.cpp)) $(patsubst src/%.m, lib/%.o, $(wildcard src/*.m))
@@ -88,8 +88,10 @@ tst/bin/%: tst/%.c | tst/bin
 
 make/.ops.out: make/ops.sh bin/ops src/ops.c tst/evm.c src/evm.c
 	make/ops.sh > $@
-README.md: make/.ops.out make/.rme.md CONTRIBUTING.md
-	cat make/.rme.md make/.ops.out CONTRIBUTING.md > $@
+make/.precompiles.out: make/precompiles.sh bin/precompiles
+	make/precompiles.sh > $@
+README.md: make/.ops.out make/.precompiles.out make/.rme.md CONTRIBUTING.md
+	cat make/.rme.md make/.ops.out make/.precompiles.out CONTRIBUTING.md > $@
 
 
 

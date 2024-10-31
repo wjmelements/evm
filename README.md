@@ -364,6 +364,20 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | REVERT | ✅ |✅ |
 | INVALID | ✅ | ❌ |
 | SELFDESTRUCT | ✅ |❓ |
+### Precompiles
+| Precompile | Address | Execution Supported |
+| :---: | :---:| :---: |
+| `HOLE` | `0x0` | ✅ |
+| `ECRECOVER` | `0x1` | ❌ |
+| `SHA2_256` | `0x2` | ❌ |
+| `RIPEMD160` | `0x3` | ❌ |
+| `IDENTITY` | `0x4` | ✅ |
+| `MODEXP` | `0x5` | ❌ |
+| `EC_ADD` | `0x6` | ❌ |
+| `EC_MUL` | `0x7` | ❌ |
+| `EC_PAIRING` | `0x8` | ❌ |
+| `BLACK2F` | `0x9` | ❌ |
+| `ZKG_POINT` | `0xa` | ❌ |
 # Contributing
 Please use camelCase for methods and variables but snake\_case for types.
 Write errors to stderr.
