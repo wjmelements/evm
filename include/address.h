@@ -99,17 +99,32 @@ static inline void AddressToUint256(uint256_t *dst, address_t *src) {
 
 
 static inline int AddressIsPrecompile(const address_t address) {
-    uint32_t a = *(uint32_t *)(address.address),
-        b = *(uint32_t *)(address.address + 4),
-        c = *(uint32_t *)(address.address + 8),
-        d = *(uint32_t *)(address.address + 12),
-        e = *(uint32_t *)(address.address + 16);
-    return !a && !b && !c && !d && e < PRECOMPILE_BOUNDARY;
+    return !address.address[0] &&
+        !address.address[1] &&
+        !address.address[2] &&
+        !address.address[3] &&
+        !address.address[4] &&
+        !address.address[5] &&
+        !address.address[6] &&
+        !address.address[7] &&
+        !address.address[8] &&
+        !address.address[9] &&
+        !address.address[10] &&
+        !address.address[11] &&
+        !address.address[12] &&
+        !address.address[13] &&
+        !address.address[14] &&
+        !address.address[15] &&
+        !address.address[16] &&
+        !address.address[17];
 }
 
 // assumes AddressIsPrecompile
 static inline precompile_t AddressToPrecompile(const address_t address) {
-    return *(precompile_t *)(address.address + (20 - sizeof(precompile_t)));
+    precompile_t precompile = address.address[18];
+    precompile <<= 8;
+    precompile |= address.address[19];
+    return precompile;
 }
 
 // assuming address is a precompile, determine whether it is known

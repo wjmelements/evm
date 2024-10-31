@@ -15,5 +15,8 @@ int main() {
     address_t unstacked = AddressFromUint256(&stacked);
     assert(AddressEqual(&address, &unstacked));
 
+    address_t precompile = AddressFromHex42("0x0000000000000000000000000000000000000001");
+    assert(AddressToPrecompile(precompile) == ECRECOVER);
+
     return 0;
 }

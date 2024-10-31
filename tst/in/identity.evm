@@ -1,0 +1,6 @@
+CODECOPY(0,str,#str)
+STATICCALL(GAS,0x4,0,#str,#str,#str)
+RETURN(0,ADD(#str,#str))
+{
+    str: 0x41726f756e642074686520776f726c640a
+}
