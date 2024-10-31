@@ -581,27 +581,41 @@ static storage_t *warmStorage(context_t *callContext, uint256_t *key, uint64_t w
     return storage;
 }
 
-static result_t doSupportedPrecompile(precompile_t precompile, data_t input) {
+static result_t doSupportedPrecompile(precompile_t precompile, data_t input, uint64_t gas) {
+    uint64_t gasCost;
     result_t result;
     LOWER(LOWER(result.status)) = 1;
     UPPER(LOWER(result.status)) = 0;
     LOWER(UPPER(result.status)) = 0;
     UPPER(UPPER(result.status)) = 0;
     #define OUT_OF_GAS \
-            fprintf(stderr, "Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]);\
+            fprintf(stderr, "Out of gas in precompile %s\n", precompileName[precompile]); \
+            LOWER(LOWER(result.status)) = 0; \
+            result.gasRemaining = 0; \
             result.returnData.size = 0; \
             return result
+    #define APPLY_GAS_COST(required) \
+        gasCost = required; \
+        if (gas < gasCost) { \
+            OUT_OF_GAS; \
+        } \
+        result.gasRemaining = gas - gasCost
+
     switch (precompile) {
         case HOLE:
             result.returnData.size = 0;
+            result.gasRemaining = gas;
             return result;
         case IDENTITY:
-            // XXX do we need to copy?
+            APPLY_GAS_COST(15 + 3 * ((input.size + 31) / 32));
+            // XXX do we need to copy the returnData?
             result.returnData = input;
             return result;
         default:
             assert(0);
     }
+    #undef APPLY_GAS_COST
+    #undef OUT_OF_GAS
 }
 
 static result_t evmStaticCall(address_t from, uint64_t gas, address_t to, data_t input);
@@ -628,7 +642,7 @@ static result_t doCall(context_t *callContext) {
         if (PrecompileIsKnownPrecompile(callContext->account->address)) {
             precompile_t precompile = AddressToPrecompile(callContext->account->address);
             if (PrecompileIsSupported(precompile)) {
-                return doSupportedPrecompile(precompile, callContext->callData);
+                return doSupportedPrecompile(precompile, callContext->callData, callContext->gas);
             } else {
                 fprintf(stderr, "Unsupported precompile %s\n", precompileName[precompile]);
             }
@@ -675,8 +689,9 @@ static result_t doCall(context_t *callContext) {
             result.returnData.size = 0;
             return result;
         }
-#define OUT_OF_GAS \
+        #define OUT_OF_GAS \
             fprintf(stderr, "Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]);\
+            result.gasRemaining = 0; \
             result.returnData.size = 0; \
             return result
         // Check staticcall
