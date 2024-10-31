@@ -584,6 +584,7 @@ static storage_t *warmStorage(context_t *callContext, uint256_t *key, uint64_t w
 static result_t doSupportedPrecompile(precompile_t precompile, data_t input, uint64_t gas) {
     uint64_t gasCost;
     result_t result;
+    result.stateChanges = NULL;
     LOWER(LOWER(result.status)) = 1;
     UPPER(LOWER(result.status)) = 0;
     LOWER(UPPER(result.status)) = 0;
