@@ -317,13 +317,13 @@ callstack_t callstack;
 
 static account_t accounts[1024];
 static account_t *emptyAccount;
-static account_t const *dnfAccount = &accounts[1024];
 static uint64_t evmIteration = 0;
 static uint16_t logIndex = 0;
 static uint64_t refundCounter = 0;
 static uint64_t blockNumber = 20587048;
 static address_t coinbase;
 static uint64_t debugFlags = 0;
+static account_t knownPrecompiles[KNOWN_PRECOMPILES];
 
 uint16_t depthOf(context_t *context) {
     return context - callstack.bottom;
@@ -352,6 +352,17 @@ void evmSetDebug(uint64_t flags) {
 #define SHOW_LOGS (debugFlags & EVM_DEBUG_LOGS)
 
 static account_t *getAccount(const address_t address) {
+    if (AddressIsPrecompile(address)) {
+        if (PrecompileIsKnownPrecompile(address)) {
+            account_t *precompile = knownPrecompiles + address.address[19];
+            AddressCopy(precompile->address, address);
+            return precompile;
+        } else {
+            fputs("Unknown precompile ", stderr);
+            fprintAddress(stderr, address);
+            fputc('\n', stderr);
+        }
+    }
     account_t *result = accounts;
     while (result < emptyAccount && !AddressEqual(&result->address, &address)) result++;
     if (result == emptyAccount) {
@@ -570,6 +581,29 @@ static storage_t *warmStorage(context_t *callContext, uint256_t *key, uint64_t w
     return storage;
 }
 
+static result_t doSupportedPrecompile(precompile_t precompile, data_t input) {
+    result_t result;
+    LOWER(LOWER(result.status)) = 1;
+    UPPER(LOWER(result.status)) = 0;
+    LOWER(UPPER(result.status)) = 0;
+    UPPER(UPPER(result.status)) = 0;
+    #define OUT_OF_GAS \
+            fprintf(stderr, "Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]);\
+            result.returnData.size = 0; \
+            return result
+    switch (precompile) {
+        case HOLE:
+            result.returnData.size = 0;
+            return result;
+        case IDENTITY:
+            // XXX do we need to copy?
+            result.returnData = input;
+            return result;
+        default:
+            assert(0);
+    }
+}
+
 static result_t evmStaticCall(address_t from, uint64_t gas, address_t to, data_t input);
 static result_t evmDelegateCall(uint64_t gas, account_t *codeSource, data_t input);
 static result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input);
@@ -589,6 +623,18 @@ static result_t doCall(context_t *callContext) {
         fRepeat(stderr, "\t", depthOf(callContext));
         fprintf(stderr, "input: ");
         dumpCallData(callContext);
+    }
+    if (AddressIsPrecompile(callContext->account->address)) {
+        if (PrecompileIsKnownPrecompile(callContext->account->address)) {
+            precompile_t precompile = AddressToPrecompile(callContext->account->address);
+            if (PrecompileIsSupported(precompile)) {
+                return doSupportedPrecompile(precompile, callContext->callData);
+            } else {
+                fprintf(stderr, "Unsupported precompile %s\n", precompileName[precompile]);
+            }
+        } else {
+            // warning already issued by getAccount
+        }
     }
     result_t result;
     result.stateChanges = NULL;
