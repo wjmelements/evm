@@ -356,6 +356,7 @@ static account_t *getAccount(const address_t address) {
         if (PrecompileIsKnownPrecompile(address)) {
             account_t *precompile = knownPrecompiles + address.address[19];
             AddressCopy(precompile->address, address);
+            precompile->warm = evmIteration;
             return precompile;
         } else {
             fputs("Unknown precompile ", stderr);
@@ -581,7 +582,7 @@ static storage_t *warmStorage(context_t *callContext, uint256_t *key, uint64_t w
     return storage;
 }
 
-static result_t doSupportedPrecompile(precompile_t precompile, data_t input, uint64_t gas) {
+static result_t doSupportedPrecompile(precompile_t precompile, context_t *callContext) {
     uint64_t gasCost;
     result_t result;
     result.stateChanges = NULL;
@@ -592,26 +593,25 @@ static result_t doSupportedPrecompile(precompile_t precompile, data_t input, uin
     #define OUT_OF_GAS \
             fprintf(stderr, "Out of gas in precompile %s\n", precompileName[precompile]); \
             LOWER(LOWER(result.status)) = 0; \
-            result.gasRemaining = 0; \
+            callContext->gas = 0; \
             result.returnData.size = 0; \
             return result
     #define APPLY_GAS_COST(required) \
         gasCost = required; \
-        if (gas < gasCost) { \
+        if (callContext->gas < gasCost) { \
             OUT_OF_GAS; \
         } \
-        result.gasRemaining = gas - gasCost
+        callContext->gas -= gasCost
 
     switch (precompile) {
         case HOLE:
             result.returnData.size = 0;
-            result.gasRemaining = gas;
             return result;
         case IDENTITY:
-            APPLY_GAS_COST(15 + 3 * ((input.size + 31) / 32));
-            result.returnData.size = input.size;
-            result.returnData.content = malloc(input.size);
-            memcpy(result.returnData.content, input.content, input.size);
+            APPLY_GAS_COST(15 + 3 * ((callContext->callData.size + 31) / 32));
+            result.returnData.size = callContext->callData.size;
+            result.returnData.content = malloc(callContext->callData.size);
+            memcpy(result.returnData.content, callContext->callData.content, callContext->callData.size);
             return result;
         default:
             assert(0);
@@ -644,7 +644,7 @@ static result_t doCall(context_t *callContext) {
         if (PrecompileIsKnownPrecompile(callContext->account->address)) {
             precompile_t precompile = AddressToPrecompile(callContext->account->address);
             if (PrecompileIsSupported(precompile)) {
-                return doSupportedPrecompile(precompile, callContext->callData, callContext->gas);
+                return doSupportedPrecompile(precompile, callContext);
             } else {
                 fprintf(stderr, "Unsupported precompile %s\n", precompileName[precompile]);
             }
@@ -693,7 +693,7 @@ static result_t doCall(context_t *callContext) {
         }
         #define OUT_OF_GAS \
             fprintf(stderr, "Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]);\
-            result.gasRemaining = 0; \
+            callContext->gas = 0; \
             result.returnData.size = 0; \
             return result
         // Check staticcall
@@ -1398,9 +1398,9 @@ static result_t doCall(context_t *callContext) {
                     uint64_t gasCost = 0;
                     if (value[0] || value[1] || value[2]) {
                         gasCost += G_CALLVALUE;
-                    }
-                    if (AccountDead(toAccount)) {
-                        gasCost += G_NEWACCOUNT;
+                        if (AccountDead(toAccount)) {
+                            gasCost += G_NEWACCOUNT;
+                        }
                     }
                     if (gasCost > callContext->gas) {
                         OUT_OF_GAS;
@@ -1446,10 +1446,6 @@ static result_t doCall(context_t *callContext) {
                         OUT_OF_GAS;
                     }
                     uint64_t gasCost = 0;
-                    if (AccountDead(toAccount)) {
-                        // TODO unsure if G_NEWACCOUNT can happen here
-                        gasCost += G_NEWACCOUNT;
-                    }
                     if (gasCost > callContext->gas) {
                         OUT_OF_GAS;
                     }
@@ -1491,9 +1487,6 @@ static result_t doCall(context_t *callContext) {
                         OUT_OF_GAS;
                     }
                     uint64_t gasCost = 0;
-                    if (AccountDead(toAccount)) {
-                        gasCost += G_NEWACCOUNT;
-                    }
                     if (gasCost > callContext->gas) {
                         OUT_OF_GAS;
                     }

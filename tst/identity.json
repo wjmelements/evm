@@ -3,8 +3,7 @@
         "construct": "tst/in/identity.evm",
         "tests": [
             {
-                "debug": "0x60",
-                "gasUsed": "0xbe07",
+                "gasUsed": "0x52ad",
                 "output": "0x41726f756e642074686520776f726c640a41726f756e642074686520776f726c640a"
             }
         ]
