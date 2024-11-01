@@ -1,4 +1,5 @@
 #include "hex.h"
+#include "precompiles.h"
 #include "uint256.h"
 
 #include <stdint.h>
@@ -95,3 +96,38 @@ static inline void AddressToUint256(uint256_t *dst, address_t *src) {
         addr.address[0], addr.address[1], addr.address[2], addr.address[3], addr.address[4], addr.address[5], addr.address[6], addr.address[7], addr.address[8], addr.address[9], addr.address[10],\
         addr.address[11], addr.address[12], addr.address[13], addr.address[14], addr.address[15], addr.address[16], addr.address[17], addr.address[18], addr.address[19]\
 )
+
+
+static inline int AddressIsPrecompile(const address_t address) {
+    return !address.address[0] &&
+        !address.address[1] &&
+        !address.address[2] &&
+        !address.address[3] &&
+        !address.address[4] &&
+        !address.address[5] &&
+        !address.address[6] &&
+        !address.address[7] &&
+        !address.address[8] &&
+        !address.address[9] &&
+        !address.address[10] &&
+        !address.address[11] &&
+        !address.address[12] &&
+        !address.address[13] &&
+        !address.address[14] &&
+        !address.address[15] &&
+        !address.address[16] &&
+        !address.address[17];
+}
+
+// assumes AddressIsPrecompile
+static inline precompile_t AddressToPrecompile(const address_t address) {
+    precompile_t precompile = address.address[18];
+    precompile <<= 8;
+    precompile |= address.address[19];
+    return precompile;
+}
+
+// assuming address is a precompile, determine whether it is known
+static inline int PrecompileIsKnownPrecompile(const address_t address) {
+    return address.address[19] < KNOWN_PRECOMPILES;
+}

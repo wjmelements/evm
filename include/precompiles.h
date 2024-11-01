@@ -1,0 +1,23 @@
+#define PRECOMPILES \
+PRECOMPILE(HOLE,0x0,1) \
+PRECOMPILE(ECRECOVER,0x1,0) \
+PRECOMPILE(SHA2_256,0x2,0) \
+PRECOMPILE(RIPEMD160,0x3,0) \
+PRECOMPILE(IDENTITY,0x4,1) \
+PRECOMPILE(MODEXP,0x5,0) \
+PRECOMPILE(EC_ADD,0x6,0) \
+PRECOMPILE(EC_MUL,0x7,0) \
+PRECOMPILE(EC_PAIRING,0x8,0) \
+PRECOMPILE(BLACK2F,0x9,0) \
+PRECOMPILE(ZKG_POINT,0xa,0)
+
+typedef enum precompile {
+    #define PRECOMPILE(name,address,supported) name,
+    PRECOMPILES
+    #undef PRECOMPILE
+    KNOWN_PRECOMPILES,
+    PRECOMPILE_BOUNDARY = 0x10000,
+} precompile_t;
+
+extern const char *precompileName[KNOWN_PRECOMPILES];
+int PrecompileIsSupported(precompile_t precompile);
