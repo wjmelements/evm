@@ -9,8 +9,7 @@ OCFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) -fmodules
 MKDIRS=lib bin tst/bin .pass .pass/tst/bin .make .make/bin .make/tst/bin .make/lib .pass/tst/in .pass/tst/diotst
 INCLUDE=$(addprefix -I,include)
 EXECS=$(addprefix bin/,evm ops precompiles)
-TESTS=$(addprefix tst/bin/,address dio ec evm hex keccak label ops scan scanstack uint256 vector)
-SRC=$(wildcard src/*.cpp) $(wildcard src/*.m)
+TESTS=$(addprefix tst/bin/,address big dio ec evm hex keccak label ops scan scanstack uint256 vector)
 LIBS=$(patsubst src/%.cpp, lib/%.o, $(wildcard src/*.cpp)) $(patsubst src/%.m, lib/%.o, $(wildcard src/*.m))
 INTEGRATIONS=$(addprefix tst/in/,$(shell ls tst/in)) $(addprefix tst/dio,$(shell ls tst/*.json))
 
@@ -92,6 +91,3 @@ make/.precompiles.out: make/precompiles.sh bin/precompiles
 	make/precompiles.sh > $@
 README.md: make/.ops.out make/.precompiles.out make/.rme.md CONTRIBUTING.md
 	cat make/.rme.md make/.ops.out make/.precompiles.out CONTRIBUTING.md > $@
-
-
-
