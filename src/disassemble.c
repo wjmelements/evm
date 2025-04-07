@@ -101,7 +101,7 @@ statement_t labelForPc(pc_t pc) {
 
 static void disassemblePush(op_t op, const char **iter) {
     uint8_t pushlen = op - PUSH1 + 1;
-    if (pushlen <= 8) {
+    if (pushlen <= 3) {
         disassemblePushDecimal(op, pushlen, iter);
     } else {
         disassemblePushHex(op, pushlen, iter);
