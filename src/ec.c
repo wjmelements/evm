@@ -110,6 +110,7 @@ address_t ec_recover(uint256_t msg_hash, unsigned char v, uint256_t r, uint256_t
     uint256_t beta;
     mulmod256(&r, &r, &SECP256K1_P, &beta);
     mulmod256(&beta, &r, &SECP256K1_P, &beta);
+    // NOTE A*X is skipped here because A=0
     add256(&beta, &SECP256K1_B, &beta);
     address_t undefined;
     return undefined;
