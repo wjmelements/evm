@@ -158,6 +158,7 @@ ignores calldata: pass
 | `gasUsed` | expected gas used | `0x5208` | ignored |
 | `accessList` | [EIP-2929](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-2929.md) | `[{"0x22d8432cc7aa4f8712a655fc4cdfb1baec29fca9":["0x6"]}]` | `{}` |
 | `blockNumber` | `block.number` | `0x1312d00` | `0x13a2228` |
+| `timestamp` | `block.timestamp` | `0x68255820` | `0x65712600` |
 | `debug` | debug flags | `0x20` | `0x0` |
 
 The current `debug` flags:
