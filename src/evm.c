@@ -321,6 +321,7 @@ static uint64_t evmIteration = 0;
 static uint16_t logIndex = 0;
 static uint64_t refundCounter = 0;
 static uint64_t blockNumber = 20587048;
+static uint64_t timestamp = 0x65712600;
 static address_t coinbase;
 static uint64_t debugFlags = 0;
 static account_t knownPrecompiles[KNOWN_PRECOMPILES];
@@ -337,6 +338,10 @@ void fRepeat(FILE *file, const char *str, uint16_t times) {
 
 void evmSetBlockNumber(uint64_t _blockNumber) {
     blockNumber = _blockNumber;
+}
+
+void evmSetTimestamp(uint64_t _timestamp) {
+    timestamp = _timestamp;
 }
 
 void evmSetDebug(uint64_t flags) {
@@ -1326,11 +1331,10 @@ static result_t doCall(context_t *callContext) {
                 AddressToUint256(callContext->top - 1, &coinbase);
                 break;
             case TIMESTAMP:
-                // TODO allow configuration for timestamp
                 UPPER(UPPER_P(callContext->top - 1)) = 0;
                 LOWER(UPPER_P(callContext->top - 1)) = 0;
                 UPPER(LOWER_P(callContext->top - 1)) = 0;
-                LOWER(LOWER_P(callContext->top - 1)) = 0x65712600;
+                LOWER(LOWER_P(callContext->top - 1)) = timestamp;
                 break;
             case NUMBER:
                 UPPER(UPPER_P(callContext->top - 1)) = 0;

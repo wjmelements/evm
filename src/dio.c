@@ -108,6 +108,7 @@ typedef struct testEntry {
     uint64_t gasUsed;
     logsEntry_t *logs;
     uint64_t *blockNumber;
+    uint64_t *timestamp;
     uint64_t debug;
     testResult_t result;
 
@@ -204,6 +205,10 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
     if (test->blockNumber) {
         evmSetBlockNumber(*test->blockNumber);
         free(test->blockNumber);
+    }
+    if (test->timestamp) {
+        evmSetTimestamp(*test->timestamp);
+        free(test->timestamp);
     }
     uint64_t gas = 0xffffffffffffffff;
     if (test->gas) {
@@ -795,6 +800,17 @@ static void jsonScanEntry(const char **iter) {
                                     for (size_t i = 0; i < testValueLength; i++) {
                                         *test->blockNumber <<= 4;
                                         *test->blockNumber |= hexString8ToUint8(testValue[i]);
+                                    }
+                                } else if (testHeadingLen == 9 && *testHeading == 't') {
+                                    // timestamp
+                                    test->timestamp = malloc(8);
+                                    *test->timestamp = 0;
+                                    jsonSkipExpectedChar(&testValue, '0');
+                                    jsonSkipExpectedChar(&testValue, 'x');
+                                    testValueLength -= 2;
+                                    for (size_t i = 0; i < testValueLength; i++) {
+                                        *test->timestamp <<= 4;
+                                        *test->timestamp |= hexString8ToUint8(testValue[i]);
                                     }
                                 } else if (testHeadingLen == 6 && *testHeading == 'o') {
                                     // output
