@@ -1,0 +1,12 @@
+[
+    {
+        "construct": "tst/in/timestamp.evm",
+        "tests": [
+            {
+                "name": "timestamp",
+                "timestamp": "0x321",
+                "output": "0x0000000000000000000000000000000000000000000000000000000000000321"
+            }
+        ]
+    }
+]
