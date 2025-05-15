@@ -144,7 +144,7 @@ ignores calldata: pass
 ```
 
 | Test Key | Description | Example Value | Default Value or Behavior | 
-| :------: | ----------- | ------------- | :-----------------------: |
+| :------: | :---------: | ------------- | :-----------------------: |
 | `name` | label for the test case | `"decimals() = 18"` | index of the testcase |
 | `input` | `msg.data` | `0x313ce567` | `0x` |
 | `value` | `msg.value` | `0x38d7ea4c68000` | `0x0` |
