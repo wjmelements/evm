@@ -1,6 +1,6 @@
 EVM
 ========
-Fast assembler and disassembler for the Ethereum Virtual Machine (EVM) supporting expressive syntax.
+Fast assembler, disassembler, execution, and testing for the Ethereum Virtual Machine (EVM) supporting expressive syntax.
 
 ## Installation
 ```sh
