@@ -363,7 +363,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | AUTHCALL | ✅ | ❌ |
 | STATICCALL | ✅ |✅ |
 | REVERT | ✅ |✅ |
-| INVALID | ✅ | ❌ |
+| INVALID | ✅ |❓ |
 | SELFDESTRUCT | ✅ |❓ |
 ### Precompiles
 | Precompile | Address | Execution Supported |

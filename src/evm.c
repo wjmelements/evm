@@ -696,11 +696,13 @@ static result_t doCall(context_t *callContext) {
             result.returnData.size = 0;
             return result;
         }
-        #define OUT_OF_GAS \
-            fprintf(stderr, "Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]);\
+        #define FAIL_INVALID \
             callContext->gas = 0; \
             result.returnData.size = 0; \
             return result
+        #define OUT_OF_GAS \
+            fprintf(stderr, "Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]);\
+            FAIL_INVALID
         // Check staticcall
         switch (op) {
         case CALL:
@@ -721,9 +723,7 @@ static result_t doCall(context_t *callContext) {
         case TSTORE:
             if (callContext->readonly) {
                 fprintf(stderr, "Attempted %s inside STATICCALL\n", opString[op]);
-                callContext->gas = 0;
-                result.returnData.size = 0;
-                return result;\
+                FAIL_INVALID;
             }
         default:
             break;
@@ -1025,25 +1025,26 @@ static result_t doCall(context_t *callContext) {
                 }
                 // intentional fallthorugh
             case JUMP:
-                pc = LOWER(LOWER_P(callContext->top + (op - JUMP)));
+                {
+                    uint256_t *dst = callContext->top + (op - JUMP);
+                    if (UPPER(UPPER_P(dst)) || UPPER(LOWER_P(dst)) || LOWER(UPPER_P(dst))) {
+                        fprintf(stderr, "%s destination has upper bits set\n", opString[op]);
+                        FAIL_INVALID;
+                    }
+                    pc = LOWER(LOWER_P(dst));
+                }
                 if (pc >= callContext->code.size) {
                     fprintf(stderr, "%s out of bounds %" PRIu64 " >= %lu\n", opString[op], pc, callContext->code.size);
-                    result.returnData.size = 0;
-                    callContext->gas = 0;
-                    return result;
+                    FAIL_INVALID;
                 }
                 if (callContext->code.content[pc] != JUMPDEST) {
                     fprintf(stderr, "%s to invalid destination %" PRIu64 " (%s)\n", opString[op], pc, opString[callContext->code.content[pc]]);
-                    result.returnData.size = 0;
-                    callContext->gas = 0;
-                    return result;
+                    FAIL_INVALID;
                 } // TODO static analysis for PUSH
                 break;
             default:
                 fprintf(stderr, "Unsupported opcode %u (%s)\n", op, opString[op]);
-                result.returnData.size = 0;
-                callContext->gas = 0;
-                return result;
+                FAIL_INVALID;
             case STOP:
                 LOWER(LOWER(result.status)) = 1;
                 result.returnData.size = 0;
