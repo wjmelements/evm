@@ -45,8 +45,24 @@ FNM=\([-+a-z_A-Z0-9/]*\)
 	@sed -i.bak 's/$(FNM).o:/tst\/bin\/\1:/g' $@
 	@perl make/depend.pl $@ > $@.bak
 	@mv $@.bak $@
+
+secp256k1/autogen.sh:
+	git submodule update --init
+
+secp256k1/configure: secp256k1/autogen.sh
+	cd secp256k1; ./autogen.sh
+
+secp256k1/Makefile: secp256k1/configure
+	cd secp256k1; ./configure
+
+secp256k1/.libs/libsecp256k1.a: secp256k1/Makefile
+	make -C secp256k1
+
 MAKES=$(addsuffix .d,$(addprefix .make/, $(EXECS) $(TESTS) $(LIBS)))
 -include $(MAKES)
+
+
+
 distcheck dist-check:
 	@rm -rf .pass
 	@make --no-print-directory check
