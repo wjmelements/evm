@@ -224,7 +224,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | SDIV | ✅ |✅ |
 | MOD | ✅ |✅ |
 | SMOD | ✅ |✅ |
-| ADDMOD | ✅ | ❌ |
+| ADDMOD | ✅ |✅ |
 | MULMOD | ✅ |✅ |
 | EXP | ✅ |✅ |
 | SIGNEXTEND | ✅ |✅ |
