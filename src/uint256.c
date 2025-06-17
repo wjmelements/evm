@@ -827,6 +827,24 @@ void divmod512(const uint512_t *l, const uint512_t *r, uint512_t *retDiv, uint51
     }
 }
 
+void addmod256(const uint256_t *number1, const uint256_t *number2, const uint256_t *divisor, uint256_t *target) {
+    uint512_t one, two, sum, three, result;
+    clear256(&UPPER_P(&one));
+    clear256(&UPPER_P(&two));
+    clear256(&UPPER_P(&three));
+    copy256(&LOWER_P(&one), number1);
+    copy256(&LOWER_P(&two), number2);
+    copy256(&LOWER_P(&three), divisor);
+    add512(&one, &two, &sum);
+    if (zero256(&UPPER(sum))) {
+        divmod256(&LOWER(sum), divisor, &LOWER(one), target);
+    } else {
+        copy256(&LOWER(two), divisor);
+        divmod512(&sum, &two, &one, &result);
+        copy256(target, &LOWER(result));
+    }
+}
+
 void mulmod256(const uint256_t *number1, const uint256_t *number2, const uint256_t *divisor, uint256_t *target) {
     uint512_t one, two, product, three, result;
     clear256(&UPPER_P(&one));

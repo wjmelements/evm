@@ -76,6 +76,7 @@ void not128(const uint128_t *number, uint128_t *target);
 void not256(const uint256_t *number, uint256_t *target);
 void mul128(const uint128_t *number1, const uint128_t *number2, uint128_t *target);
 void mul256(const uint256_t *number1, const uint256_t *number2, uint256_t *target);
+void addmod256(const uint256_t *number1, const uint256_t *number2, const uint256_t *divisor, uint256_t *target);
 void mulmod256(const uint256_t *number1, const uint256_t *number2, const uint256_t *divisor, uint256_t *target);
 void exp256(const uint256_t *base, const uint256_t *power, uint256_t *target);
 void signextend256(const uint256_t *base, uint8_t signBit, uint256_t *target);
