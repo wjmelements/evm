@@ -65,7 +65,6 @@ op_t parseOp(const char *start, const char **endOut) {
                 return CREATE;
             }
         case 'ELED': *endOut = start + 12; return DELEGATECALL;
-        case 'FFID': *endOut = start + 10; return DIFFICULTY;
         case '1PUD': 
             *endOut = start + 5;
             switch (*(uint8_t *)(start += 4)) {
@@ -153,6 +152,7 @@ op_t parseOp(const char *start, const char **endOut) {
         case 'MLUM': *endOut = start + 6; return MULMOD;
         case 'BMUN': *endOut = start + 6; return NUMBER;
         case 'GIRO': *endOut = start + 6; return ORIGIN;
+        case 'VERP': *endOut = start + 10; return PREVRANDAO;
         case 'HSUP':
             *endOut = start + 5;
             switch (*(uint8_t *)(start + 4)) {
