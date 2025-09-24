@@ -263,11 +263,13 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | COINBASE | ✅ |✅ |
 | TIMESTAMP | ✅ |❓ |
 | NUMBER | ✅ |❓ |
-| DIFFICULTY | ✅ | ❌ |
+| PREVRANDAO | ✅ | ❌ |
 | GASLIMIT | ✅ | ❌ |
 | CHAINID | ✅ |❓ |
 | SELFBALANCE | ✅ |✅ |
 | BASEFEE | ✅ | ❌ |
+| BLOBHASH | ❓ |  ❌ |
+| BLOBBASEFEE | ❓ |  ❌ |
 | POP | ✅ |❓ |
 | MLOAD | ✅ |❓ |
 | MSTORE | ✅ |✅ |
