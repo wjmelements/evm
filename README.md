@@ -359,8 +359,6 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | RETURN | ✅ |✅ |
 | DELEGATECALL | ✅ |✅ |
 | CREATE2 | ✅ |❓ |
-| AUTH | ✅ | ❌ |
-| AUTHCALL | ✅ | ❌ |
 | STATICCALL | ✅ |✅ |
 | REVERT | ✅ |✅ |
 | INVALID | ✅ |❓ |
