@@ -268,8 +268,8 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | CHAINID | ✅ |❓ |
 | SELFBALANCE | ✅ |✅ |
 | BASEFEE | ✅ | ❌ |
-| BLOBHASH | ❓ |  ❌ |
-| BLOBBASEFEE | ❓ |  ❌ |
+| BLOBHASH | ✅ | ❌ |
+| BLOBBASEFEE | ✅ | ❌ |
 | POP | ✅ |❓ |
 | MLOAD | ✅ |❓ |
 | MSTORE | ✅ |✅ |

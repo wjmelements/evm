@@ -29,6 +29,11 @@ op_t parseOp(const char *start, const char **endOut) {
         case 'RDDA': *endOut = start + 7; return ADDRESS;
         case 'MDDA': *endOut = start + 6; return ADDMOD;
         case 'ALAB': *endOut = start + 7; return BALANCE;
+        case 'BOLB':
+            switch (*(uint32_t *)(start += 4)) {
+                case 'HSAH': *endOut = start + 4; return BLOBHASH;
+                case 'ESAB': *endOut = start + 7; return BLOBBASEFEE;
+            }
         case 'COLB': *endOut = start + 9; return BLOCKHASH;
         case 'ETYB': *endOut = start + 4; return BYTE;
         case 'LLAC':
