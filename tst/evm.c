@@ -1867,7 +1867,7 @@ void test_createOutOfGas() {
     address_t created = AddressFromUint256(&result.status);
     assert(AddressEqual(&created, &expected));
 
-    fprintf(stderr, "\nGas Remaining %llu\n", result.gasRemaining);
+    // fprintf(stderr, "\nGas Remaining %llu\n", result.gasRemaining);
     // FIXME assert(result.gasRemaining == 11885640);
 }
 
@@ -1899,12 +1899,12 @@ int main() {
     test_log();
     test_sha3();
     test_delegateCall();
-    test_createOutOfGas(); // TODO move this to after hush
 
     // These last tests will write to stderr; usually we want this to be hushed
     close(2);
 
     test_staticcallSstore();
+    test_createOutOfGas();
 
     return 0;
 }
