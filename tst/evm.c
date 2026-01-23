@@ -13,6 +13,9 @@ void test_stop() {
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 53006;
     val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     data_t input;
 
     op_t program[] = {
@@ -38,6 +41,9 @@ void test_mstoreReturn() {
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 60044;
     val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     data_t input;
 
     op_t program[] = {
@@ -72,6 +78,9 @@ void test_math() {
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 72856;
     val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     data_t input;
 
     // 60026004046007600302015f035f5262ce378160021c595262abcdef601e1a5952595ffd
@@ -129,6 +138,9 @@ void test_shl() {
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 0x13540;
     val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     data_t input;
 
     // 5f60031b595260035f1b5952613377601d1b5952601d6133771b5952595ff3
@@ -164,6 +176,9 @@ void test_xorSwap() {
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 67152;
     val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     data_t input;
 
     op_t program[] = {
@@ -206,6 +221,9 @@ void test_sgtslt() {
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 0x14886;
     val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     data_t input;
 
     // tst/in/sgt.evm
@@ -356,6 +374,9 @@ void test_sdiv() {
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 0x18c91;
     val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     data_t input;
 
     // 600460090559527ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc600905595260047ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff70559527ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff70559527f40000000000000000000000000000000000000000000000000000000000000007f80000000000000000000000000000000000000000000000000000000000000000559527f40000000000000000000000000000000000000000000000000000000000000007fc0000000000000000000000000000000000000000000000000000000000000000559527fc0000000000000000000000000000000000000000000000000000000000000007f8000000000000000000000000000000000000000000000000000000000000000055952595ff3
@@ -430,6 +451,9 @@ void test_smod() {
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 0x18cb5;
     val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     data_t input;
 
     // 600460090759527ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc600907595260047ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff70759527ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff70759527f40000000000000000000000000000000000000000000000000000000000000007f80000000000000000000000000000000000000000000000000000000000000010759527f40000000000000000000000000000000000000000000000000000000000000007fc0000000000000000000000000000000000000000000000000000000000000010759527fc0000000000000000000000000000000000000000000000000000000000000007f8000000000000000000000000000000000000000000000000000000000000001075952595ff3
@@ -504,6 +528,9 @@ void test_addmod() {
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 0x18a78;
     val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     data_t input;
 
     op_t program[] = {
@@ -553,6 +580,9 @@ void test_mulmod() {
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 0x18a78;
     val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     data_t input;
 
     op_t program[] = {
@@ -601,6 +631,9 @@ void test_exp() {
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 0x18397;
     val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     data_t input;
 
     // tst/in/exp.evm
@@ -658,6 +691,9 @@ void test_signextend() {
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 0x41197;
     val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     data_t input;
 
     // 7f7f8f7f8f7f8f7f8f7f8f7f8f7f8f7f8f7f8f7f8f7f8f7f8f7f8f7f8f7f8f7f8f5f5b81810b595260010160218110602257595ff3
@@ -734,6 +770,9 @@ void test_spaghetti() {
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 53690;
     val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     data_t input;
 
     // 5f5b80156019575859525936fd5b6001565b80600d576001015b8060021160115700
@@ -783,6 +822,9 @@ void test_sstore_sload() {
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 81780;
     val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     data_t input;
     input.content = program;
     input.size = sizeof(program);
@@ -814,6 +856,9 @@ void test_sstore_refund() {
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 77680;
     val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     data_t input;
     input.content = program;
     input.size = sizeof(program);
@@ -846,6 +891,9 @@ void test_sstore_gauntlet() {
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 120461;
     val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     data_t input;
     input.content = program;
     input.size = sizeof(program);
@@ -872,6 +920,9 @@ void test_selfbalance() {
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     uint64_t gas = 66089;
     val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     value[0] = 0xdd;
     value[1] = 0xee;
     value[2] = 0xff;
@@ -1830,6 +1881,54 @@ void test_delegateCall() {
     evmFinalize();
 }
 
+void test_create() {
+    evmInit();
+    address_t from = AddressFromHex42("0x0000000000000000000000000000000000000000");
+    uint64_t gas = 16777216;
+    val_t value;
+    data_t input;
+
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 2;
+    evmMockBalance(from, value);
+
+    // 345ff3
+#define STOP_CALLVALUE_CONSTRUCTOR \
+    CALLVALUE, PUSH0, RETURN
+
+    // 62345ff359526003601d6001f08059523b595234595247595230315952595ffd
+#define CREATE_REVERT \
+    PUSH3, STOP_CALLVALUE_CONSTRUCTOR, MSIZE, MSTORE, \
+    PUSH1, 0x03, PUSH1, 0x1d, PUSH1, 0x01, CREATE, \
+    DUP1, MSIZE, MSTORE, \
+    EXTCODESIZE, MSIZE, MSTORE, \
+    CALLVALUE, MSIZE, MSTORE, \
+    SELFBALANCE, MSIZE, MSTORE, \
+    ADDRESS, BALANCE, MSIZE, MSTORE, \
+    MSIZE, PUSH0, REVERT
+
+    op_t createRevert[] = {
+        CREATE_REVERT
+    };
+    input.content = createRevert;
+    input.size = sizeof(createRevert);
+
+    result_t result = txCreate(from, gas, value, input);
+
+    op_t expected[] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, STOP_CALLVALUE_CONSTRUCTOR,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf4, 0xd9, 0x59, 0x9a, 0xfd, 0x90, 0xb5, 0x03, 0x8b, 0x18, 0xe3, 0xb5, 0x51, 0xbc, 0x21, 0xa9, 0x7e, 0xd2, 0x1c, 0x37,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+    };
+    assert(memcmp(result.returnData.content, expected, sizeof(expected)) == 0);
+
+    evmFinalize();
+}
+
 void test_createOutOfGas() {
     evmInit();
 
@@ -1869,7 +1968,7 @@ void test_createOutOfGas() {
 
     // fprintf(stderr, "\nGas Remaining %llu\n", result.gasRemaining);
     // FIXME assert(result.gasRemaining == 11885640);
-    
+
     evmFinalize();
 }
 
@@ -1901,6 +2000,7 @@ int main() {
     test_log();
     test_sha3();
     test_delegateCall();
+    test_create();
 
     // These last tests will write to stderr; usually we want this to be hushed
     close(2);

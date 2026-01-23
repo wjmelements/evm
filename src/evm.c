@@ -488,6 +488,7 @@ static account_t *createNewAccount(account_t *from) {
     addressHashResult_t hashResult;
     keccak_256((uint8_t *)&hashResult, sizeof(hashResult), inputBuffer, inputBuffer[0] - 0xbf);
     account_t *result = getAccount(hashResult.bottom160);
+    result->nonce = 1;
     result->warm = evmIteration;
     return result;
 }
@@ -1823,6 +1824,20 @@ result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t 
 }
 
 result_t evmCreate(account_t *fromAccount, uint64_t gas, val_t value, data_t input) {
+    if (!BalanceSub(fromAccount->balance, value)) {
+        fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for create (need [0x%08x%08x%08x])\n",
+            fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
+            value[0], value[1], value[2]
+        );
+
+        result_t result;
+        result.gasRemaining = 0;
+        result.stateChanges = NULL;
+        clear256(&result.status);
+        result.returnData.size = 0;
+        return result;
+    }
+
     return _evmConstruct(fromAccount->address, createNewAccount(fromAccount), gas, value, input);
 }
 
