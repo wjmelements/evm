@@ -1830,6 +1830,42 @@ void test_delegateCall() {
     evmFinalize();
 }
 
+void test_createOutOfGas() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0xF14F8427bBCf26b2c2087Dc3CD0fDe368c2610da");
+    uint64_t gas = 16777216;
+    val_t value;
+    data_t input;
+
+    // 385f5f39385f5ff0385ff3
+#define PROGRAM_CREATE_OUT_OF_GAS \
+    CODESIZE, PUSH0, PUSH0, CODECOPY, \
+    CODESIZE, PUSH0, PUSH0, CREATE, \
+    CODESIZE, PUSH0, RETURN
+
+    op_t recursiveOOG[] = {
+        PROGRAM_CREATE_OUT_OF_GAS
+    };
+
+    input.content = recursiveOOG;
+    input.size = sizeof(recursiveOOG);
+
+    result_t result = txCreate(from, gas, value, input);
+    assert(DataEqual(&result.returnData, &input));
+    for (stateChanges_t *stateChanges = result.stateChanges; stateChanges; stateChanges = stateChanges->next) {
+        assert(!stateChanges->logChanges);
+        assert(!stateChanges->storageChanges);
+        assert(!stateChanges->codeChanges->prev);
+        assert(!stateChanges->codeChanges->prev);
+        assert(stateChanges->codeChanges->before.size == 0);
+        assert(stateChanges->codeChanges->before.content == NULL);
+        assert(DataEqual(&stateChanges->codeChanges->after, &input));
+    }
+    fprintf(stderr, "\nGas Remaining %llu\n", result.gasRemaining);
+    // FIXME assert(result.gasRemaining == 11885640);
+}
+
 int main() {
     test_stop();
     test_mstoreReturn();
@@ -1858,6 +1894,7 @@ int main() {
     test_log();
     test_sha3();
     test_delegateCall();
+    test_createOutOfGas(); // TODO move this to after hush
 
     // These last tests will write to stderr; usually we want this to be hushed
     close(2);
