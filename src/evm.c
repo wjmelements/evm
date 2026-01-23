@@ -1404,7 +1404,10 @@ static result_t doCall(context_t *callContext) {
                     value[1] = LOWER(LOWER_P(callContext->top + 1)) >> 32;
                     value[2] = LOWER(LOWER_P(callContext->top + 1));
 
-                    result_t result = evmCreate(callContext->account, callContext->gas, value, input);
+                    uint64_t gas = L(callContext->gas);
+                    callContext->gas -= gas;
+
+                    result_t result = evmCreate(callContext->account, gas, value, input);
                     callContext->gas += result.gasRemaining;
                     mergeStateChanges(&result.stateChanges, result.stateChanges);
                     callContext->returnData = result.returnData;
