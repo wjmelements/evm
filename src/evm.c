@@ -1302,9 +1302,7 @@ static result_t doCall(context_t *callContext) {
                     copy256(&change->after, callContext->top);
                     change->warm = warmBefore;
                     change->prev = changes->storageChanges;
-                    changes->codeChanges = NULL;
                     changes->storageChanges = change;
-                    changes->logChanges = NULL;
                     copy256(&storage->value, callContext->top);
                 }
                 break;
@@ -1324,9 +1322,7 @@ static result_t doCall(context_t *callContext) {
                     copy256(&change->after, &storage->value);
                     change->warm = warmBefore;
                     change->prev = changes->storageChanges;
-                    changes->codeChanges = NULL;
                     changes->storageChanges = change;
-                    changes->logChanges = NULL;
                 }
                 break;
             case TLOAD:
@@ -1408,7 +1404,7 @@ static result_t doCall(context_t *callContext) {
                     value[1] = LOWER(LOWER_P(callContext->top + 1)) >> 32;
                     value[2] = LOWER(LOWER_P(callContext->top + 1));
 
-                    result_t result = evmCreate(getAccount(callContext->caller), callContext->gas, value, input);
+                    result_t result = evmCreate(callContext->account, callContext->gas, value, input);
                     callContext->gas += result.gasRemaining;
                     mergeStateChanges(&result.stateChanges, result.stateChanges);
                     callContext->returnData = result.returnData;
@@ -1755,9 +1751,15 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
         } else {
             result.gasRemaining -= codeGas;
             AddressToUint256(&result.status, &callContext->account->address);
+            codeChanges_t *change = malloc(sizeof(codeChanges_t));
+            change->before = callContext->account->code;
             callContext->account->code.size = result.returnData.size;
             callContext->account->code.content = malloc(result.returnData.size);
             memcpy(callContext->account->code.content, result.returnData.content, result.returnData.size);
+            change->after = callContext->account->code;
+            stateChanges_t *changes = getCurrentAccountStateChanges(&result, callContext);
+            change->prev = changes->codeChanges;
+            changes->codeChanges = change;
         }
     }
     if (zero256(&result.status)) {
