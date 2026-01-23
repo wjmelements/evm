@@ -1862,6 +1862,11 @@ void test_createOutOfGas() {
         assert(stateChanges->codeChanges->before.content == NULL);
         assert(DataEqual(&stateChanges->codeChanges->after, &input));
     }
+
+    address_t expected = AddressFromHex42("0xa70ceab58120a6b4209448716813c9e729fba16e");
+    address_t created = AddressFromUint256(&result.status);
+    assert(AddressEqual(&created, &expected));
+
     fprintf(stderr, "\nGas Remaining %llu\n", result.gasRemaining);
     // FIXME assert(result.gasRemaining == 11885640);
 }
