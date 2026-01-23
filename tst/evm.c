@@ -1926,6 +1926,9 @@ void test_create() {
     };
     assert(memcmp(result.returnData.content, expected, sizeof(expected)) == 0);
 
+    fprintf(stderr, "\nGas Remaining %llu\n", result.gasRemaining);
+    assert(result.gasRemaining == 16688924);
+
     evmFinalize();
 }
 
