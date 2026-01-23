@@ -543,6 +543,13 @@ static void mergeStateChanges(stateChanges_t **dst, stateChanges_t *src) {
             // merge!
 
             // concatenate the linked lists
+            codeChanges_t **codeEnd = &src->codeChanges;
+            while (*codeEnd != NULL) {
+                codeEnd = &(*codeEnd)->prev;
+            }
+            *codeEnd = (*dst)->codeChanges;
+            (*dst)->codeChanges = src->codeChanges;
+
             storageChanges_t **storageEnd = &src->storageChanges;
             while (*storageEnd != NULL) {
                 storageEnd = &(*storageEnd)->prev;
@@ -628,6 +635,7 @@ static result_t doSupportedPrecompile(precompile_t precompile, context_t *callCo
 static result_t evmStaticCall(address_t from, uint64_t gas, address_t to, data_t input);
 static result_t evmDelegateCall(uint64_t gas, account_t *codeSource, data_t input);
 static result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input);
+static result_t evmCreate(account_t *fromAccount, uint64_t gas, val_t value, data_t input);
 
 static result_t doCall(context_t *callContext) {
     if (SHOW_CALLS) {
@@ -1294,7 +1302,9 @@ static result_t doCall(context_t *callContext) {
                     copy256(&change->after, callContext->top);
                     change->warm = warmBefore;
                     change->prev = changes->storageChanges;
+                    changes->codeChanges = NULL;
                     changes->storageChanges = change;
+                    changes->logChanges = NULL;
                     copy256(&storage->value, callContext->top);
                 }
                 break;
@@ -1314,7 +1324,9 @@ static result_t doCall(context_t *callContext) {
                     copy256(&change->after, &storage->value);
                     change->warm = warmBefore;
                     change->prev = changes->storageChanges;
+                    changes->codeChanges = NULL;
                     changes->storageChanges = change;
+                    changes->logChanges = NULL;
                 }
                 break;
             case TLOAD:
@@ -1380,6 +1392,27 @@ static result_t doCall(context_t *callContext) {
                     LOWER(UPPER_P(callContext->top - 1)) = 0;
                     UPPER(LOWER_P(callContext->top - 1)) = account->balance[0];
                     LOWER(LOWER_P(callContext->top - 1)) = account->balance[2] | ((uint64_t) account->balance[1] << 32);
+                }
+                break;
+            case CREATE:
+                {
+                    data_t input;
+                    input.size = LOWER(LOWER_P(callContext->top - 1));
+                    uint64_t src = LOWER(LOWER_P(callContext->top));
+                    if (!ensureMemory(callContext, src + input.size)) {
+                        OUT_OF_GAS;
+                    }
+                    input.content = callContext->memory.uint8s + src;
+                    val_t value;
+                    value[0] = UPPER(LOWER_P(callContext->top + 1));
+                    value[1] = LOWER(LOWER_P(callContext->top + 1)) >> 32;
+                    value[2] = LOWER(LOWER_P(callContext->top + 1));
+
+                    result_t result = evmCreate(getAccount(callContext->caller), callContext->gas, value, input);
+                    callContext->gas += result.gasRemaining;
+                    mergeStateChanges(&result.stateChanges, result.stateChanges);
+                    callContext->returnData = result.returnData;
+                    copy256(callContext->top - 1, &result.status);
                 }
                 break;
             case CALL:
@@ -1545,6 +1578,18 @@ static result_t doCall(context_t *callContext) {
 #undef OUT_OF_GAS
 }
 
+static void evmRevertCodeChanges(account_t *account, codeChanges_t **changes) {
+    if (*changes == NULL) {
+        return;
+    }
+    assert(DataEqual(&account->code, &(*changes)->after));
+    account->code = (*changes)->before;
+
+    evmRevertCodeChanges(account, &(*changes)->prev);
+    free(*changes);
+    *changes = NULL;
+}
+
 static void evmRevertStorageChanges(account_t *account, storageChanges_t **changes) {
     if (*changes == NULL) {
         return;
@@ -1574,6 +1619,7 @@ static void evmRevert(stateChanges_t **changes) {
         return;
     }
     account_t *account = getAccount((*changes)->account);
+    evmRevertCodeChanges(account, &(*changes)->codeChanges);
     evmRevertStorageChanges(account, &(*changes)->storageChanges);
     evmRevertLogChanges(&(*changes)->logChanges);
 
