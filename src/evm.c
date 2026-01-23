@@ -294,18 +294,19 @@ static inline bool ensureMemory(context_t *callContext, uint64_t capacity) {
     return true;
 }
 
-static inline uint64_t calldataGas(const data_t *calldata, bool isCreate) {
+static inline uint64_t calldataGas(const data_t *calldata) {
     uint64_t gas = 0;
     gas += G_CALLDATAZERO * calldata->size;
-    if (isCreate) {
-        gas += G_INITCODEWORD * ((calldata->size + 31) >> 5); // EIP 3860: 2 gas per word
-    }
     for (size_t i = 0; i < calldata->size; i++) {
         if (calldata->content[i]) {
             gas += G_CALLDATANONZERO;
         }
     }
     return gas;
+}
+
+static inline uint64_t initcodeGas(const data_t *initcode) {
+    return G_INITCODEWORD * ((initcode->size + 31) >> 5); // EIP 3860: 2 gas per word
 }
 
 typedef struct {
@@ -1724,16 +1725,21 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
     callContext->gas = gas;
     if (callstack.next == callstack.bottom) {
         callContext->gas -= G_TXCREATE + G_TX;
-        callContext->gas -= calldataGas(&input, true);
-        if (gas < callContext->gas) {
-            // underflow indicates insufficient initial gas
+        callContext->gas -= calldataGas(&input);
+    }
+    callContext->gas -= initcodeGas(&input);
+    if (gas < callContext->gas) {
+        // underflow indicates insufficient initial gas
+        if (callstack.next == callstack.bottom) {
             fprintf(stderr, "Insufficient intrinsic gas %" PRIu64 " (need %" PRIu64 ")\n", gas, gas - callContext->gas);
-            result_t result;
-            result.gasRemaining = 0;
-            clear256(&result.status);
-            result.returnData.size = 0;
-            return result;
+        } else {
+            fprintf(stderr, "Out of gas while initializing initcode (have %" PRIu64 " need %" PRIu64 ")\n", gas, gas - callContext->gas);
         }
+        result_t result;
+        result.gasRemaining = 0;
+        clear256(&result.status);
+        result.returnData.size = 0;
+        return result;
     }
     callContext->readonly = false;
 
@@ -1792,7 +1798,7 @@ result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t 
     fromAccount->warm = evmIteration;
     account_t *coinbaseAccount = getAccount(coinbase);
     coinbaseAccount->warm = evmIteration;
-    uint64_t intrinsicGas = G_TX + calldataGas(&input, false);
+    uint64_t intrinsicGas = G_TX + calldataGas(&input);
     while (accessList) {
         intrinsicGas += G_ACCESSLIST_ACCOUNT;
         account_t *account = getAccount(accessList->address);
