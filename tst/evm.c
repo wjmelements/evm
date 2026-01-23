@@ -1869,6 +1869,8 @@ void test_createOutOfGas() {
 
     // fprintf(stderr, "\nGas Remaining %llu\n", result.gasRemaining);
     // FIXME assert(result.gasRemaining == 11885640);
+    
+    evmFinalize();
 }
 
 int main() {
