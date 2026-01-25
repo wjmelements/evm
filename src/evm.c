@@ -294,18 +294,20 @@ static inline bool ensureMemory(context_t *callContext, uint64_t capacity) {
     return true;
 }
 
-static inline uint64_t calldataGas(const data_t *calldata, bool isCreate) {
+static inline uint64_t calldataGas(const data_t *calldata) {
     uint64_t gas = 0;
     gas += G_CALLDATAZERO * calldata->size;
-    if (isCreate) {
-        gas += G_INITCODEWORD * ((calldata->size + 31) >> 5); // EIP 3860: 2 gas per word
-    }
     for (size_t i = 0; i < calldata->size; i++) {
         if (calldata->content[i]) {
             gas += G_CALLDATANONZERO;
         }
     }
     return gas;
+}
+
+// In the yellow paper, this is the R function.
+static inline uint64_t initcodeGas(const data_t *initcode) {
+    return G_INITCODEWORD * ((initcode->size + 31) >> 5); // EIP 3860: 2 gas per word
 }
 
 typedef struct {
@@ -488,6 +490,7 @@ static account_t *createNewAccount(account_t *from) {
     addressHashResult_t hashResult;
     keccak_256((uint8_t *)&hashResult, sizeof(hashResult), inputBuffer, inputBuffer[0] - 0xbf);
     account_t *result = getAccount(hashResult.bottom160);
+    result->nonce = 1;
     result->warm = evmIteration;
     return result;
 }
@@ -543,6 +546,13 @@ static void mergeStateChanges(stateChanges_t **dst, stateChanges_t *src) {
             // merge!
 
             // concatenate the linked lists
+            codeChanges_t **codeEnd = &src->codeChanges;
+            while (*codeEnd != NULL) {
+                codeEnd = &(*codeEnd)->prev;
+            }
+            *codeEnd = (*dst)->codeChanges;
+            (*dst)->codeChanges = src->codeChanges;
+
             storageChanges_t **storageEnd = &src->storageChanges;
             while (*storageEnd != NULL) {
                 storageEnd = &(*storageEnd)->prev;
@@ -628,6 +638,7 @@ static result_t doSupportedPrecompile(precompile_t precompile, context_t *callCo
 static result_t evmStaticCall(address_t from, uint64_t gas, address_t to, data_t input);
 static result_t evmDelegateCall(uint64_t gas, account_t *codeSource, data_t input);
 static result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input);
+static result_t evmCreate(account_t *fromAccount, uint64_t gas, val_t value, data_t input);
 
 static result_t doCall(context_t *callContext) {
     if (SHOW_CALLS) {
@@ -1382,6 +1393,36 @@ static result_t doCall(context_t *callContext) {
                     LOWER(LOWER_P(callContext->top - 1)) = account->balance[2] | ((uint64_t) account->balance[1] << 32);
                 }
                 break;
+            case CREATE:
+                {
+                    data_t input;
+                    input.size = LOWER(LOWER_P(callContext->top - 1));
+                    uint64_t src = LOWER(LOWER_P(callContext->top));
+                    if (!ensureMemory(callContext, src + input.size)) {
+                        OUT_OF_GAS;
+                    }
+                    input.content = callContext->memory.uint8s + src;
+                    val_t value;
+                    value[0] = UPPER(LOWER_P(callContext->top + 1));
+                    value[1] = LOWER(LOWER_P(callContext->top + 1)) >> 32;
+                    value[2] = LOWER(LOWER_P(callContext->top + 1));
+
+                    // apply R function before L function
+                    uint64_t rGas =  initcodeGas(&input);
+                    if (callContext->gas < rGas) {
+                        OUT_OF_GAS;
+                    }
+                    callContext->gas -= rGas;
+                    uint64_t gas = L(callContext->gas);
+                    callContext->gas -= gas;
+
+                    result_t result = evmCreate(callContext->account, gas, value, input);
+                    callContext->gas += result.gasRemaining;
+                    mergeStateChanges(&result.stateChanges, result.stateChanges);
+                    callContext->returnData = result.returnData;
+                    copy256(callContext->top - 1, &result.status);
+                }
+                break;
             case CALL:
                 {
                     data_t input;
@@ -1545,6 +1586,18 @@ static result_t doCall(context_t *callContext) {
 #undef OUT_OF_GAS
 }
 
+static void evmRevertCodeChanges(account_t *account, codeChanges_t **changes) {
+    if (*changes == NULL) {
+        return;
+    }
+    assert(DataEqual(&account->code, &(*changes)->after));
+    account->code = (*changes)->before;
+
+    evmRevertCodeChanges(account, &(*changes)->prev);
+    free(*changes);
+    *changes = NULL;
+}
+
 static void evmRevertStorageChanges(account_t *account, storageChanges_t **changes) {
     if (*changes == NULL) {
         return;
@@ -1574,6 +1627,7 @@ static void evmRevert(stateChanges_t **changes) {
         return;
     }
     account_t *account = getAccount((*changes)->account);
+    evmRevertCodeChanges(account, &(*changes)->codeChanges);
     evmRevertStorageChanges(account, &(*changes)->storageChanges);
     evmRevertLogChanges(&(*changes)->logChanges);
 
@@ -1678,10 +1732,11 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
     callContext->gas = gas;
     if (callstack.next == callstack.bottom) {
         callContext->gas -= G_TXCREATE + G_TX;
-        callContext->gas -= calldataGas(&input, true);
+        callContext->gas -= calldataGas(&input);
+        callContext->gas -= initcodeGas(&input);
         if (gas < callContext->gas) {
             // underflow indicates insufficient initial gas
-            fprintf(stderr, "Insufficient intrinsic gas %" PRIu64 " (need %" PRIu64 ")\n", gas, gas - callContext->gas);
+            fprintf(stderr, "Out of gas while initializing initcode (have %" PRIu64 " need %" PRIu64 ")\n", gas, gas - callContext->gas);
             result_t result;
             result.gasRemaining = 0;
             clear256(&result.status);
@@ -1706,20 +1761,27 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
         if (codeGas > callContext->gas) {
             fprintf(stderr, "Insufficient gas to insert code, codeGas %" PRIu64 " > gas %" PRIu64 "\n", codeGas, callContext->gas);
             LOWER(LOWER(result.status)) = 0;
+            result.gasRemaining = 0;
         } else {
             result.gasRemaining -= codeGas;
             AddressToUint256(&result.status, &callContext->account->address);
+            codeChanges_t *change = malloc(sizeof(codeChanges_t));
+            change->before = callContext->account->code;
             callContext->account->code.size = result.returnData.size;
             callContext->account->code.content = malloc(result.returnData.size);
             memcpy(callContext->account->code.content, result.returnData.content, result.returnData.size);
+            change->after = callContext->account->code;
+            stateChanges_t *changes = getCurrentAccountStateChanges(&result, callContext);
+            change->prev = changes->codeChanges;
+            changes->codeChanges = change;
         }
     }
     if (zero256(&result.status)) {
         evmRevert(&result.stateChanges);
     }
-    uint64_t gasUsed = gas - result.gasRemaining;
     if (callstack.next == callstack.bottom) {
         // Apply refund
+        uint64_t gasUsed = gas - result.gasRemaining;
         uint64_t refund = gasUsed / MAX_REFUND_DIVISOR;
         if (refund > refundCounter) {
             refund = refundCounter;
@@ -1740,7 +1802,7 @@ result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t 
     fromAccount->warm = evmIteration;
     account_t *coinbaseAccount = getAccount(coinbase);
     coinbaseAccount->warm = evmIteration;
-    uint64_t intrinsicGas = G_TX + calldataGas(&input, false);
+    uint64_t intrinsicGas = G_TX + calldataGas(&input);
     while (accessList) {
         intrinsicGas += G_ACCESSLIST_ACCOUNT;
         account_t *account = getAccount(accessList->address);
@@ -1772,6 +1834,20 @@ result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t 
 }
 
 result_t evmCreate(account_t *fromAccount, uint64_t gas, val_t value, data_t input) {
+    if (!BalanceSub(fromAccount->balance, value)) {
+        fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for create (need [0x%08x%08x%08x])\n",
+            fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
+            value[0], value[1], value[2]
+        );
+
+        result_t result;
+        result.gasRemaining = gas;
+        result.stateChanges = NULL;
+        clear256(&result.status);
+        result.returnData.size = 0;
+        return result;
+    }
+
     return _evmConstruct(fromAccount->address, createNewAccount(fromAccount), gas, value, input);
 }
 

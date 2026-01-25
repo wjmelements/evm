@@ -23,6 +23,12 @@ static inline int DataEqual(const data_t *expected, const data_t *actual) {
     return expected->size == actual->size && memcmp(expected->content, actual->content, actual->size) == 0;
 }
 
+typedef struct codeChanges {
+    data_t before;
+    data_t after;
+    struct codeChanges *prev;
+} codeChanges_t;
+
 typedef struct storageChanges {
     uint256_t key;
     uint256_t before;
@@ -62,7 +68,7 @@ static int LogsEqual(const logChanges_t *expectedLog, const logChanges_t *actual
 typedef struct stateChanges {
     address_t account;
     // TODO balance change
-    // TODO code change
+    codeChanges_t *codeChanges; // LIFO
     // TODO selfdestruct
     // TODO nonce
     logChanges_t *logChanges; // LIFO

@@ -355,7 +355,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | LOG2 | ✅ |✅ |
 | LOG3 | ✅ |✅ |
 | LOG4 | ✅ |✅ |
-| CREATE | ✅ |❓ |
+| CREATE | ✅ |✅ |
 | CALL | ✅ |✅ |
 | CALLCODE | ✅ | ❌ |
 | RETURN | ✅ |✅ |
