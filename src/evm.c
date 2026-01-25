@@ -305,6 +305,7 @@ static inline uint64_t calldataGas(const data_t *calldata) {
     return gas;
 }
 
+// In the yellow paper, this is the R function.
 static inline uint64_t initcodeGas(const data_t *initcode) {
     return G_INITCODEWORD * ((initcode->size + 31) >> 5); // EIP 3860: 2 gas per word
 }
@@ -1406,6 +1407,12 @@ static result_t doCall(context_t *callContext) {
                     value[1] = LOWER(LOWER_P(callContext->top + 1)) >> 32;
                     value[2] = LOWER(LOWER_P(callContext->top + 1));
 
+                    // apply R function before L function
+                    uint64_t rGas =  initcodeGas(&input);
+                    if (callContext->gas < rGas) {
+                        OUT_OF_GAS;
+                    }
+                    callContext->gas -= rGas;
                     uint64_t gas = L(callContext->gas);
                     callContext->gas -= gas;
 
@@ -1726,20 +1733,16 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
     if (callstack.next == callstack.bottom) {
         callContext->gas -= G_TXCREATE + G_TX;
         callContext->gas -= calldataGas(&input);
-    }
-    callContext->gas -= initcodeGas(&input);
-    if (gas < callContext->gas) {
-        // underflow indicates insufficient initial gas
-        if (callstack.next == callstack.bottom) {
-            fprintf(stderr, "Insufficient intrinsic gas %" PRIu64 " (need %" PRIu64 ")\n", gas, gas - callContext->gas);
-        } else {
+        callContext->gas -= initcodeGas(&input);
+        if (gas < callContext->gas) {
+            // underflow indicates insufficient initial gas
             fprintf(stderr, "Out of gas while initializing initcode (have %" PRIu64 " need %" PRIu64 ")\n", gas, gas - callContext->gas);
+            result_t result;
+            result.gasRemaining = 0;
+            clear256(&result.status);
+            result.returnData.size = 0;
+            return result;
         }
-        result_t result;
-        result.gasRemaining = 0;
-        clear256(&result.status);
-        result.returnData.size = 0;
-        return result;
     }
     callContext->readonly = false;
 
@@ -1758,6 +1761,7 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
         if (codeGas > callContext->gas) {
             fprintf(stderr, "Insufficient gas to insert code, codeGas %" PRIu64 " > gas %" PRIu64 "\n", codeGas, callContext->gas);
             LOWER(LOWER(result.status)) = 0;
+            result.gasRemaining = 0;
         } else {
             result.gasRemaining -= codeGas;
             AddressToUint256(&result.status, &callContext->account->address);
@@ -1775,9 +1779,9 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
     if (zero256(&result.status)) {
         evmRevert(&result.stateChanges);
     }
-    uint64_t gasUsed = gas - result.gasRemaining;
     if (callstack.next == callstack.bottom) {
         // Apply refund
+        uint64_t gasUsed = gas - result.gasRemaining;
         uint64_t refund = gasUsed / MAX_REFUND_DIVISOR;
         if (refund > refundCounter) {
             refund = refundCounter;
@@ -1837,7 +1841,7 @@ result_t evmCreate(account_t *fromAccount, uint64_t gas, val_t value, data_t inp
         );
 
         result_t result;
-        result.gasRemaining = 0;
+        result.gasRemaining = gas;
         result.stateChanges = NULL;
         clear256(&result.status);
         result.returnData.size = 0;
