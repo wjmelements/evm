@@ -1,4 +1,5 @@
 #include "dio.h"
+#include "path.h"
 
 
 #include <assert.h>
@@ -199,7 +200,7 @@ void test_applyConfig_tests() {
 }
 
 int main() {
-    dioInit("bin/evm");
+    pathInit("bin/evm");
 
     test_applyConfig_code();
     test_applyConfig_storage();

@@ -1,4 +1,5 @@
 #include "dio.h"
+#include "path.h"
 #include "scan.h"
 #include "disassemble.h"
 
@@ -196,7 +197,7 @@ int main(int argc, char *const argv[]) {
                     evmInit();
                 }
                 configFile = optarg;
-                dioInit(argv[0]);
+                pathInit(argv[0]);
                 loadConfig(configFile, updateConfigFile);
                 break;
             case '?':
