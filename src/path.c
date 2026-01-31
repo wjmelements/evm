@@ -85,9 +85,9 @@ data_t defaultConstructorForPath(const char *path) {
         }
         // child
         char *const args[4] = {
-            derivedPath,
+            (char *) derivedPath,
             "-c",
-            path,
+            (char *) path,
             NULL
         };
         if (execve(derivedPath, args, NULL) == -1) {
