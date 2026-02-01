@@ -14,6 +14,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: delete generated file README.md
+        run: rm -f README.md
+
       - name: make
         run: make
 
