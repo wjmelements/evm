@@ -8,10 +8,10 @@ CXXFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) $(CXXSTD) -fno-exceptions -Wno-write-
 OCFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) -fmodules
 MKDIRS=lib bin tst/bin .pass .pass/tst/bin .make .make/bin .make/tst/bin .make/lib .pass/tst/in .pass/tst/diotst
 INCLUDE=$(addprefix -I,include)
-EXECS=$(addprefix bin/,evm ops precompiles)
-TESTS=$(addprefix tst/bin/,address dio evm hex keccak label ops scanstack scan uint256 vector)
-SRC=$(wildcard src/*.cpp) $(wildcard src/*.m)
-LIBS=$(patsubst src/%.cpp, lib/%.o, $(wildcard src/*.cpp)) $(patsubst src/%.m, lib/%.o, $(wildcard src/*.m))
+EXECS=$(patsubst %.c, bin/%, $(wildcard *.c))
+TESTS=$(patsubst tst/%.c, tst/bin/%, $(wildcard tst/*.c))
+SRC=$(wildcard src/*.cpp) $(wildcard src/*.m) $(wildcard src/%.c)
+LIBS=$(patsubst src/%.cpp, lib/%.o, $(wildcard src/*.cpp)) $(patsubst src/%.m, lib/%.o, $(wildcard src/*.m)) $(patsubst src/%.c, lib/%.o, $(wildcard src/*.c))
 INTEGRATIONS=$(addprefix tst/in/,$(shell ls tst/in)) $(addprefix tst/dio,$(shell ls tst/*.json))
 
 
