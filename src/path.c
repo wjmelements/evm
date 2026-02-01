@@ -153,5 +153,3 @@ data_t assemblePath(const char *path) {
     };
     return recursiveSubprocess(args);
 }
-
-
