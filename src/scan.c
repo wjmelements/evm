@@ -15,6 +15,7 @@ static inline int shouldIgnore(char ch) {
         && ch != ','
         && ch != ':'
         && ch != '/'
+        && ch != '"'
         && ch != '-'
         && ch != '{'
         && ch != '}'
@@ -222,6 +223,20 @@ static void scanComment(const char **iter) {
     (*iter)++;
 }
 
+static void scanTo(const char **iter, char expected) {
+    uint32_t startLine = lineNumber;
+    for (char ch; (ch = **iter); (*iter)++) {
+        if (ch == expected) {
+            return;
+        }
+        if (ch == '\n') {
+            lineNumber++;
+        }
+    }
+    fprintf(stderr, "Unexpected EOF when scanning for '%c' from line %u\n", expected, startLine);
+    exit(1);
+}
+
 static inline char scanWaste(const char **iter) {
     char ch;
     for (; shouldIgnore(ch = **iter) && ch; (*iter)++) {
@@ -271,8 +286,15 @@ static void scanDataSection(const char **iter) {
     (*iter)++;
     scanWaste(iter);
     if (**iter == '"') {
-        // TODO parse ascii
-        fprintf(stderr, "Ascii unsupported\n");
+        scanChar(iter, '"');
+
+        data_t str;
+        str.content = (uint8_t *)*iter;
+        scanTo(iter, '"');
+        str.size = (uint8_t *)*iter - str.content;
+        scanstackPushData(&str);
+
+        scanChar(iter, '"');
     } else if (isHexConstantPrefix(*iter)) {
         *iter += 2;
         parseHex(iter);
