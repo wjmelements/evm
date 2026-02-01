@@ -1,11 +1,11 @@
 #include "alpha.h"
+#include "data.h"
 #include "scan.h"
 #include "labelQueue.h"
 #include "scanstack.h"
 #include "dec.h"
 #include "hex.h"
 #include <assert.h>
-#include <string.h>
 #include <stdbool.h>
 #include <stdlib.h>
 
@@ -46,6 +46,10 @@ static int isHexConstantPrefix(const char *iter) {
 
 static int isConstant(const char *iter) {
     return isDecimal(*iter);
+}
+
+static int isConstruct(const char *iter) {
+    return memcmp(iter, "construct", 9) == 0;
 }
 
 static op_t parseHex(const char **iter) {
@@ -192,6 +196,22 @@ static void scanChar(const char **iter, char expected) {
     (*iter)++;
 }
 
+static inline int isPathChar(char ch) {
+    return ch == '/'
+        || ch == '-'
+        || ch == '_'
+        || ch == '.'
+        || (ch >= '0' && ch <= '9')
+        || (ch >= 'A' && ch <= 'Z')
+        || (ch >= 'a' && ch <= 'z')
+    ;
+}
+
+static void scanPath(const char **iter) {
+    // TODO: Support unsafe characters with escape (\)
+    while (isPathChar(**iter)) (*iter)++;
+}
+
 static void scanComment(const char **iter) {
     for (char ch; (ch = **iter) != '\n'; (*iter)++);
     lineNumber++;
@@ -248,9 +268,28 @@ static void scanDataSection(const char **iter) {
     scanWaste(iter);
     if (**iter == '"') {
         // TODO parse ascii
+        fprintf(stderr, "Ascii unsupported\n");
     } else if (isHexConstantPrefix(*iter)) {
         *iter += 2;
         parseHex(iter);
+    } else if (isConstruct(*iter)) {
+        *iter += 9;
+        scanWaste(iter);
+        const char *fileStart = *iter;
+        scanPath(iter);
+        const char *fileEnd = *iter;
+
+        char *path = malloc(fileEnd - fileStart + 1);
+        strncpy(path, fileStart, fileEnd - fileStart);
+        path[fileEnd - fileStart] = '\0';
+        data_t defaultConstructor = defaultConstructorForPath(path);
+        //fprintf(stderr, "Parsed constructor size %u\n", defaultConstructor.size);
+        free(path);
+
+        scanstackPushData(&defaultConstructor);
+        free(defaultConstructor.content);
+    } else {
+        fprintf(stderr, "Unsupported data section type at line %u\n", lineNumber);
     }
     scanstackPushLabel(start, end - start, CODECOPY);
     scanWaste(iter);

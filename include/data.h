@@ -1,4 +1,6 @@
+#include <stdint.h>
 #include <string.h>
+#include <stdio.h>
 
 typedef struct data {
     size_t size;

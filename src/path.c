@@ -21,6 +21,10 @@ const char *derivePath() {
     if (derivedPath != NULL) {
         return derivedPath;
     }
+    if (!selfPath) {
+        fprintf(stderr, "must pathInit\n");
+        exit(1);
+    }
     if (selfPath[0] == '/') {
         // absolute path
         derivedPath = selfPath;
