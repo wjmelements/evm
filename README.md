@@ -48,6 +48,27 @@ $ cat add.evm | evm
 
 More examples can be found in the `tst/in` directory.
 
+#### Data section
+Besides instructions, you can inline raw data into the program using a data section, delimited with `{}`.
+Data section items are labeled and comma-separated.
+The location of a data section item can be accessed in the assembly by its label.
+The size of a data section item can be accessed in the code with `#`.
+Thereby, you can `CODECOPY` such data into memory.
+```
+CODECOPY(0, child, #child)
+MSTORE(0, CREATE(0, #child))
+RETURN(0, 32)
+{
+    child: construct child.evm
+}
+```
+
+| Data Section Item Type | Description | Example Item | Example Data |
+| :--------------------: | :---------: | ------------ | :----------: |
+| Hex | Inline hexadecimal | `balanceof: 0x70a08231` | `70a08231` |
+| Assembly | Inline import (`evm`) | `selfdestruct: assemble tst/in/selfdestruct.evm` | `33ff` |
+| Construct | Inline constructor (`evm -c`) | `constructor: construct tst/in/selfdestruct` | `6133ff3d526002601ef3` |
+
 ### Disassembler
 ```sh
 $ cat selfdestruct.out
