@@ -1,12 +1,10 @@
 #include "dio.h"
+#include "path.h"
 #include "vector.h"
 
 #include <fcntl.h>
 #include <inttypes.h>
-#include <string.h>
-#include <strings.h>
 #include <sys/mman.h>
-#include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -128,63 +126,7 @@ typedef struct entry {
     char *importPath;
 } entry_t;
 
-static char *selfPath;
-static char *derivedPath = NULL;
 static int anyTestFailure = 0;
-
-void dioInit(char *_selfPath) {
-    selfPath = _selfPath;
-}
-
-static void derivePath() {
-    if (derivedPath != NULL) {
-        return;
-    }
-    if (selfPath[0] == '/') {
-        // absolute path
-        derivedPath = selfPath;
-        return;
-    }
-    const char *pathWalk = selfPath;
-    char *relativePath = malloc(MAXPATHLEN + 1);
-    while (*pathWalk) {
-        if (*pathWalk == '/') {
-            // relative path
-            if (getcwd(relativePath, MAXPATHLEN + 1) == NULL) {
-                perror("getcwd");
-                exit(1);
-            }
-            size_t offset = strlen(relativePath);
-            relativePath[offset++] = '/';
-            relativePath[offset] = '\0';
-            strcpy(relativePath + offset, selfPath);
-            derivedPath = relativePath;
-            return;
-        }
-        pathWalk++;
-    }
-    // look through $PATH
-    char *path = getenv("PATH");
-    struct stat statResult;
-    while (*path) {
-        char *next = strchr(path,':');
-        if (next == NULL) {
-            break;
-        }
-        char *end = stpncpy(relativePath, path, next - path);
-        *end++ = '/';
-        strcpy(end, selfPath);
-        if (stat(relativePath, &statResult) == -1) {
-            //perror(relativePath);
-            path = next + 1;
-        } else {
-            derivedPath = relativePath;
-            return;
-        }
-    }
-    fputs("evm: could not find evm\n", stderr);
-    _exit(-1);
-}
 
 static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
     if (test == NULL) {
@@ -311,7 +253,7 @@ static void verifyConstructResult(result_t *constructResult, entry_t *entry) {
         if (constructResult->returnData.size != entry->code.size || memcmp(constructResult->returnData.content, entry->code.content, entry->code.size)) {
             fputs("Code mismatch at address ", stderr);
             fprintAddress(stderr, (*entry->address));
-            fprintf(stderr, ":\n`%s -c %s`:\n", derivedPath, entry->constructPath);
+            fprintf(stderr, ":\n`%s -c %s`:\n", derivePath(), entry->constructPath);
             fprintData(stderr, constructResult->returnData);
             fprintf(stderr, "\nexpected:\n");
             fprintData(stderr, entry->code);
@@ -334,72 +276,13 @@ static void applyEntry(entry_t *entry) {
         *(uint32_t *)(&entry->address->address[15]) = anonymousId++;
     }
     if (entry->constructPath) {
-        int rw[2];
-        if (pipe(rw) == -1) {
-            perror("pipe");
-            _exit(-1);
-        }
-        derivePath();
-        //fprintf(stderr, "Loading from %s with %s\n", entry->constructPath, derivedPath);
-        pid_t pid = fork();
-        if (pid == 0) {
-            close(1);
-            close(rw[0]);
-            if (dup2(rw[1], 1) == -1) {
-                perror("dup2");
-                _exit(-1);
-            }
-            // child
-            char *const args[4] = {
-                derivedPath,
-                "-c",
-                entry->constructPath,
-                NULL
-            };
-            if (execve(derivedPath, args, NULL) == -1) {
-                perror(derivedPath);
-                _exit(-1);
-            }
-        }
-        close(rw[1]);
-        int status;
-        pid_t finished = wait(&status);
-        if (finished == -1) {
-            perror("wait");
-            _exit(-1);
-        }
-        size_t bufferSize = 0x10000;
-        data_t input;
-        input.size = 0;
-        char *content = malloc(bufferSize);
-        while (1) {
-            ssize_t red = read(rw[0], content + input.size, bufferSize - input.size);
-            if (red == -1) {
-                perror("read");
-                _exit(-1);
-            }
-            if (red == 0) {
-                break;
-            }
-            input.size += red;
-            if (input.size == bufferSize) {
-                char *next = malloc(bufferSize * 2);
-                memcpy(next, content, input.size);
-                free(content);
-                content = next;
-                bufferSize *= 2;
-            }
-        }
-        for (size_t i = 0; i < input.size / 2; i++) {
-            content[i] = hexString16ToUint8(content + i * 2);
-        }
-        input.content = (uint8_t *)content;
-        input.size /= 2;
+        data_t input = defaultConstructorForPath(entry->constructPath);
 
         address_t from;
         if (entry->creator) {
             AddressCopy(from, (*entry->creator));
         }
+
         // TODO support these parameters
         uint64_t gas = 0xffffffffffffffff;
         val_t value;

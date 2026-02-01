@@ -1,4 +1,5 @@
 #include "dio.h"
+#include "path.h"
 #include "scan.h"
 #include "disassemble.h"
 
@@ -90,10 +91,6 @@ static void disassemble(const char *contents) {
     disassembleFinalize();
 }
 
-static char *selfPath;
-
-
-
 static void execute(const char *contents) {
     if (configFile == NULL) {
         evmInit();
@@ -164,7 +161,8 @@ static void execute(const char *contents) {
 #define USAGE fputs("usage: evm [ [-w json-file [-u] ] [-x [-gs] ] | [-cj] | -d ] [-o input] [file...]\n", stderr)
 
 int main(int argc, char *const argv[]) {
-    selfPath = argv[0];
+    pathInit(argv[0]);
+
     int option;
     char *contents = NULL;
     while ((option = getopt (argc, argv, "cdgjlo:suw:x")) != -1)
@@ -201,7 +199,6 @@ int main(int argc, char *const argv[]) {
                     evmInit();
                 }
                 configFile = optarg;
-                dioInit(selfPath);
                 loadConfig(configFile, updateConfigFile);
                 break;
             case '?':

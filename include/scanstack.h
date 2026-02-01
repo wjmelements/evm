@@ -16,6 +16,13 @@ static inline void scanstackPush(op_t op) {
     scanstack[scanstackIndex++] = op;
 }
 
+static inline void scanstackPushData(const data_t *data) {
+    size_t pos = data->size;
+    while (pos --> 0) {
+        scanstack[scanstackIndex++] = data->content[pos];
+    }
+}
+
 static inline void scanstackPushLabel(const char *start, size_t len, op_t type) {
     label_t *label = (label_t *)malloc(sizeof(label_t));
     label->start = start;

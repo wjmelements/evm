@@ -1,4 +1,5 @@
 #include "ops.h"
+#include "path.h"
 #include <stdio.h>
 
 void scanInit();
