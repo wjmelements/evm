@@ -98,6 +98,10 @@ static data_t recursiveSubprocess(char *const args[]) {
         perror("wait");
         _exit(-1);
     }
+    if (WEXITSTATUS(status)) {
+        // propagate failure
+        _exit(WEXITSTATUS(status));
+    }
     size_t bufferSize = 0x10000;
     data_t input;
     input.size = 0;
