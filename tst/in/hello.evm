@@ -1,0 +1,5 @@
+CODECOPY(0, hello, #hello)
+RETURN(0, #hello)
+{
+    hello: "Hello, world!"
+}
