@@ -71,14 +71,12 @@ const char *derivePath() {
     _exit(-1);
 }
 
-// evm -c $constructPath
-data_t defaultConstructorForPath(const char *path) {
+static data_t recursiveSubprocess(char *const args[]) {
     int rw[2];
     if (pipe(rw) == -1) {
         perror("pipe");
         _exit(-1);
     }
-    derivePath();
     pid_t pid = fork();
     if (pid == 0) {
         close(1);
@@ -88,12 +86,6 @@ data_t defaultConstructorForPath(const char *path) {
             _exit(-1);
         }
         // child
-        char *const args[4] = {
-            (char *) derivedPath,
-            "-c",
-            (char *) path,
-            NULL
-        };
         if (execve(derivedPath, args, NULL) == -1) {
             perror(derivedPath);
             _exit(-1);
@@ -136,3 +128,26 @@ data_t defaultConstructorForPath(const char *path) {
 
     return input;
 }
+
+// evm -c $path
+data_t defaultConstructorForPath(const char *path) {
+    char *const args[4] = {
+        (char *) derivePath(),
+        "-c",
+        (char *) path,
+        NULL
+    };
+    return recursiveSubprocess(args);
+}
+
+// evm $path
+data_t assemblePath(const char *path) {
+    char *const args[4] = {
+        (char *) derivePath(),
+        (char *) path,
+        NULL
+    };
+    return recursiveSubprocess(args);
+}
+
+

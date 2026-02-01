@@ -52,6 +52,10 @@ static int isConstruct(const char *iter) {
     return memcmp(iter, "construct", 9) == 0;
 }
 
+static int isAssemble(const char *iter) {
+    return memcmp(iter, "assemble", 8) == 0;
+}
+
 static op_t parseHex(const char **iter) {
     const char *start = *iter;
     while (isHex(**iter)) ++(*iter);
@@ -288,6 +292,22 @@ static void scanDataSection(const char **iter) {
 
         scanstackPushData(&defaultConstructor);
         free(defaultConstructor.content);
+    } else if (isAssemble(*iter)) {
+        *iter += 8;
+        scanWaste(iter);
+        const char *fileStart = *iter;
+        scanPath(iter);
+        const char *fileEnd = *iter;
+
+        char *path = malloc(fileEnd - fileStart + 1);
+        strncpy(path, fileStart, fileEnd - fileStart);
+        path[fileEnd - fileStart] = '\0';
+        data_t assembled = assemblePath(path);
+        //fprintf(stderr, "Assembled size %u\n", assembled.size);
+        free(path);
+
+        scanstackPushData(&assembled);
+        free(assembled.content);
     } else {
         fprintf(stderr, "Unsupported data section type at line %u\n", lineNumber);
     }

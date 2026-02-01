@@ -16,9 +16,30 @@ void test_parseConstant() {
 
 op_t program[40];
 
+void test_parseAssemble() {
+    scanInit();
+    const char *test = "CODECOPY(0, selfdestruct, #selfdestruct)\
+        RETURN(0, #selfdestruct) \
+        { selfdestruct: assemble tst/in/selfdestruct.evm }";
+    const char *remaining = test;
+    uint32_t programLength = 0;
+    while (scanValid(&remaining)) {
+        assert(programLength < 40);
+        program[programLength++] = scanNextOp(&remaining);
+    }
+    scanFinalize(program, &programLength);
+
+    op_t expected[] = {
+        PUSH1, 0x02, PUSH1, 0x0a, PUSH0, CODECOPY,
+        PUSH1, 0x02, PUSH0, RETURN,
+        CALLER, SELFDESTRUCT,
+    };
+    assert(programLength == 12);
+    assert(memcmp(program, expected, 12) == 0);
+}
+
 void test_parseConstruct() {
     scanInit();
-    pathInit("bin/evm");
     const char *test = "CODECOPY(0, test, #test)\
         RETURN(0, #test)\
         { test: construct tst/in/selfdestruct.evm }";
@@ -42,6 +63,7 @@ void test_parseConstruct() {
 
 
 int main() {
+    pathInit("bin/evm");
     scanInit();
 
     const char *remaining;
@@ -75,6 +97,7 @@ int main() {
 
     test_parseConstant();
 
+    test_parseAssemble();
     test_parseConstruct();
     return 0;
 }
