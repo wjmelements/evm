@@ -63,11 +63,11 @@ RETURN(0, 32)
 }
 ```
 
-| Data Section Item Type | Description | Example Item | Example Data |
+| Item Type | Description | Example Item | Example Data |
 | :--------------------: | :---------: | ------------ | :----------: |
 | Hex | Inline hexadecimal | `balanceof: 0x70a08231` | `70a08231` |
-| Assembly | Inline import (`evm`) | `selfdestruct: assemble tst/in/selfdestruct.evm` | `33ff` |
-| Construct | Inline constructor (`evm -c`) | `constructor: construct tst/in/selfdestruct` | `6133ff3d526002601ef3` |
+| Assembly | Inline import | `selfdestruct: assemble tst/in/selfdestruct.evm` | `33ff` |
+| Construct | Inline constructor | `constructor: construct tst/in/selfdestruct` | `6133ff3d526002601ef3` |
 
 ### Disassembler
 ```sh
