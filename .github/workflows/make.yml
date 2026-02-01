@@ -1,4 +1,4 @@
-name: make check
+name: make
 
 on:
   push:
@@ -7,12 +7,18 @@ on:
     branches: ["main", "master"]
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: make check
-        run: make check
+      - name: delete generated file README.md
+        run: rm -f README.md
+
+      - name: make
+        run: make
+
+      - name: git diff
+        run: git diff --exit-code

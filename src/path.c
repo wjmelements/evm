@@ -5,6 +5,7 @@
 #include <strings.h>
 #include <sys/param.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "data.h"
