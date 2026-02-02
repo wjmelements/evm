@@ -63,12 +63,12 @@ RETURN(0, 32)
 }
 ```
 
-| Item Type | Description | Example Item | Example Data |
+| Item Type | Example Item | Example Data |
 | :--------------------: | :---------: | ------------ | :----------: |
-| Hex | Inline hexadecimal | `balanceof: 0x70a08231` | `70a08231` |
-| String | Inline string | `hello: "Hello, world!" | `48656c6c6f2c20776f726c6421` |
-| Assembly | Inline import | `selfdestruct: assemble tst/in/selfdestruct.evm` | `33ff` |
-| Construct | Inline constructor | `constructor: construct tst/in/selfdestruct` | `6133ff3d526002601ef3` |
+| Hex | `balanceof: 0x70a08231` | `70a08231` |
+| String | `hello: "Hello, world!" | `48656c6c6f2c20776f726c6421` |
+| Assembly | `selfdestruct: assemble tst/in/selfdestruct.evm` | `33ff` |
+| Construct | `constructor: construct tst/in/selfdestruct` | `6133ff3d526002601ef3` |
 
 ### Disassembler
 ```sh
