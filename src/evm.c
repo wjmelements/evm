@@ -1794,6 +1794,9 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
 }
 
 result_t evmConstruct(address_t from, address_t to, uint64_t gas, val_t value, data_t input) {
+    evmIteration++;
+    getAccount(from)->warm = evmIteration;
+    getAccount(coinbase)->warm = evmIteration;
     return _evmConstruct(from, getAccount(to), gas, value, input);
 }
 
