@@ -123,6 +123,7 @@ typedef struct entry {
     storageEntry_t *storage;
     testEntry_t *tests;
     char *constructPath;
+    char *initcodePath;
     char *importPath;
 } entry_t;
 
@@ -275,8 +276,13 @@ static void applyEntry(entry_t *entry) {
         static uint32_t anonymousId;
         *(uint32_t *)(&entry->address->address[15]) = anonymousId++;
     }
-    if (entry->constructPath) {
-        data_t input = defaultConstructorForPath(entry->constructPath);
+    if (entry->constructPath || entry->initcodePath) {
+        data_t input;
+        if (entry->initcodePath) {
+            input = assemblePath(entry->initcodePath);
+        } else {
+            input = defaultConstructorForPath(entry->constructPath);
+        }
 
         address_t from;
         if (entry->creator) {
@@ -498,13 +504,20 @@ static void jsonScanEntry(const char **iter) {
                 // init, initcode, initCode
                 {
                     const char *start = jsonScanStr(iter);
-                    jsonSkipExpectedChar(&start, '0');
-                    jsonSkipExpectedChar(&start, 'x');
-                    entry.initCode.size = (*iter - start) / 2;
-                    entry.initCode.content = calloc(entry.initCode.size, 1);
-                    for (unsigned int i = 0; i < entry.initCode.size; i++) {
-                        entry.initCode.content[i] = hexString16ToUint8(start);
-                        start += 2;
+                    if (*(uint16_t *)start == 'x0') {
+                        jsonSkipExpectedChar(&start, '0');
+                        jsonSkipExpectedChar(&start, 'x');
+                        entry.initCode.size = (*iter - start) / 2;
+                        entry.initCode.content = calloc(entry.initCode.size, 1);
+                        for (unsigned int i = 0; i < entry.initCode.size; i++) {
+                            entry.initCode.content[i] = hexString16ToUint8(start);
+                            start += 2;
+                        }
+                    } else {
+                        size_t len = *iter - start - 1;
+                        entry.initcodePath = malloc(len + 1);
+                        memcpy(entry.initcodePath, start, len);
+                        entry.initcodePath[len] = '\0';
                     }
                 }
                 break;
