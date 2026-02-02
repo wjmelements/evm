@@ -1798,6 +1798,7 @@ result_t evmConstruct(address_t from, address_t to, uint64_t gas, val_t value, d
 }
 
 result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input, const accessList_t *accessList) {
+    evmIteration++;
     account_t *fromAccount = getAccount(from);
     fromAccount->warm = evmIteration;
     account_t *coinbaseAccount = getAccount(coinbase);
@@ -1821,14 +1822,12 @@ result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t 
         result.gasRemaining = 0;
         clear256(&result.status);
         result.returnData.size = 0;
-        evmIteration++;
         return result;
     }
     gas -= intrinsicGas;
     account_t *toAccount = getAccount(to);
     toAccount->warm = evmIteration;
     result_t result = evmCall(from, gas, to, value, input);
-    evmIteration++;
     fromAccount->nonce++;
     return result;
 }
@@ -1852,11 +1851,11 @@ result_t evmCreate(account_t *fromAccount, uint64_t gas, val_t value, data_t inp
 }
 
 result_t txCreate(address_t from, uint64_t gas, val_t value, data_t input) {
+    evmIteration++;
     account_t *fromAccount = getAccount(from);
     fromAccount->warm = evmIteration;
     account_t *coinbaseAccount = getAccount(coinbase);
     coinbaseAccount->warm = evmIteration;
     result_t result = evmCreate(fromAccount, gas, value, input);
-    evmIteration++;
     return result;
 }
