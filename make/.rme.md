@@ -64,9 +64,9 @@ RETURN(0, 32)
 ```
 
 | Item Type | Example Item | Example Data |
-| :--------------------: | :---------: | ------------ | :----------: |
+| :-------: | :----------- | :----------: |
 | Hex | `balanceof: 0x70a08231` | `70a08231` |
-| String | `hello: "Hello, world!" | `48656c6c6f2c20776f726c6421` |
+| String | `hello: "Hello, world!"` | `48656c6c6f2c20776f726c6421` |
 | Assembly | `selfdestruct: assemble tst/in/selfdestruct.evm` | `33ff` |
 | Construct | `constructor: construct tst/in/selfdestruct` | `6133ff3d526002601ef3` |
 
