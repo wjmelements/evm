@@ -122,7 +122,7 @@ typedef struct entry {
     data_t code;
     storageEntry_t *storage;
     testEntry_t *tests;
-    char *constructPath;
+    char *path;
     char *importPath;
 } entry_t;
 
@@ -135,8 +135,8 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
     uint64_t testsRun = runTests(entry, test->prev);
     if (!testsRun) {
         fputs("# ", stderr);
-        if (entry->constructPath) {
-            fputs(entry->constructPath, stderr);
+        if (entry->path) {
+            fputs(entry->path, stderr);
         } else {
             fprintAddress(stderr, (*entry->address));
         }
@@ -253,7 +253,7 @@ static void verifyConstructResult(result_t *constructResult, entry_t *entry) {
         if (constructResult->returnData.size != entry->code.size || memcmp(constructResult->returnData.content, entry->code.content, entry->code.size)) {
             fputs("Code mismatch at address ", stderr);
             fprintAddress(stderr, (*entry->address));
-            fprintf(stderr, ":\n`%s -c %s`:\n", derivePath(), entry->constructPath);
+            fprintf(stderr, ":\ninitcode result:\n");
             fprintData(stderr, constructResult->returnData);
             fprintf(stderr, "\nexpected:\n");
             fprintData(stderr, entry->code);
@@ -275,25 +275,7 @@ static void applyEntry(entry_t *entry) {
         static uint32_t anonymousId;
         *(uint32_t *)(&entry->address->address[15]) = anonymousId++;
     }
-    if (entry->constructPath) {
-        data_t input = defaultConstructorForPath(entry->constructPath);
-
-        address_t from;
-        if (entry->creator) {
-            AddressCopy(from, (*entry->creator));
-        }
-
-        // TODO support these parameters
-        uint64_t gas = 0xffffffffffffffff;
-        val_t value;
-        value[0] = 0;
-        value[1] = 0;
-        value[2] = 0;
-
-        evmSetDebug(0);
-        result_t constructResult = evmConstruct(from, *entry->address, gas, value, input);
-        verifyConstructResult(&constructResult, entry);
-    } else if (entry->initCode.size) {
+    if (entry->initCode.size) {
         address_t from;
         if (entry->creator) {
             AddressCopy(from, (*entry->creator));
@@ -498,13 +480,22 @@ static void jsonScanEntry(const char **iter) {
                 // init, initcode, initCode
                 {
                     const char *start = jsonScanStr(iter);
-                    jsonSkipExpectedChar(&start, '0');
-                    jsonSkipExpectedChar(&start, 'x');
-                    entry.initCode.size = (*iter - start) / 2;
-                    entry.initCode.content = calloc(entry.initCode.size, 1);
-                    for (unsigned int i = 0; i < entry.initCode.size; i++) {
-                        entry.initCode.content[i] = hexString16ToUint8(start);
-                        start += 2;
+                    if (*(uint16_t *)start == 'x0') {
+                        jsonSkipExpectedChar(&start, '0');
+                        jsonSkipExpectedChar(&start, 'x');
+                        entry.initCode.size = (*iter - start) / 2;
+                        entry.initCode.content = calloc(entry.initCode.size, 1);
+                        for (unsigned int i = 0; i < entry.initCode.size; i++) {
+                            entry.initCode.content[i] = hexString16ToUint8(start);
+                            start += 2;
+                        }
+                    } else {
+                        size_t len = *iter - start - 1;
+                        char *initcodePath = malloc(len + 1);
+                        memcpy(initcodePath, start, len);
+                        initcodePath[len] = '\0';
+                        entry.initCode = assemblePath(initcodePath);
+                        free(initcodePath);
                     }
                 }
                 break;
@@ -512,13 +503,21 @@ static void jsonScanEntry(const char **iter) {
                 // code
                 {
                     const char *start = jsonScanStr(iter);
-                    jsonSkipExpectedChar(&start, '0');
-                    jsonSkipExpectedChar(&start, 'x');
-                    entry.code.size = (*iter - start) / 2;
-                    entry.code.content = calloc(entry.code.size, 1);
-                    for (unsigned int i = 0; i < entry.code.size; i++) {
-                        entry.code.content[i] = hexString16ToUint8(start);
-                        start += 2;
+                    if (*(uint16_t *)start == 'x0') {
+                        jsonSkipExpectedChar(&start, '0');
+                        jsonSkipExpectedChar(&start, 'x');
+                        entry.code.size = (*iter - start) / 2;
+                        entry.code.content = calloc(entry.code.size, 1);
+                        for (unsigned int i = 0; i < entry.code.size; i++) {
+                            entry.code.content[i] = hexString16ToUint8(start);
+                            start += 2;
+                        }
+                    } else {
+                        size_t len = *iter - start - 1;
+                        entry.path = malloc(len + 1);
+                        memcpy(entry.path, start, len);
+                        entry.path[len] = '\0';
+                        entry.code = assemblePath(entry.path);
                     }
                 }
                 break;
@@ -537,9 +536,10 @@ static void jsonScanEntry(const char **iter) {
                 {
                     const char *start = jsonScanStr(iter);
                     size_t len = *iter - start - 1;
-                    entry.constructPath = malloc(len + 1);
-                    memcpy(entry.constructPath, start, len);
-                    entry.constructPath[len] = '\0';
+                    entry.path = malloc(len + 1);
+                    memcpy(entry.path, start, len);
+                    entry.path[len] = '\0';
+                    entry.initCode = defaultConstructorForPath(entry.path);
                 }
                 break;
             case 'tset':

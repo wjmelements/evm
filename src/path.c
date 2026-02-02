@@ -18,7 +18,7 @@ void pathInit(const char *_selfPath) {
     selfPath = _selfPath;
 }
 
-const char *derivePath() {
+static const char *derivePath() {
     if (derivedPath != NULL) {
         return derivedPath;
     }

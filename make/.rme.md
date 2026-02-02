@@ -124,16 +124,16 @@ If you exclude address, one will be generated for you.
 Besides declaring code, contracts can be `construct`ed from assembly source.
 If `code` is also supplied for the entry, the code will be used to verify the result of the constructor.
 
-| Dio Key | Description | Example Value | Default Value or Behavior |
-| :-----: | ----------- | ------------- | :-----------------------: |
+| Dio Key | Description | Example Values | Default Value or Behavior |
+| :-----: | ----------- | -------------- | :-----------------------: |
 | `address` | address for the account | `0x83F20F44975D03b1b09e64809B757c47f942BEeA` | |
 | `balance` | value in the account | `0xde0b6b3a7640000` | `0x0` |
 | `nonce` | nonce of the account | `0x1` | `0x0` |
 | `storage` | account storage | `{"0x1":"0x115eec47f6cf7e35000000"}` | `{}` |
 | `creator` | address of the account creating this contract | `0x3249936bDdF8bF739d3f06d26C40EEfC81029BD1` | `0x0000000000000000000000000000000000000000` |
-| `initcode` | account creation code | `0x66383d3d39383df33d5260076019f3` | `code` mocked without constructor |
-| `code` | account code; validated if `initcode` or `construct` specified | `0x383d3d39383df3` | `0x` |
-| `construct` | specify `code` by file | `tst/in/quine.evm` | `code` |
+| `initcode` | account creation code | `0x383d3d39383df3`, `tst/in/quine.evm` | `code` mocked without constructor |
+| `construct` | specify `initcode` as minimum constructor of file | `tst/in/quine.evm` | `initcode` |
+| `code` | account code ; validated if `initcode` specified | `0x383d3d39383df3`, `tst/in/quine.evm` | `0x` |
 | `import` | load another configuration | `tst/quine.json` | |
 | `tests` | transactions executed sequentially, after account configuration | <pre>[<br>    {<br>        "input": "0x18160ddd",<br>        "output": "0x115eec47f6cf7e35000000"<br>    }<br>]</pre> | `[]` |
 
