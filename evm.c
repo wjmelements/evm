@@ -16,7 +16,8 @@
 op_t ops[PROGRAM_BUFFER_LENGTH];
 
 
-static int wrapConstructor = 0;
+static int wrapUniversalConstructor = 0;
+static int wrapMinConstructor = 0;
 static int labelJumpdests = 0;
 static int inverse = 0;
 static int runtime = 0;
@@ -43,7 +44,7 @@ static void assemble(const char *contents) {
         fprintLabels(stdout);
         return;
     }
-    if (wrapConstructor) {
+    if (wrapMinConstructor) {
         if (programLength < 0x20) {
             // PUSHx<>3d5260xx60xxf3
             programStart -= 1;
@@ -77,6 +78,15 @@ static void assemble(const char *contents) {
                 programLength += 10;
             }
         }
+    } else if (wrapUniversalConstructor) {
+        // 600b380380600b3d393df3
+        programStart -= 4;
+        *((uint32_t *)programStart) = 0xf33d393d;
+        programStart -= 4;
+        *((uint32_t *)programStart) = 0x0b608003;
+        programStart -= 3;
+        *((uint32_t *)programStart) = 0x03380b60;
+        programLength += 11;
     }
 
     for (; programLength--;) printf("%02x", *programStart++);
@@ -158,17 +168,20 @@ static void execute(const char *contents) {
 
 }
 
-#define USAGE fputs("usage: evm [ [-w json-file [-u] ] [-x [-gs] ] | [-cj] | -d ] [-o input] [file...]\n", stderr)
+#define USAGE fputs("usage: evm [ [-w json-file [-u] ] [-x [-gs] ] | [-c | -C] [-j] | -d ] [-o input] [file...]\n", stderr)
 
 int main(int argc, char *const argv[]) {
     pathInit(argv[0]);
 
     int option;
     char *contents = NULL;
-    while ((option = getopt (argc, argv, "cdgjlo:suw:x")) != -1)
+    while ((option = getopt (argc, argv, "cCdgjlo:suw:x")) != -1)
         switch (option) {
             case 'c':
-                wrapConstructor = 1;
+                wrapMinConstructor = 1;
+                break;
+            case 'C':
+                wrapUniversalConstructor = 1;
                 break;
             case 'd':
                 inverse = 1;
@@ -206,8 +219,13 @@ int main(int argc, char *const argv[]) {
                 USAGE;
                 return 1;
         }
-    if (inverse && wrapConstructor) {
+    if (inverse && wrapMinConstructor) {
         fputs("-c cannot be used with -d\n", stderr);
+        USAGE;
+        return 1;
+    }
+    if (inverse && wrapUniversalConstructor) {
+        fputs("-C cannot be used with -d\n", stderr);
         USAGE;
         return 1;
     }
@@ -216,8 +234,18 @@ int main(int argc, char *const argv[]) {
         USAGE;
         return 1;
     }
-    if (runtime && wrapConstructor) {
+    if (runtime && wrapMinConstructor) {
         fputs("-c cannot be used with -x\n", stderr);
+        USAGE;
+        return 1;
+    }
+    if (runtime && wrapUniversalConstructor) {
+        fputs("-C cannot be used with -x\n", stderr);
+        USAGE;
+        return 1;
+    }
+    if (wrapMinConstructor && wrapUniversalConstructor) {
+        fputs("-c cannot be used with -C\n", stderr);
         USAGE;
         return 1;
     }
