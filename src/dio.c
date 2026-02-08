@@ -901,6 +901,7 @@ static void jsonScanEntry(const char **iter) {
                     memcpy(headingCopy, heading, headingLen);
                     headingCopy[headingLen] = '\0';
                     fprintf(stderr, "Unexpected entry heading \"%s\" on line %" PRIu64 "\n", headingCopy, lineNumber);
+                    free(headingCopy);
                 }
                 jsonSkipEntryValue(iter);
                 break;
