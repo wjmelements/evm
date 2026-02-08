@@ -79,7 +79,7 @@ static void assemble(const char *contents) {
             }
         }
     } else if (wrapUniversalConstructor) {
-        // 600b380380600b3d393df3
+        // 600b380380600b3d393df3<>
         programStart -= 4;
         *((uint32_t *)programStart) = 0xf33d393d;
         programStart -= 4;
