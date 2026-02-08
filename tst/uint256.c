@@ -103,6 +103,24 @@ void test_bits() {
     assert(bits256(&a) == 255);
 }
 
+void test_clz() {
+    uint256_t a;
+    UPPER(UPPER(a)) = 0;
+    LOWER(UPPER(a)) = 0;
+    UPPER(LOWER(a)) = 0;
+    LOWER(LOWER(a)) = 0;
+    assert(clz256(&a) == 256);
+
+    LOWER(LOWER(a)) = 1;
+    assert(clz256(&a) == 255);
+
+    LOWER(LOWER(a)) = 3;
+    assert(clz256(&a) == 254);
+
+    LOWER(LOWER(a)) = 4;
+    assert(clz256(&a) == 253);
+}
+
 void test_math() {
     uint256_t a, b, c, d, e;
 
@@ -351,6 +369,7 @@ void test_mulmod() {
 int main() {
     test_bitwise();
     test_bits();
+    test_clz();
     test_math();
     test_shiftar();
     test_exp();
