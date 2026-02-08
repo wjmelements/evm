@@ -30,12 +30,13 @@ Words are read and written from memory in [big-endian](https://en.wikipedia.org/
 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 48 | 65 | 6c | 6c | 6f | 2c | 20 | 57 | 6f | 72 | 6c | 64 | 21 | 0a |
 
 ### Calldata
+Calldata is how callers specify parameters.
+
 Consider another program, `add.evm`:
 ```
 MSTORE(0, ADD(CALLDATALOAD(4), CALLDATALOAD(36)))
 RETURN(RETURNDATASIZE, MSIZE)
 ```
-Calldata is how callers specify parameters.
 This program reads two `uint256` from the calldata, adds them (possibly [overflowing](https://en.wikipedia.org/wiki/Integer_overflow)), stores the sum in memory, and then returns it.
 The parameters are loaded from 4 and 36 because, in the solidity 4byte ABI, the first four bytes are reserved for the [function selector](https://docs.soliditylang.org/en/latest/abi-spec.html#function-selector).
 
