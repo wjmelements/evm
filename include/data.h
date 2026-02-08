@@ -7,7 +7,7 @@ typedef struct data {
     uint8_t *content;
 } data_t;
 
-static inline void fprintData(FILE* file, data_t data) {
+static inline void fprintData(FILE *file, data_t data) {
     for (size_t i = 0; i < data.size; i++) {
         fprintf(file, "%02x", data.content[i]);
     }

@@ -9,6 +9,24 @@
 
 typedef uint32_t val_t[3];
 
+static inline void fprintVal(FILE* file, val_t val) {
+    fputc('0', stderr);
+    fputc('x', stderr);
+    int nonzero = false;
+    for (size_t i = 0; i < 3; i++) {
+        if (nonzero) {
+            fprintf(file, "%08x", val[i]);
+        } else if (val[i]) {
+            fprintf(file, "%x", val[i]);
+            nonzero = true;
+        }
+    }
+}
+
+static inline int ValueIsZero(val_t val) {
+    return val[0] == 0 && val[1] == 0 && val[2] == 0;
+}
+
 typedef struct codeChanges {
     data_t before;
     data_t after;

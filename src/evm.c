@@ -338,6 +338,8 @@ void fRepeat(FILE *file, const char *str, uint16_t times) {
     fRepeat(file, str, times - 1);
 }
 
+#define INDENT fRepeat(stderr, "\t", depthOf(callContext))
+
 void evmSetBlockNumber(uint64_t _blockNumber) {
     blockNumber = _blockNumber;
 }
@@ -642,18 +644,27 @@ static result_t evmCreate(account_t *fromAccount, uint64_t gas, val_t value, dat
 
 static result_t doCall(context_t *callContext) {
     if (SHOW_CALLS) {
-        fRepeat(stderr, "\t", depthOf(callContext));
+        INDENT;
         fprintf(stderr, "from: ");
         fprintAddress(stderr, callContext->caller);
         fprintf(stderr, "\n");
+
         if (callContext->account) {
-            fRepeat(stderr, "\t", depthOf(callContext));
+            INDENT;
             fprintf(stderr, "to: ");
             fprintAddress(stderr, callContext->account->address);
             fprintf(stderr, "\n");
         }
-        fRepeat(stderr, "\t", depthOf(callContext));
+        if (!ValueIsZero(callContext->callValue)) {
+            INDENT;
+            fprintf(stderr, "value: ");
+            fprintVal(stderr, callContext->callValue);
+            fprintf(stderr, "\n");
+        }
+
+        INDENT;
         fprintf(stderr, "input: ");
+
         dumpCallData(callContext);
     }
     if (AddressIsPrecompile(callContext->account->address)) {
@@ -1578,7 +1589,7 @@ static result_t doCall(context_t *callContext) {
                 result.returnData.content = callContext->memory.uint8s + LOWER(LOWER_P(callContext->top + 1));
                 result.returnData.size = LOWER(LOWER_P(callContext->top));
                 if (SHOW_CALLS) {
-                    fRepeat(stderr, "\t", depthOf(callContext));
+                    INDENT;
                     if (zero256(&result.status)) {
                         fprintf(stderr, "\033[0;31m");
                     }
@@ -1659,7 +1670,7 @@ static result_t _evmCall(context_t *callContext) {
 
     result.gasRemaining = callContext->gas;
     if (SHOW_CALLS) {
-        fRepeat(stderr, "\t", depthOf(callContext));
+        INDENT;
         fprintf(stderr, "gasUsed: %" PRIu64, startGas - callContext->gas);
         if (startGas < 600000000) {
             fprintf(stderr, " / %" PRIu64, startGas);
