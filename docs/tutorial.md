@@ -1,7 +1,6 @@
 | [Index](./index.md) | Tutorial | [Manual](./manual.md) |
 | :-----------------: | :------: | :-------------------: |
 
-
 ## Hello, world!
 Create a file called `hello.evm` with these contents (perhaps with `pbpaste > hello.evm`):
 ```
@@ -18,6 +17,8 @@ These are hexadecimal characters representing the binary output returned from th
 In this case, the binary is a string so you can decode it like `evm hello.evm | evm -x | xxd -r -p` and see `Hello, world!\n`.
 
 ## Overview of the EVM
+
+### Memory
 Consider the program `hello.evm` above.
 First it writes `0x48656c6c6f2c20576f726c64210a` into memory at position `0`.
 Then, it returns `14` bytes of memory at position `18`.
@@ -28,6 +29,7 @@ Words are read and written from memory in [big-endian](https://en.wikipedia.org/
 | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: |
 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 00 | 48 | 65 | 6c | 6c | 6f | 2c | 20 | 57 | 6f | 72 | 6c | 64 | 21 | 0a |
 
+### Calldata
 Consider another program, `add.evm`:
 ```
 MSTORE(0, ADD(CALLDATALOAD(4), CALLDATALOAD(36)))
