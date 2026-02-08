@@ -10,8 +10,16 @@
 typedef uint32_t val_t[3];
 
 static inline void fprintVal(FILE* file, val_t val) {
+    fputc('0', stderr);
+    fputc('x', stderr);
+    int nonzero = false;
     for (size_t i = 0; i < 3; i++) {
-        fprintf(file, "%08x", val[i]);
+        if (nonzero) {
+            fprintf(file, "%08x", val[i]);
+        } else if (val[i]) {
+            fprintf(file, "%x", val[i]);
+            nonzero = true;
+        }
     }
 }
 
