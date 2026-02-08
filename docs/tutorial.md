@@ -38,7 +38,7 @@ MSTORE(0, ADD(CALLDATALOAD(4), CALLDATALOAD(36)))
 RETURN(RETURNDATASIZE, MSIZE)
 ```
 This program reads two `uint256` from the calldata, adds them (possibly [overflowing](https://en.wikipedia.org/wiki/Integer_overflow)), stores the sum in memory, and then returns it.
-The parameters are loaded from 4 and 36 because, in the solidity 4byte ABI, the first four bytes are reserved for the [function selector](https://docs.soliditylang.org/en/latest/abi-spec.html#function-selector).
+The parameters are loaded from 4 and 36 because, in the Solidity 4byte ABI, the first four bytes are reserved for the [function selector](https://docs.soliditylang.org/en/latest/abi-spec.html#function-selector).
 
 Let's change the code to fail on overflow with `error Overflow()` (`0x35278d12`).
 The next program, `overflow.evm`, checks for overflow by testing that the sum is greater than one of operands.
