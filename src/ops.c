@@ -238,6 +238,7 @@ op_t parseOp(const char *start, const char **endOut) {
     switch ((*(uint32_t *)start) & 0x00ffffff) {
         case 'DDA': return ADD;
         case 'DNA': return AND;
+        case 'ZLC': return CLZ;
         case 'VID': return DIV;
         case 'PXE': return EXP;
         case 'BUS': return SUB;

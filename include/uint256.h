@@ -55,6 +55,7 @@ void shiftr256(const uint256_t *number, uint32_t value, uint256_t *target);
 void shiftar256(const uint256_t *number, uint32_t value, uint256_t *target);
 uint32_t bits128(const uint128_t *number);
 uint32_t bits256(const uint256_t *number);
+uint64_t clz256(const uint256_t *number);
 bool equal128(const uint128_t *number1, const uint128_t *number2);
 bool equal256(const uint256_t *number1, const uint256_t *number2);
 bool gt128(const uint128_t *number1, const uint128_t *number2);

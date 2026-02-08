@@ -317,6 +317,34 @@ uint32_t bits512(const uint512_t *number) {
     return bits256(&LOWER_P(number));
 }
 
+static uint64_t clz64(uint64_t number) {
+    // binary search
+    uint64_t zeros = 0;
+    if (!(number & 0xFFFFFFFF00000000)) { zeros += 32; number <<= 32; }
+    if (!(number & 0xFFFF000000000000)) { zeros += 16; number <<= 16; }
+    if (!(number & 0xFF00000000000000)) { zeros +=  8; number <<=  8; }
+    if (!(number & 0xF000000000000000)) { zeros +=  4; number <<=  4; }
+    if (!(number & 0xC000000000000000)) { zeros +=  2; number <<=  2; }
+    if (!(number & 0x8000000000000000)) { zeros +=  1; }
+    return zeros;
+}
+
+uint64_t clz256(const uint256_t *number) {
+    if (UPPER(UPPER_P(number))) {
+        return clz64(UPPER(UPPER_P(number)));
+    }
+    if (LOWER(UPPER_P(number))) {
+        return 64 + clz64(LOWER(UPPER_P(number)));
+    }
+    if (UPPER(LOWER_P(number))) {
+        return 128 + clz64(UPPER(LOWER_P(number)));
+    }
+    if (LOWER(LOWER_P(number))) {
+        return 192 + clz64(LOWER(LOWER_P(number)));
+    }
+    return 256;
+}
+
 bool equal128(const uint128_t *number1, const uint128_t *number2) {
     return (UPPER_P(number1) == UPPER_P(number2)) &&
            (LOWER_P(number1) == LOWER_P(number2));

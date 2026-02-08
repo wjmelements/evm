@@ -974,6 +974,15 @@ static result_t doCall(context_t *callContext) {
                     }
                 }
                 break;
+            case CLZ:
+                {
+                    uint64_t zeros = clz256(callContext->top - 1);
+                    UPPER(UPPER_P(callContext->top - 1)) = 0;
+                    LOWER(UPPER_P(callContext->top - 1)) = 0;
+                    UPPER(LOWER_P(callContext->top - 1)) = 0;
+                    LOWER(LOWER_P(callContext->top - 1)) = zeros;
+                }
+                break;
             case ADDMOD:
                 if (zero256(callContext->top - 1)) {
                     clear256(callContext->top - 1);
