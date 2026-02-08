@@ -423,9 +423,7 @@ Use the C preprocessor.
 ## Test-driven development
 
 If you are fixing a bug or adding a feature, first write a test in the `tst` directory that fails now but would pass after your change.
-If you create a new test file, you may need to update the `TESTS` field in the `Makefile`.
-Then make your change.
-Lastly, verify your test now passes.
+Lastly, verify your test now passes using `make check`.
 
 ### Unit tests
 Some unit tests written in C are found in `tst/*.c`.
