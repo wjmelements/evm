@@ -50,12 +50,16 @@ static void jsonScanChar(const char **iter, char expected) {
     (*iter)++;
 }
 
+static void jsonFailExpectingChar(char expected, char actual) {
+    fprintf(stderr, "Config: expecting '%c', found '%c' on line %" PRIu64 "\n", expected, actual, lineNumber);
+    _exit(1);
+}
+
 static void jsonSkipExpectedChar(const char **iter, char expected) {
     if (**iter == expected) {
         (*iter)++;
     } else {
-        fprintf(stderr, "Config: expecting '%c', found '%c' on line %" PRIu64 "\n", expected, **iter, lineNumber);
-        _exit(1);
+        jsonFailExpectingChar(expected, **iter);
     }
 }
 
@@ -65,6 +69,53 @@ static const char *jsonScanStr(const char **iter) {
     for (char ch; (ch = **iter) != '"' && ch; (*iter)++);
     jsonSkipExpectedChar(iter, '"');
     return start;
+}
+
+// attempt to skip entry of unknown json type
+// ends at ',' or '}'
+static void jsonSkipEntryValue(const char **iter) {
+    jsonScanWaste(iter);
+    char stack[100];
+    bzero(stack, sizeof(stack));
+    char *top = stack;
+    *top = ',';
+    (*iter)--;
+    while (top <= stack + 100) {
+        (*iter)++;
+        if (*top == ',') {
+            if (**iter == ',' || **iter == '}') {
+                return;
+            }
+        }
+        if (**iter == '\n') {
+            lineNumber++;
+            continue;
+        }
+        if (*top == '"') {
+            if (**iter == '"') {
+                top--;
+            }
+            continue;
+        } else switch (**iter) {
+            case '[':
+            case '{':
+            case '"':
+                *(++top) = **iter;
+                continue;
+            case ']':
+                if (*top-- != '[') {
+                    jsonFailExpectingChar('}', ']');
+                }
+                break;
+            case '}':
+                if (*top-- != '{') {
+                    jsonFailExpectingChar(']', '}');
+                }
+                break;
+        }
+    }
+    fprintf(stderr, "Unexpected entry is too deep at line %" PRIu64 "\n", lineNumber);
+    exit(1);
 }
 
 typedef struct storageEntry {
@@ -842,7 +893,17 @@ static void jsonScanEntry(const char **iter) {
                 jsonScanChar(iter, '}');
                 break;
             default:
-                fprintf(stderr, "Unexpected entry heading: %04x\n", *(uint32_t *)heading); break;
+                {
+                    const char *end = heading - 1;
+                    jsonScanStr(&end);
+                    size_t headingLen = end - heading - 1;
+                    char *headingCopy = malloc(sizeof(headingLen + 1));
+                    memcpy(headingCopy, heading, headingLen);
+                    headingCopy[headingLen] = '\0';
+                    fprintf(stderr, "Unexpected entry heading \"%s\" on line %" PRIu64 "\n", headingCopy, lineNumber);
+                }
+                jsonSkipEntryValue(iter);
+                break;
         }
         jsonScanWaste(iter);
         if (**iter == ',') {
