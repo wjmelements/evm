@@ -96,5 +96,5 @@ In the second test case, both parameters are supplied, and they sum to 3.
 
 In the third test case, we test the overflow case.
 In 256-bit arithmetic, `2 ** 256 - 1` is equivalent to `-1`.
-The program notices the overflow because the sum is less than the operands and reverts.
+The program notices the overflow, because the sum is less than the operands, and reverts.
 By default, test cases verify that the call does not revert, but this case instead verifies that it did revert as expected due to the specified `status` of `0`, which is failure.
