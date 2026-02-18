@@ -3,9 +3,22 @@
         "construct": "tst/in/ecrecover.evm",
         "tests": [
             {
+                "name": "recovers address",
                 "gasUsed": "0x64fc",
                 "input": "0x456e9aea5e197a1f1af7a3e85a3212fa4049a3ba34c2289b4c860fc0b0c64ef3000000000000000000000000000000000000000000000000000000000000001c9242685bf161793cc25603c231bc2f568eb630ea16aa137d2664ac80388256084f8ae3bd7535248d0bd448298cc2e2071e56992d0774dc340c368ae950852ada",
                 "output": "0x0000000000000000000000007156526fbd7a3c72969b54f64e42c10fbb768c8a"
+            },
+            {
+                "name": "invalid v",
+                "gasUsed": "0x64f9",
+                "input": "0x456e9aea5e197a1f1af7a3e85a3212fa4049a3ba34c2289b4c860fc0b0c64ef3000000000000000000000000001c0000000000000000000000000000000000009242685bf161793cc25603c231bc2f568eb630ea16aa137d2664ac80388256084f8ae3bd7535248d0bd448298cc2e2071e56992d0774dc340c368ae950852ada",
+                "output": "0x"
+            },
+            {
+                "name": "ecdsa recovery failure",
+                "gasUsed": "0x64f9",
+                "input": "0x7dbaf558b0a1a5dc7a67202117ab143c1d8605a983e4a743bc06fcc03162dc0d000000000000000000000000000000000000000000000000000000000000001c332ce75a821c982f9127538858900d87d3ec1f9f737338ad67cad133fa48feff48e6fa0c18abc62e42820f05943e47af3e9fbe306ce74d64094bdf1691ee53e0",
+                "output": "0x"
             }
         ]
     }
