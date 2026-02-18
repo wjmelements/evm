@@ -94,5 +94,14 @@ make/.precompiles.out: make/precompiles.sh bin/precompiles
 README.md: make/.ops.out make/.precompiles.out make/.rme.md CONTRIBUTING.md
 	cat make/.rme.md make/.ops.out make/.precompiles.out CONTRIBUTING.md > $@
 
+secp256k1/autogen.sh: .gitmodules
+	git submodule update --init --recursive secp256k1
 
+secp256k1/configure: secp256k1/autogen.sh
+	cd $(dir $@); ./autogen.sh
 
+secp256k1/Makefile: secp256k1/configure
+	cd $(dir $@); ./configure --enable-module-recovery
+
+secp256k1/.libs/libsecp256k1.a: secp256k1/Makefile
+	$(MAKE) -C secp256k1
