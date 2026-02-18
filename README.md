@@ -392,7 +392,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | Precompile | Address | Execution Supported |
 | :---: | :---:| :---: |
 | `HOLE` | `0x0` | ✅ |
-| `ECRECOVER` | `0x1` | ❌ |
+| `ECRECOVER` | `0x1` | ✅ |
 | `SHA2_256` | `0x2` | ❌ |
 | `RIPEMD160` | `0x3` | ❌ |
 | `IDENTITY` | `0x4` | ✅ |
