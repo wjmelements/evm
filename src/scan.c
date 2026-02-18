@@ -1,5 +1,6 @@
 #include "alpha.h"
 #include "data.h"
+#include "precompiles.h"
 #include "scan.h"
 #include "labelQueue.h"
 #include "scanstack.h"
@@ -8,6 +9,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 
 static inline int shouldIgnore(char ch) {
     return ch != '('
@@ -361,6 +363,18 @@ static void scanDataLen(const char **iter) {
     scanWaste(iter);
 }
 
+static int tryParsePrecompile(const char **iter, uint8_t *addr) {
+    #define PRECOMPILE(name, address, supported) \
+        if (strncmp(*iter, #name, sizeof(#name) - 1) == 0) { \
+            *addr = address; \
+            *iter += sizeof(#name) - 1; \
+            return 1; \
+        }
+    PRECOMPILES
+    #undef PRECOMPILE
+    return 0;
+}
+
 static void scanOp(const char **iter) {
     scanWaste(iter);
     if (isConstant(*iter)) {
@@ -409,15 +423,25 @@ static void scanOp(const char **iter) {
         } else if (**iter == '#') {
             scanDataLen(iter);
         } else {
-            const char *end;
-            op_t next = parseOp(*iter, &end);
-            // TODO maybe next can be read from stack after scanOp instead of parsing twice
-            if (!retCount[next]) {
-                fprintf(stderr, "When reading args for op %s found unexpected op %s, at line %u", opString[op], opString[next], lineNumber);
-                exit(1);
+            uint8_t precompileAddr;
+            if (tryParsePrecompile(iter, &precompileAddr)) {
+                if (precompileAddr) {
+                    scanstackPush(precompileAddr);
+                    scanstackPush(PUSH1);
+                } else {
+                    scanstackPush(PUSH0);
+                }
+            } else {
+                const char *end;
+                op_t next = parseOp(*iter, &end);
+                // TODO maybe next can be read from stack after scanOp instead of parsing twice
+                if (!retCount[next]) {
+                    fprintf(stderr, "When reading args for op %s found unexpected op %s, at line %u", opString[op], opString[next], lineNumber);
+                    exit(1);
+                }
+                i += (retCount[next] - 1);
+                scanOp(iter);
             }
-            i += (retCount[next] - 1);
-            scanOp(iter);
         }
     }
     scanWaste(iter);

@@ -7,7 +7,8 @@ CFLAGS=-O3 -fdiagnostics-color=auto -Wno-multichar -pthread -g $(CCSTD)
 CXXFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) $(CXXSTD) -fno-exceptions -Wno-write-strings -Wno-pointer-arith
 OCFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) -fmodules
 MKDIRS=lib bin tst/bin .pass .pass/tst/bin .make .make/bin .make/tst/bin .make/lib .pass/tst/in .pass/tst/diotst
-INCLUDE=$(addprefix -I,include)
+SECP256K1=secp256k1/.libs/libsecp256k1.a
+INCLUDE=$(addprefix -I,include) -Isecp256k1/include
 EXECS=$(patsubst %.c, bin/%, $(wildcard *.c))
 TESTS=$(patsubst tst/%.c, tst/bin/%, $(wildcard tst/*.c))
 SRC=$(wildcard src/*.cpp) $(wildcard src/*.m) $(wildcard src/%.c)
@@ -37,12 +38,12 @@ FNM=\([-+a-z_A-Z0-9/]*\)
 .make/lib/%.o.d: .make/src/%.d | .make/lib
 	@sed 's/$(FNM)\.o/lib\/\1.o/g' $< > $@
 .make/bin/%.d: .make/%.d | .make/bin
-	@sed 's/include\/$(FNM).h/lib\/\1.o/g' $< > $@
+	@sed 's|include/secp256k1_libs\.h|$(SECP256K1)|g; s/include\/$(FNM).h/lib\/\1.o/g' $< > $@
 	@sed -i.bak 's/$(FNM).o:/bin\/\1:/g' $@
 	@perl make/depend.pl $@ > $@.bak
 	@mv $@.bak $@
 .make/tst/bin/%.d: .make/tst/%.d | .make/tst/bin
-	@sed 's/include\/$(FNM).h/lib\/\1.o/g' $< > $@
+	@sed 's|include/secp256k1_libs\.h|$(SECP256K1)|g; s/include\/$(FNM).h/lib\/\1.o/g' $< > $@
 	@sed -i.bak 's/$(FNM).o:/tst\/bin\/\1:/g' $@
 	@perl make/depend.pl $@ > $@.bak
 	@mv $@.bak $@

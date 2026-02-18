@@ -1,0 +1,11 @@
+[
+    {
+        "construct": "tst/in/ecrecover.evm",
+        "tests": [
+            {
+                "gasUsed": "0x5e63",
+                "output": "0x0000000000000000000000007156526fbd7a3c72969b54f64e42c10fbb768c8a"
+            }
+        ]
+    }
+]
