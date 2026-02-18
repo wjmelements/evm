@@ -1,3 +1,4 @@
+#include <secp256k1_recovery.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -5,7 +6,6 @@
 #include "data.h"
 #include "keccak.h"
 #include "ops.h"
-#include "secp256k1_libs.h"
 #include "uint256.h"
 
 typedef uint32_t val_t[3];

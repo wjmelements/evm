@@ -38,12 +38,12 @@ FNM=\([-+a-z_A-Z0-9/]*\)
 .make/lib/%.o.d: .make/src/%.d | .make/lib
 	@sed 's/$(FNM)\.o/lib\/\1.o/g' $< > $@
 .make/bin/%.d: .make/%.d | .make/bin
-	@sed 's|include/secp256k1_libs\.h|$(SECP256K1)|g; s/include\/$(FNM).h/lib\/\1.o/g' $< > $@
+	@sed 's|secp256k1/include/secp256k1_recovery.h|$(SECP256K1)|g; s/include\/$(FNM).h/lib\/\1.o/g' $< > $@
 	@sed -i.bak 's/$(FNM).o:/bin\/\1:/g' $@
 	@perl make/depend.pl $@ > $@.bak
 	@mv $@.bak $@
 .make/tst/bin/%.d: .make/tst/%.d | .make/tst/bin
-	@sed 's|include/secp256k1_libs\.h|$(SECP256K1)|g; s/include\/$(FNM).h/lib\/\1.o/g' $< > $@
+	@sed 's|secp256k1/include/secp256k1_recovery.h|$(SECP256K1)|g; s/include\/$(FNM).h/lib\/\1.o/g' $< > $@
 	@sed -i.bak 's/$(FNM).o:/tst\/bin\/\1:/g' $@
 	@perl make/depend.pl $@ > $@.bak
 	@mv $@.bak $@

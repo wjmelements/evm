@@ -1,8 +1,6 @@
 #include "evm.h"
 #include "vector.h"
 
-#include <secp256k1_recovery.h>
-
 #include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>
