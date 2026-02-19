@@ -2120,6 +2120,7 @@ void test_jumpDestInsidePush() {
     close(2);
     result_t result = txCreate(from, 60000, value, input);
     dup2(savedStderr, 2);
+    clearerr(stderr);
     close(savedStderr);
 
     assert(UPPER(UPPER(result.status)) == 0);
@@ -2156,6 +2157,7 @@ void test_jumpiDestInsidePush() {
     close(2);
     result_t result = txCreate(from, 60000, value, input);
     dup2(savedStderr, 2);
+    clearerr(stderr);
     close(savedStderr);
 
     assert(UPPER(UPPER(result.status)) == 0);
