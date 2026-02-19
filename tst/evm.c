@@ -1643,7 +1643,10 @@ void test_staticcallSstore() {
 
     // STATICCALL into SSTORE; forbidden
     gas = 0x10000;
-    result = txCall(from, gas, staticCall, value, input, NULL);
+    assertStderr(
+        "Attempted SSTORE inside STATICCALL\n",
+        result = txCall(from, gas, staticCall, value, input, NULL);
+    );
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0);
     assert(UPPER(LOWER(result.status)) == 0);
@@ -2051,7 +2054,10 @@ void test_createInsufficientBalance() {
     input.size = sizeof(createRevert);
 
     // internal create fails due to insufficient value
-    result_t result = txCreate(from, gas, value, input);
+    assertStderr(
+        "Insufficient balance [0x000000000000000000000000] for create (need [0x000000000000000000000001])\n",
+        result_t result = txCreate(from, gas, value, input)
+    );
 
     op_t failOut[] = {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x34, 0x5f, 0xf3,
@@ -2093,7 +2099,14 @@ void test_createOutOfGas() {
     input.content = recursiveOOG;
     input.size = sizeof(recursiveOOG);
 
-    result_t result = txCreate(from, gas, value, input);
+    assertStderr(
+        "Out of gas at pc 7 op CREATE\n"
+        "Insufficient gas to insert code, codeGas 2200 > gas 266\n"
+        "Insufficient gas to insert code, codeGas 2200 > gas 778\n"
+        "Insufficient gas to insert code, codeGas 2200 > gas 1299\n"
+        "Insufficient gas to insert code, codeGas 2200 > gas 1828\n",
+        result_t result = txCreate(from, gas, value, input)
+    );
     assert(DataEqual(&result.returnData, &input));
     for (stateChanges_t *stateChanges = result.stateChanges; stateChanges; stateChanges = stateChanges->next) {
         assert(!stateChanges->logChanges);
@@ -2265,17 +2278,17 @@ int main() {
     test_create();
     test_jumpDestInsidePush();
     test_jumpiDestInsidePush();
+    test_staticcallSstore();
+    test_createInsufficientBalance();
+    test_createOutOfGas();
+
+    // These last tests will write to stderr; usually we want this to be hushed
+    close(2);
 
     for (op_t PUSHx = PUSH0; PUSHx <= PUSH32; PUSHx++) {
         test_jumpForwardScan(PUSHx);
     }
 
-    // These last tests will write to stderr; usually we want this to be hushed
-    close(2);
-
-    test_staticcallSstore();
-    test_createInsufficientBalance();
-    test_createOutOfGas();
 
     return 0;
 }
