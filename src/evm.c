@@ -1117,7 +1117,37 @@ static result_t doCall(context_t *callContext) {
                 if (callContext->code.content[pc] != JUMPDEST) {
                     fprintf(stderr, "%s to invalid destination %" PRIu64 " (%s)\n", opString[op], pc, opString[callContext->code.content[pc]]);
                     FAIL_INVALID;
-                } // TODO static analysis for PUSH
+                }
+                // Verify the JUMPDEST byte is a real instruction, not PUSH data.
+                // Backward scan: PUSH_n covers at most n <= 32 data bytes ahead.
+                // If no candidate found, skip the more expensive forward scan.
+                {
+                    uint64_t lookback = pc < 32 ? pc : 32;
+                    bool needForwardScan = false;
+                    for (uint64_t i = 1; i <= lookback; i++) {
+                        uint8_t cb = callContext->code.content[pc - i];
+                        if (cb >= PUSH1 && cb <= PUSH32 && cb - PUSH0 >= i) {
+                            needForwardScan = true;
+                            break;
+                        }
+                    }
+                    if (needForwardScan) {
+                        uint64_t fpc = 0;
+                        while (fpc < pc) {
+                            uint8_t cb = callContext->code.content[fpc];
+                            if (cb >= PUSH1 && cb <= PUSH32) {
+                                uint8_t n = cb - PUSH0;
+                                if (fpc + n >= pc) {
+                                    fprintf(stderr, "%s to JUMPDEST inside PUSH%u data at %" PRIu64 "\n", opString[op], n, pc);
+                                    FAIL_INVALID;
+                                }
+                                fpc += 1 + n;
+                            } else {
+                                fpc++;
+                            }
+                        }
+                    }
+                }
                 break;
             default:
                 fprintf(stderr, "Unsupported opcode %u (%s)\n", op, opString[op]);

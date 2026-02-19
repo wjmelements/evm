@@ -2096,6 +2096,77 @@ void test_createOutOfGas() {
     evmFinalize();
 }
 
+// JUMP to a 0x5b byte that is PUSH1 data → exceptional halt
+void test_jumpDestInsidePush() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+    data_t input;
+
+    // Positions: 0:PUSH1  1:5(dest)  2:JUMP  3:STOP  4:PUSH1  5:0x5b(JUMPDEST byte in data)  6:STOP
+    op_t code[] = {
+        PUSH1, 5,
+        JUMP,
+        STOP,
+        PUSH1, JUMPDEST, // 0x5b at position 5 is data, not an instruction
+        STOP,
+    };
+    input.content = code;
+    input.size = sizeof(code);
+
+    int savedStderr = dup(2);
+    close(2);
+    result_t result = txCreate(from, 60000, value, input);
+    dup2(savedStderr, 2);
+    close(savedStderr);
+
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0);
+    assert(UPPER(LOWER(result.status)) == 0);
+    assert(LOWER(LOWER(result.status)) == 0);
+    assert(result.gasRemaining == 0);
+
+    evmFinalize();
+}
+
+// JUMPI with true condition to a 0x5b byte that is PUSH1 data → exceptional halt
+void test_jumpiDestInsidePush() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+    data_t input;
+
+    // Positions: 0:PUSH1  1:1(cond)  2:PUSH1  3:7(dest)  4:JUMPI  5:STOP  6:PUSH1  7:0x5b  8:STOP
+    op_t code[] = {
+        PUSH1, 1,         // condition = 1 (true)
+        PUSH1, 7,         // destination = 7
+        JUMPI,
+        STOP,
+        PUSH1, JUMPDEST,  // 0x5b at position 7 is data, not an instruction
+        STOP,
+    };
+    input.content = code;
+    input.size = sizeof(code);
+
+    int savedStderr = dup(2);
+    close(2);
+    result_t result = txCreate(from, 60000, value, input);
+    dup2(savedStderr, 2);
+    close(savedStderr);
+
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0);
+    assert(UPPER(LOWER(result.status)) == 0);
+    assert(LOWER(LOWER(result.status)) == 0);
+    assert(result.gasRemaining == 0);
+
+    evmFinalize();
+}
+
 int main() {
     test_stop();
     test_mstoreReturn();
@@ -2126,6 +2197,8 @@ int main() {
     test_sha3();
     test_delegateCall();
     test_create();
+    test_jumpDestInsidePush();
+    test_jumpiDestInsidePush();
 
     // These last tests will write to stderr; usually we want this to be hushed
     close(2);
