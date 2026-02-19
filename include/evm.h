@@ -1,3 +1,4 @@
+#include <secp256k1_recovery.h>
 #include <stddef.h>
 #include <stdint.h>
 

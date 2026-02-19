@@ -9,6 +9,8 @@ while (<>) {
         } else {
             if ($item =~ /\w+:/) {
                 print $item;
+            } elsif ($item =~ /\.a$/) {
+                print " $item"
             } elsif ($item != "\\") {
                 print " $item"
             }

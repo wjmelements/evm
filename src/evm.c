@@ -624,6 +624,45 @@ static result_t doSupportedPrecompile(precompile_t precompile, context_t *callCo
         case HOLE:
             result.returnData.size = 0;
             return result;
+        case ECRECOVER:
+            {
+                APPLY_GAS_COST(3000);
+                uint8_t input[128];
+                memset(input, 0, 128);
+                size_t copyLen = callContext->callData.size < 128 ? callContext->callData.size : 128;
+                memcpy(input, callContext->callData.content, copyLen);
+                // v is at bytes [32..63]: upper 31 bytes must be 0, last byte must be 27 or 28
+                for (int i = 32; i < 63; i++) {
+                    if (input[i] != 0) {
+                        result.returnData.size = 0;
+                        return result;
+                    }
+                }
+                int v = input[63];
+                if (v != 27 && v != 28) {
+                    result.returnData.size = 0;
+                    return result;
+                }
+                int recid = v - 27;
+                secp256k1_ecdsa_recoverable_signature sig;
+                if (!secp256k1_ecdsa_recoverable_signature_parse_compact(secp256k1_context_static, &sig, input + 64, recid)) {
+                    result.returnData.size = 0;
+                    return result;
+                }
+                secp256k1_pubkey pubkey;
+                if (!secp256k1_ecdsa_recover(secp256k1_context_static, &pubkey, &sig, input)) {
+                    result.returnData.size = 0;
+                    return result;
+                }
+                uint8_t pubkeyBytes[65];
+                size_t pubkeyLen = 65;
+                secp256k1_ec_pubkey_serialize(secp256k1_context_static, pubkeyBytes, &pubkeyLen, &pubkey, SECP256K1_EC_UNCOMPRESSED);
+                result.returnData.size = 32;
+                result.returnData.content = malloc(32);
+                keccak_256(result.returnData.content, 32, pubkeyBytes + 1, 64);
+                memset(result.returnData.content, 0, 12);
+                return result;
+            }
         case IDENTITY:
             APPLY_GAS_COST(15 + 3 * ((callContext->callData.size + 31) / 32));
             result.returnData.size = callContext->callData.size;
