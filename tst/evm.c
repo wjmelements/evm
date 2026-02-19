@@ -6,6 +6,25 @@
 #include "ops.h"
 #include "evm.h"
 
+#define assertStderr(msg, statement)\
+    int rw[2];\
+    pipe(rw);\
+    int savedStderr = dup(2);\
+    close(2);\
+    dup2(rw[1], 2);\
+    close(rw[1]);\
+    statement;\
+    close(2);\
+    dup2(savedStderr, 2);\
+    clearerr(stderr);\
+    close(savedStderr);\
+    const char expectedErr[] = msg;\
+    char actualErr[sizeof(expectedErr)];\
+    assert(read(rw[0], actualErr, sizeof(expectedErr)) == sizeof(expectedErr) - 1);\
+    close(rw[0]);\
+    actualErr[sizeof(expectedErr) - 1] = 0;\
+    assert(memcmp(expectedErr, actualErr, sizeof(expectedErr)) == 0)
+
 
 void test_stop() {
     evmInit();
@@ -2116,12 +2135,10 @@ void test_jumpDestInsidePush() {
     input.content = code;
     input.size = sizeof(code);
 
-    int savedStderr = dup(2);
-    close(2);
-    result_t result = txCreate(from, 60000, value, input);
-    dup2(savedStderr, 2);
-    clearerr(stderr);
-    close(savedStderr);
+    assertStderr(
+        "JUMP to JUMPDEST inside PUSH1 data at 5\n",
+        result_t result = txCreate(from, 60000, value, input)
+    );
 
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0);
@@ -2153,13 +2170,10 @@ void test_jumpiDestInsidePush() {
     input.content = code;
     input.size = sizeof(code);
 
-    int savedStderr = dup(2);
-    close(2);
-    result_t result = txCreate(from, 60000, value, input);
-    dup2(savedStderr, 2);
-    clearerr(stderr);
-    close(savedStderr);
-
+    assertStderr(
+        "JUMPI to JUMPDEST inside PUSH1 data at 7\n",
+        result_t result = txCreate(from, 60000, value, input)
+    );
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0);
     assert(UPPER(LOWER(result.status)) == 0);
