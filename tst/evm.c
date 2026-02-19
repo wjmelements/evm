@@ -2167,6 +2167,56 @@ void test_jumpiDestInsidePush() {
     evmFinalize();
 }
 
+void test_jumpForwardScan(op_t PUSHx) {
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    address_t to = AddressFromHex42("0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3");
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+    data_t code;
+    result_t result;
+
+    data_t input;
+    input.size = 0;
+    input.content = NULL;
+    accessList_t *accessList = NULL;
+
+    evmInit();
+
+    op_t mustScan[0x6000];
+    memset(mustScan, PUSHx, 0x5fff);
+    mustScan[0x5fff] = JUMPDEST;
+
+    uint64_t startGas = 60000;
+    uint64_t successGasUsed = G_TX + gasCost[PUSH2] + gasCost[JUMP] + gasCost[JUMPDEST] + gasCost[STOP];
+    uint64_t successGasRemaining = startGas - successGasUsed;
+
+    uint64_t pushWidth = PUSHx - PUSH0 + 1;
+
+    for (uint64_t i = 0; i < 0x5ffc; i++) {
+        uint64_t destPc = 0x5fff - i;
+        mustScan[i] = PUSH2;
+        mustScan[i+1] = destPc >> 8;
+        mustScan[i+2] = destPc;
+        mustScan[i+3] = JUMP;
+
+        code.size = 0x6000 - i;
+        code.content = mustScan + i;
+        evmMockCode(to, code);
+
+        result = txCall(from, startGas, to, value, input, accessList);
+        if (destPc % pushWidth == 4 % pushWidth) {
+            assert(result.gasRemaining == successGasRemaining);
+        } else {
+            assert(result.gasRemaining == 0);
+        }
+    }
+
+    // unmock; prevents heap error from freeing stack memory
+    evmMockCode(to, input);
+
+    evmFinalize();
+}
+
 int main() {
     test_stop();
     test_mstoreReturn();
@@ -2199,6 +2249,10 @@ int main() {
     test_create();
     test_jumpDestInsidePush();
     test_jumpiDestInsidePush();
+
+    for (op_t PUSHx = PUSH0; PUSHx <= PUSH32; PUSHx++) {
+        test_jumpForwardScan(PUSHx);
+    }
 
     // These last tests will write to stderr; usually we want this to be hushed
     close(2);
