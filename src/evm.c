@@ -657,12 +657,10 @@ static result_t doSupportedPrecompile(precompile_t precompile, context_t *callCo
                 uint8_t pubkeyBytes[65];
                 size_t pubkeyLen = 65;
                 secp256k1_ec_pubkey_serialize(secp256k1_context_static, pubkeyBytes, &pubkeyLen, &pubkey, SECP256K1_EC_UNCOMPRESSED);
-                uint8_t hash[32];
-                keccak_256(hash, 32, pubkeyBytes + 1, 64);
                 result.returnData.size = 32;
                 result.returnData.content = malloc(32);
+                keccak_256(result.returnData.content, 32, pubkeyBytes + 1, 64);
                 memset(result.returnData.content, 0, 12);
-                memcpy(result.returnData.content + 12, hash + 12, 20);
                 return result;
             }
         case IDENTITY:
