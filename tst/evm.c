@@ -25,6 +25,12 @@
     actualErr[sizeof(expectedErr) - 1] = 0;\
     assert(memcmp(expectedErr, actualErr, sizeof(expectedErr)) == 0)
 
+#define assertFailedInvalid(result)\
+    assert(UPPER(UPPER(result.status)) == 0);\
+    assert(LOWER(UPPER(result.status)) == 0);\
+    assert(UPPER(LOWER(result.status)) == 0);\
+    assert(LOWER(LOWER(result.status)) == 0);\
+    assert(result.gasRemaining == 0)
 
 void test_stop() {
     evmInit();
@@ -2153,11 +2159,7 @@ void test_jumpDestInsidePush() {
         result_t result = txCreate(from, 60000, value, input)
     );
 
-    assert(UPPER(UPPER(result.status)) == 0);
-    assert(LOWER(UPPER(result.status)) == 0);
-    assert(UPPER(LOWER(result.status)) == 0);
-    assert(LOWER(LOWER(result.status)) == 0);
-    assert(result.gasRemaining == 0);
+    assertFailedInvalid(result);
 
     evmFinalize();
 }
@@ -2187,11 +2189,7 @@ void test_jumpiDestInsidePush() {
         "JUMPI to JUMPDEST inside PUSH1 data at 7\n",
         result_t result = txCreate(from, 60000, value, input)
     );
-    assert(UPPER(UPPER(result.status)) == 0);
-    assert(LOWER(UPPER(result.status)) == 0);
-    assert(UPPER(LOWER(result.status)) == 0);
-    assert(LOWER(LOWER(result.status)) == 0);
-    assert(result.gasRemaining == 0);
+    assertFailedInvalid(result);
 
     evmFinalize();
 }
