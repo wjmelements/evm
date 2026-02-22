@@ -22,6 +22,7 @@ default: all
 all: $(EXECS) $(TESTS) README.md
 clean:
 	rm -rf $(MKDIRS)
+	make -C secp256k1 clean
 again: clean all
 check: $(addprefix .pass/,$(TESTS) $(INTEGRATIONS))
 

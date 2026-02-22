@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <inttypes.h>
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -6,6 +7,42 @@
 #include "ops.h"
 #include "evm.h"
 
+#define assertStderr(expectedErr, statement)\
+    int rw[2];\
+    pipe(rw);\
+    int savedStderr = dup(2);\
+    close(2);\
+    dup2(rw[1], 2);\
+    close(rw[1]);\
+    statement;\
+    close(2);\
+    dup2(savedStderr, 2);\
+    clearerr(stderr);\
+    close(savedStderr);\
+    size_t strSize = strlen(expectedErr) + 1;\
+    char *actualErr = malloc(strSize);\
+    ssize_t red = read(rw[0], actualErr, strSize);\
+    if (red == -1) {\
+        perror("read");\
+        exit(1);\
+    }\
+    actualErr[red] = 0;\
+    if (red != strSize - 1) {\
+        fprintf(stderr, "stderr length mismatch\nexpected[%zu]: \"%s\"\nactual[%zd]: \"%s\"\n", strSize, expectedErr, red, actualErr);\
+        exit(1);\
+    }\
+    close(rw[0]);\
+    if (memcmp(expectedErr, actualErr, strSize) != 0) {\
+        fprintf(stderr, "stderr mismatch\nexpected[%zu]: \"%s\"\nactual[%zd]: \"%s\"\n", strSize, expectedErr, red, actualErr);\
+        exit(1);\
+    }
+
+#define assertFailedInvalid(result)\
+    assert(UPPER(UPPER(result.status)) == 0);\
+    assert(LOWER(UPPER(result.status)) == 0);\
+    assert(UPPER(LOWER(result.status)) == 0);\
+    assert(LOWER(LOWER(result.status)) == 0);\
+    assert(result.gasRemaining == 0)
 
 void test_stop() {
     evmInit();
@@ -25,7 +62,10 @@ void test_stop() {
     input.size = sizeof(program);
     input.content = program;
 
-    result_t result = txCreate(from, gas, value, input);
+    assertStderr(
+        "",
+        result_t result = txCreate(from, gas, value, input)
+    );
     evmFinalize();
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0x80d9b122);
@@ -62,7 +102,10 @@ void test_mstoreReturn() {
     input.size = sizeof(program);
     input.content = program;
 
-    result_t result = txCreate(from, gas, value, input);
+    assertStderr(
+        "",
+        result_t result = txCreate(from, gas, value, input)
+    );
     evmFinalize();
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0x80d9b122);
@@ -108,7 +151,10 @@ void test_math() {
     input.size = sizeof(program);
     input.content = program;
 
-    result_t result = txCreate(from, gas, value, input);
+    assertStderr(
+        "",
+        result_t result = txCreate(from, gas, value, input)
+    );
     evmFinalize();
 
     assert(zero256(&result.status));
@@ -1624,7 +1670,10 @@ void test_staticcallSstore() {
 
     // STATICCALL into SSTORE; forbidden
     gas = 0x10000;
-    result = txCall(from, gas, staticCall, value, input, NULL);
+    assertStderr(
+        "Attempted SSTORE inside STATICCALL\n",
+        result = txCall(from, gas, staticCall, value, input, NULL);
+    );
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0);
     assert(UPPER(LOWER(result.status)) == 0);
@@ -2032,7 +2081,10 @@ void test_createInsufficientBalance() {
     input.size = sizeof(createRevert);
 
     // internal create fails due to insufficient value
-    result_t result = txCreate(from, gas, value, input);
+    assertStderr(
+        "Insufficient balance [0x000000000000000000000000] for create (need [0x000000000000000000000001])\n",
+        result_t result = txCreate(from, gas, value, input)
+    );
 
     op_t failOut[] = {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x34, 0x5f, 0xf3,
@@ -2074,7 +2126,14 @@ void test_createOutOfGas() {
     input.content = recursiveOOG;
     input.size = sizeof(recursiveOOG);
 
-    result_t result = txCreate(from, gas, value, input);
+    assertStderr(
+        "Out of gas at pc 7 op CREATE\n"
+        "Insufficient gas to insert code, codeGas 2200 > gas 266\n"
+        "Insufficient gas to insert code, codeGas 2200 > gas 778\n"
+        "Insufficient gas to insert code, codeGas 2200 > gas 1299\n"
+        "Insufficient gas to insert code, codeGas 2200 > gas 1828\n",
+        result_t result = txCreate(from, gas, value, input)
+    );
     assert(DataEqual(&result.returnData, &input));
     for (stateChanges_t *stateChanges = result.stateChanges; stateChanges; stateChanges = stateChanges->next) {
         assert(!stateChanges->logChanges);
@@ -2092,6 +2151,125 @@ void test_createOutOfGas() {
 
     // fprintf(stderr, "\nGas Remaining %llu\n", result.gasRemaining);
     assert(result.gasRemaining == 11885640);
+
+    evmFinalize();
+}
+
+// JUMP to a 0x5b byte that is PUSH1 data → exceptional halt
+void test_jumpDestInsidePush() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+    data_t input;
+
+    // Positions: 0:PUSH1  1:5(dest)  2:JUMP  3:STOP  4:PUSH1  5:0x5b(JUMPDEST byte in data)  6:STOP
+    op_t code[] = {
+        PUSH1, 5,
+        JUMP,
+        STOP,
+        PUSH1, JUMPDEST, // 0x5b at position 5 is data, not an instruction
+        STOP,
+    };
+    input.content = code;
+    input.size = sizeof(code);
+
+    assertStderr(
+        "JUMP to JUMPDEST inside PUSH1 data at 5\n",
+        result_t result = txCreate(from, 60000, value, input)
+    );
+
+    assertFailedInvalid(result);
+
+    evmFinalize();
+}
+
+// JUMPI with true condition to a 0x5b byte that is PUSH1 data → exceptional halt
+void test_jumpiDestInsidePush() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+    data_t input;
+
+    // Positions: 0:PUSH1  1:1(cond)  2:PUSH1  3:7(dest)  4:JUMPI  5:STOP  6:PUSH1  7:0x5b  8:STOP
+    op_t code[] = {
+        PUSH1, 1,         // condition = 1 (true)
+        PUSH1, 7,         // destination = 7
+        JUMPI,
+        STOP,
+        PUSH1, JUMPDEST,  // 0x5b at position 7 is data, not an instruction
+        STOP,
+    };
+    input.content = code;
+    input.size = sizeof(code);
+
+    assertStderr(
+        "JUMPI to JUMPDEST inside PUSH1 data at 7\n",
+        result_t result = txCreate(from, 60000, value, input)
+    );
+    assertFailedInvalid(result);
+
+    evmFinalize();
+}
+
+void test_jumpForwardScan(op_t PUSHx) {
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    address_t to = AddressFromHex42("0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3");
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+    data_t code;
+    result_t result;
+
+    data_t input;
+    input.size = 0;
+    input.content = NULL;
+    accessList_t *accessList = NULL;
+
+    evmInit();
+
+    op_t mustScan[0x6000];
+    memset(mustScan, PUSHx, 0x5fff);
+    mustScan[0x5fff] = JUMPDEST;
+
+    uint64_t startGas = 60000;
+    uint64_t successGasUsed = G_TX + gasCost[PUSH2] + gasCost[JUMP] + gasCost[JUMPDEST] + gasCost[STOP];
+    uint64_t successGasRemaining = startGas - successGasUsed;
+
+    uint64_t pushWidth = PUSHx - PUSH0 + 1;
+
+    char expected[46];
+    uint64_t expectedGasRemaining;
+    for (uint64_t i = 0; i < 0x5ffc; i++) {
+        uint64_t destPc = 0x5fff - i;
+        mustScan[i] = PUSH2;
+        mustScan[i+1] = destPc >> 8;
+        mustScan[i+2] = destPc;
+        mustScan[i+3] = JUMP;
+
+        code.size = 0x6000 - i;
+        code.content = mustScan + i;
+        evmMockCode(to, code);
+
+        if (destPc % pushWidth == 4 % pushWidth) {
+            expected[0] = '\0';
+            expectedGasRemaining = successGasRemaining;
+        } else {
+            assert(46 > snprintf(expected, 46, "JUMP to JUMPDEST inside %s data at %" PRIu64 "\n", opString[PUSHx], destPc));
+            expectedGasRemaining = 0;
+        }
+
+        assertStderr(
+            expected,
+            result = txCall(from, startGas, to, value, input, accessList)
+        );
+        assert(result.gasRemaining == expectedGasRemaining);
+    }
+
+    // unmock; prevents heap error from freeing stack memory
+    evmMockCode(to, input);
 
     evmFinalize();
 }
@@ -2126,13 +2304,16 @@ int main() {
     test_sha3();
     test_delegateCall();
     test_create();
-
-    // These last tests will write to stderr; usually we want this to be hushed
-    close(2);
-
+    test_jumpDestInsidePush();
+    test_jumpiDestInsidePush();
     test_staticcallSstore();
     test_createInsufficientBalance();
     test_createOutOfGas();
+
+    for (op_t PUSHx = PUSH0; PUSHx <= PUSH32; PUSHx++) {
+        test_jumpForwardScan(PUSHx);
+    }
+
 
     return 0;
 }
