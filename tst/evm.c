@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <inttypes.h>
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -6,7 +7,7 @@
 #include "ops.h"
 #include "evm.h"
 
-#define assertStderr(msg, statement)\
+#define assertStderr(expectedErr, statement)\
     int rw[2];\
     pipe(rw);\
     int savedStderr = dup(2);\
@@ -18,12 +19,23 @@
     dup2(savedStderr, 2);\
     clearerr(stderr);\
     close(savedStderr);\
-    const char expectedErr[] = msg;\
-    char actualErr[sizeof(expectedErr)];\
-    assert(read(rw[0], actualErr, sizeof(expectedErr)) == sizeof(expectedErr) - 1);\
+    size_t strSize = strlen(expectedErr) + 1;\
+    char *actualErr = malloc(strSize);\
+    ssize_t red = read(rw[0], actualErr, strSize);\
+    if (red == -1) {\
+        perror("read");\
+        exit(1);\
+    }\
+    actualErr[red] = 0;\
+    if (red != strSize - 1) {\
+        fprintf(stderr, "stderr length mismatch\nexpected[%zu]: \"%s\"\nactual[%zd]: \"%s\"\n", strSize, expectedErr, red, actualErr);\
+        exit(1);\
+    }\
     close(rw[0]);\
-    actualErr[sizeof(expectedErr) - 1] = 0;\
-    assert(memcmp(expectedErr, actualErr, sizeof(expectedErr)) == 0)
+    if (memcmp(expectedErr, actualErr, strSize) != 0) {\
+        fprintf(stderr, "stderr mismatch\nexpected[%zu]: \"%s\"\nactual[%zd]: \"%s\"\n", strSize, expectedErr, red, actualErr);\
+        exit(1);\
+    }
 
 #define assertFailedInvalid(result)\
     assert(UPPER(UPPER(result.status)) == 0);\
@@ -2219,6 +2231,8 @@ void test_jumpForwardScan(op_t PUSHx) {
 
     uint64_t pushWidth = PUSHx - PUSH0 + 1;
 
+    char expected[46];
+    uint64_t expectedGasRemaining;
     for (uint64_t i = 0; i < 0x5ffc; i++) {
         uint64_t destPc = 0x5fff - i;
         mustScan[i] = PUSH2;
@@ -2230,12 +2244,19 @@ void test_jumpForwardScan(op_t PUSHx) {
         code.content = mustScan + i;
         evmMockCode(to, code);
 
-        result = txCall(from, startGas, to, value, input, accessList);
         if (destPc % pushWidth == 4 % pushWidth) {
-            assert(result.gasRemaining == successGasRemaining);
+            expected[0] = '\0';
+            expectedGasRemaining = successGasRemaining;
         } else {
-            assert(result.gasRemaining == 0);
+            assert(46 > snprintf(expected, 46, "JUMP to JUMPDEST inside %s data at %" PRIu64 "\n", opString[PUSHx], destPc));
+            expectedGasRemaining = 0;
         }
+
+        assertStderr(
+            expected,
+            result = txCall(from, startGas, to, value, input, accessList)
+        );
+        assert(result.gasRemaining == expectedGasRemaining);
     }
 
     // unmock; prevents heap error from freeing stack memory
@@ -2279,9 +2300,6 @@ int main() {
     test_staticcallSstore();
     test_createInsufficientBalance();
     test_createOutOfGas();
-
-    // These last tests will write to stderr; usually we want this to be hushed
-    close(2);
 
     for (op_t PUSHx = PUSH0; PUSHx <= PUSH32; PUSHx++) {
         test_jumpForwardScan(PUSHx);
