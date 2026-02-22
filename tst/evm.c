@@ -62,7 +62,10 @@ void test_stop() {
     input.size = sizeof(program);
     input.content = program;
 
-    result_t result = txCreate(from, gas, value, input);
+    assertStderr(
+        "",
+        result_t result = txCreate(from, gas, value, input)
+    );
     evmFinalize();
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0x80d9b122);
@@ -99,7 +102,10 @@ void test_mstoreReturn() {
     input.size = sizeof(program);
     input.content = program;
 
-    result_t result = txCreate(from, gas, value, input);
+    assertStderr(
+        "",
+        result_t result = txCreate(from, gas, value, input)
+    );
     evmFinalize();
     assert(UPPER(UPPER(result.status)) == 0);
     assert(LOWER(UPPER(result.status)) == 0x80d9b122);
@@ -145,7 +151,10 @@ void test_math() {
     input.size = sizeof(program);
     input.content = program;
 
-    result_t result = txCreate(from, gas, value, input);
+    assertStderr(
+        "",
+        result_t result = txCreate(from, gas, value, input)
+    );
     evmFinalize();
 
     assert(zero256(&result.status));
