@@ -144,13 +144,12 @@ Create `returndata.test.json`:
             },
             {
                 "name": "doubled",
-                "input": "0x48656c6c6f",
-                "output": "0x48656c6c6f48656c6c6f"
+                "input": "0x1234567890",
+                "output": "0x12345678901234567890"
             }
         ]
     }
 ]
 ```
 
-Run `evm -w returndata.test.json`.
-The `doubled` test passes `Hello` (5 bytes) and expects `HelloHello` (10 bytes) — `RETURNDATASIZE` is `0` on the way in and `5` on the way out.
+Run the tests with `evm -w returndata.test.json`.

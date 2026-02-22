@@ -11,8 +11,8 @@
             {
                 "name": "doubled",
                 "gasUsed": "0x530d",
-                "input": "0x48656c6c6f",
-                "output": "0x48656c6c6f48656c6c6f"
+                "input": "0x1234567890",
+                "output": "0x12345678901234567890"
             }
         ]
     }
