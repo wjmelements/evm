@@ -35,7 +35,7 @@ Calldata is how callers specify parameters.
 Consider another program, `add.evm`:
 ```
 MSTORE(0, ADD(CALLDATALOAD(4), CALLDATALOAD(36)))
-RETURN(RETURNDATASIZE, MSIZE)
+RETURN(0, MSIZE)
 ```
 This program reads two `uint256` from the calldata, adds them (possibly [overflowing](https://en.wikipedia.org/wiki/Integer_overflow)), stores the sum in memory, and then returns it.
 The parameters are loaded from 4 and 36 because, in the Solidity 4byte ABI, the first four bytes are reserved for the [function selector](https://docs.soliditylang.org/en/latest/abi-spec.html#function-selector).
@@ -98,3 +98,59 @@ In the third test case, we test the overflow case.
 In 256-bit arithmetic, `2 ** 256 - 1` is equivalent to `-1`.
 The program notices the overflow, because the sum is less than the operands, and reverts.
 By default, test cases verify that the call does not revert, but this case instead verifies that it did revert as expected due to the specified `status` of `0`, which is failure.
+
+### Returndata
+
+Precompiles are built-in contracts at low addresses (0x1–0x9) that implement common cryptographic and utility operations.
+`IDENTITY` at address `0x4` is the simplest: it echoes its input unchanged.
+
+When a call completes, `RETURNDATASIZE` holds the byte length of its output.
+`RETURNDATACOPY(destOffset, srcOffset, length)` copies from that output into memory, much like `CALLDATACOPY` does for input.
+Before any call has been made, `RETURNDATASIZE` is `0`.
+
+Here is `returndata.evm`, which calls `IDENTITY` and returns its output twice:
+
+```
+CALLDATACOPY(RETURNDATASIZE, RETURNDATASIZE, CALLDATASIZE)
+POP(STATICCALL(GAS, IDENTITY, 0, CALLDATASIZE, 0, 0))
+RETURNDATACOPY(0, 0, RETURNDATASIZE)
+RETURNDATACOPY(RETURNDATASIZE, 0, RETURNDATASIZE)
+RETURN(0, ADD(RETURNDATASIZE, RETURNDATASIZE))
+```
+
+`STATICCALL` is the read-only variant of `CALL` — state modifications are prohibited throughout the call, appropriate since `IDENTITY` is pure.
+Its arguments are `(gas, addr, argsOffset, argsLength, retOffset, retSize)`.
+`GAS` pushes the amount of gas remaining, forwarding it all to the sub-call.
+Passing `retSize=0` prevents the EVM from copying output inline into memory, so `RETURNDATACOPY` can place it exactly where we want.
+`STATICCALL` pushes `1` on success or `0` on failure; `POP(...)` discards that flag since `IDENTITY` always succeeds.
+Note that `RETURNDATASIZE` is `0` before this call, so both the memory destination and calldata source offset for `CALLDATACOPY` are zero.
+
+After the call, `RETURNDATASIZE` is the output length.
+The first `RETURNDATACOPY` copies it to `memory[0]`.
+The second uses `RETURNDATASIZE` as the destination offset to append a second copy immediately after.
+`ADD(RETURNDATASIZE, RETURNDATASIZE)` computes the combined length for `RETURN`.
+
+Create `returndata.test.json`:
+
+```json
+[
+    {
+        "construct": "returndata.evm",
+        "tests": [
+            {
+                "name": "empty",
+                "input": "0x",
+                "output": "0x"
+            },
+            {
+                "name": "doubled",
+                "input": "0x48656c6c6f",
+                "output": "0x48656c6c6f48656c6c6f"
+            }
+        ]
+    }
+]
+```
+
+Run `evm -w returndata.test.json`.
+The `doubled` test passes `Hello` (5 bytes) and expects `HelloHello` (10 bytes) — `RETURNDATASIZE` is `0` on the way in and `5` on the way out.
