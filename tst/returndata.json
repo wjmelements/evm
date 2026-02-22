@@ -1,0 +1,19 @@
+[
+    {
+        "construct": "tst/in/returndata.evm",
+        "tests": [
+            {
+                "name": "empty",
+                "gasUsed": "0x52ae",
+                "input": "0x",
+                "output": "0x"
+            },
+            {
+                "name": "doubled",
+                "gasUsed": "0x530d",
+                "input": "0x48656c6c6f",
+                "output": "0x48656c6c6f48656c6c6f"
+            }
+        ]
+    }
+]
