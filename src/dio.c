@@ -173,57 +173,39 @@ typedef struct entry {
     data_t code;
     storageEntry_t *storage;
     testEntry_t *tests;
+    testEntry_t *constructTest;
     char *path;
     char *importPath;
 } entry_t;
 
 static int anyTestFailure = 0;
 
-static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
-    if (test == NULL) {
-        return 0;
+static void printEntryHeader(const entry_t *entry) {
+    fputs("# ", stderr);
+    if (entry->path) {
+        fputs(entry->path, stderr);
+    } else {
+        fprintAddress(stderr, (*entry->address));
     }
-    uint64_t testsRun = runTests(entry, test->prev);
-    if (!testsRun) {
-        fputs("# ", stderr);
-        if (entry->path) {
-            fputs(entry->path, stderr);
-        } else {
-            fprintAddress(stderr, (*entry->address));
-        }
-        fputc('\n', stderr);
-    }
+    fputc('\n', stderr);
+}
 
-    evmSetDebug(test->debug);
-    if (test->blockNumber) {
-        evmSetBlockNumber(*test->blockNumber);
-        free(test->blockNumber);
-    }
-    if (test->timestamp) {
-        evmSetTimestamp(*test->timestamp);
-        free(test->timestamp);
-    }
-    uint64_t gas = 0xffffffffffffffff;
-    if (test->gas) {
-        gas = test->gas;
-    }
-    // TODO support evmStaticCall
-    result_t result = txCall(test->from, gas, test->to ? *test->to : *entry->address, test->value, test->input, test->accessList);
-    uint64_t gasUsed = gas - result.gasRemaining;
+static void reportResult(testEntry_t *test, result_t *result, uint64_t gas, const char *fallbackName, bool statusFail) {
+    uint64_t gasUsed = gas - result->gasRemaining;
     test->result.gasUsed = gasUsed;
 
     if (test->name) {
         fputs(test->name, stderr);
     } else {
-        fprintf(stderr, "%" PRIu64, testsRun);
+        fputs(fallbackName, stderr);
     }
     fputs(": ", stderr);
     int testFailure = 0;
-    if (!equal256(&result.status, &test->status) || test->op == CREATE) {
-        if (zero256(&result.status)) {
-            if (result.returnData.size) {
+    if (!equal256(&result->status, &test->status) || statusFail) {
+        if (zero256(&result->status)) {
+            if (result->returnData.size) {
                 fputs("\033[0;31mreverted: ", stderr);
-                fprintData(stderr, result.returnData);
+                fprintData(stderr, result->returnData);
                 fputs("\033[0m\n", stderr);
             } else {
                 fputs("\033[0;31mreverted\033[0m\n", stderr);
@@ -235,8 +217,8 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
     } else {
         const logsEntry_t *expectedLogs = test->logs;
         while (expectedLogs) {
-            // find corresponding acccount
-            const stateChanges_t *actualLogs = result.stateChanges;
+            // find corresponding account
+            const stateChanges_t *actualLogs = result->stateChanges;
             while (actualLogs) {
                 if (AddressEqual(&actualLogs->account, &expectedLogs->address)) {
                     break;
@@ -268,10 +250,9 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
         }
     }
 
-    if (test->outputSpecified && (result.returnData.size != test->output.size || memcmp(result.returnData.content, test->output.content, test->output.size))) {
+    if (test->outputSpecified && (result->returnData.size != test->output.size || memcmp(result->returnData.content, test->output.content, test->output.size))) {
         fputs("Output data mismatch\nactual:\n", stderr);
-
-        fprintData(stderr, result.returnData);
+        fprintData(stderr, result->returnData);
         fputs("\nexpected:\n", stderr);
         fprintData(stderr, test->output);
         fputc('\n', stderr);
@@ -280,7 +261,7 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
         if (test->gasUsed < gasUsed) {
             // more actual gasUsed than expected
             fprintf(stderr, "gasUsed \033[0;31m%" PRIu64 "\033[0m expected %" PRIu64 " (\033[0;31m+%" PRIu64 "\033[0m)\n", gasUsed, test->gasUsed, gasUsed - test->gasUsed);
-        } else if (test->gasUsed > gas - result.gasRemaining) {
+        } else if (test->gasUsed > gasUsed) {
             // less actual gasUsed than expected
             fprintf(stderr, "gasUsed \033[0;32m%" PRIu64 "\033[0m expected %" PRIu64 " (\033[0;32m-%" PRIu64 "\033[0m)\n", gasUsed, test->gasUsed, test->gasUsed - gasUsed);
         } else if (testFailure) {
@@ -293,7 +274,41 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test) {
     } else {
         fprintf(stderr, "\033[0;32mpass\033[0m\n");
     }
+}
 
+static void runConstructTest(const entry_t *entry, testEntry_t *test, result_t *result, uint64_t gas) {
+    printEntryHeader(entry);
+    evmSetDebug(test->debug);
+    reportResult(test, result, gas, "constructor", false);
+}
+
+static uint64_t runTests(const entry_t *entry, testEntry_t *test, bool headerPrinted) {
+    if (test == NULL) {
+        return 0;
+    }
+    uint64_t testsRun = runTests(entry, test->prev, headerPrinted);
+    if (!testsRun && !headerPrinted) {
+        printEntryHeader(entry);
+    }
+
+    evmSetDebug(test->debug);
+    if (test->blockNumber) {
+        evmSetBlockNumber(*test->blockNumber);
+        free(test->blockNumber);
+    }
+    if (test->timestamp) {
+        evmSetTimestamp(*test->timestamp);
+        free(test->timestamp);
+    }
+    uint64_t gas = 0xffffffffffffffff;
+    if (test->gas) {
+        gas = test->gas;
+    }
+    // TODO support evmStaticCall
+    result_t result = txCall(test->from, gas, test->to ? *test->to : *entry->address, test->value, test->input, test->accessList);
+    char indexStr[24];
+    snprintf(indexStr, sizeof(indexStr), "%" PRIu64, testsRun);
+    reportResult(test, &result, gas, indexStr, test->op == CREATE);
     return ++testsRun;
 }
 
@@ -326,13 +341,27 @@ static void applyEntry(entry_t *entry) {
         static uint32_t anonymousId;
         *(uint32_t *)(&entry->address->address[15]) = anonymousId++;
     }
+    bool constructHeaderPrinted = false;
     if (entry->initCode.size) {
         address_t from;
+        bzero(&from, sizeof(from));
         if (entry->creator) {
             AddressCopy(from, (*entry->creator));
         }
-        // TODO support these parameters
         uint64_t gas = 0xffffffffffffffff;
+        if (entry->constructTest) {
+            static const uint8_t zeroBytes[20];
+            if (memcmp(entry->constructTest->from.address, zeroBytes, 20) != 0) {
+                if (entry->creator && !AddressEqual(&entry->constructTest->from, entry->creator)) {
+                    fprintf(stderr, "constructTest.from conflicts with creator\n");
+                    _exit(1);
+                }
+                AddressCopy(from, entry->constructTest->from);
+            }
+            if (entry->constructTest->gas) {
+                gas = entry->constructTest->gas;
+            }
+        }
         val_t value;
         value[0] = 0;
         value[1] = 0;
@@ -340,6 +369,15 @@ static void applyEntry(entry_t *entry) {
 
         result_t constructResult = evmConstruct(from, *entry->address, gas, value, entry->initCode);
         verifyConstructResult(&constructResult, entry);
+        if (entry->constructTest) {
+            // normalize status to 1/0 for test comparison: deployed address → 1
+            if (!zero256(&constructResult.status)) {
+                clear256(&constructResult.status);
+                LOWER(LOWER(constructResult.status)) = 1;
+            }
+            runConstructTest(entry, entry->constructTest, &constructResult, gas);
+            constructHeaderPrinted = true;
+        }
     } else if (entry->code.size) {
         evmMockCode(*entry->address, entry->code);
     }
@@ -351,7 +389,7 @@ static void applyEntry(entry_t *entry) {
         entry->storage = prev->prev;
         free(prev);
     }
-    runTests(entry, entry->tests);
+    runTests(entry, entry->tests, constructHeaderPrinted);
 }
 
 static void jsonScanLogTopics(const char **iter, logChanges_t *log) {
@@ -480,12 +518,257 @@ static address_t *jsonReadAddressString(const char **iter) {
     return address;
 }
 
+static testEntry_t *jsonScanTestEntry(const char **iter) {
+    testEntry_t *test = calloc(1, sizeof(testEntry_t));
+    *(testResults.tail) = &test->result;
+    testResults.tail = &test->result.next;
+    LOWER(LOWER(test->status)) = 1;
+
+    jsonScanChar(iter, '{');
+    jsonScanWaste(iter);
+    if (**iter != '}') do {
+        const char *testHeading = jsonScanStr(iter);
+        size_t testHeadingLen = *iter - testHeading - 1;
+        jsonScanChar(iter, ':');
+        if (testHeadingLen == 10 && *testHeading == 'a') {
+            // accessList
+            jsonScanChar(iter, '{');
+            jsonScanWaste(iter);
+            if (**iter != '}') do {
+                accessList_t *accessList = calloc(1, sizeof(accessList_t));
+                accessList->prev = test->accessList;
+                test->accessList = accessList;
+                const char *accessListAccount = jsonScanStr(iter);
+                size_t accessListAccountLen = *iter - accessListAccount - 1;
+                if (accessListAccountLen != 42) {
+                    fprintf(stderr, "Unexpected address length %zu\n", accessListAccountLen);
+                    _exit(1);
+                }
+                accessList->address = AddressFromHex42(accessListAccount);
+
+                jsonScanChar(iter, ':');
+
+                jsonScanChar(iter, '[');
+                if (**iter != ']') do {
+                    const char *accessListSlot = jsonScanStr(iter);
+
+                    jsonSkipExpectedChar(&accessListSlot, '0');
+                    jsonSkipExpectedChar(&accessListSlot, 'x');
+
+
+                    accessListStorage_t *slot = calloc(1, sizeof(accessListStorage_t));
+                    slot->prev = accessList->storage;
+                    accessList->storage = slot;
+
+                    while (*accessListSlot != '"') {
+                        shiftl256(&slot->key, 4, &slot->key);
+                        LOWER(LOWER(slot->key)) |= hexString8ToUint8(*accessListSlot);
+                        accessListSlot++;
+                    }
+
+                    jsonScanWaste(iter);
+                    if (**iter == ',') {
+                        jsonSkipExpectedChar(iter, ',');
+                        jsonScanWaste(iter);
+                        continue;
+                    } else {
+                        break;
+                    }
+                } while (1);
+                jsonScanChar(iter, ']');
+                jsonScanWaste(iter);
+                if (**iter == ',') {
+                    jsonSkipExpectedChar(iter, ',');
+                    jsonScanWaste(iter);
+                    continue;
+                } else {
+                    break;
+                }
+            } while (1);
+            jsonScanChar(iter, '}');
+        } else if (testHeadingLen == 4 && *testHeading == 'l') {
+            // logs
+            jsonScanChar(iter, '{');
+            jsonScanWaste(iter);
+            if (**iter != '}') do {
+                jsonScanAccountLogs(iter, &test->logs);
+
+                jsonScanWaste(iter);
+                if (**iter == ',') {
+                    jsonSkipExpectedChar(iter, ',');
+                    jsonScanWaste(iter);
+                    continue;
+                } else {
+                    break;
+                }
+            } while (1);
+            jsonSkipExpectedChar(iter, '}');
+        } else {
+            const char *testValue = jsonScanStr(iter);
+            size_t testValueLength = *iter - testValue - 1;
+            if (testHeadingLen == 5 && *testHeading == 'i') {
+                // input
+                jsonSkipExpectedChar(&testValue, '0');
+                jsonSkipExpectedChar(&testValue, 'x');
+                test->input.size = (testValueLength - 2) / 2;
+                test->input.content = malloc(test->input.size);
+                uint32_t whitespaceCount = 0;
+                for (size_t i = 0; i < test->input.size; i++) {
+                    char curr = testValue[i * 2 + whitespaceCount];
+                    if (jsonIgnores(curr)) {
+                        if (whitespaceCount++ & 1) {
+                            test->input.size--;
+                        }
+                        if (curr == '\n') {
+                            lineNumber++;
+                        }
+                        i--;
+                        continue;
+                    }
+                    test->input.content[i] = hexString16ToUint8(testValue + i * 2 + whitespaceCount);
+                }
+            } else if (testHeadingLen == 4 && *testHeading == 'n') {
+                // name
+                test->name = malloc(testValueLength + 1);
+                strncpy(test->name, testValue, testValueLength);
+                test->name[testValueLength] = '\0';
+            } else if (testHeadingLen == 5 && *testHeading == 'd') {
+                // debug
+                jsonSkipExpectedChar(&testValue, '0');
+                jsonSkipExpectedChar(&testValue, 'x');
+                testValueLength -= 2;
+                for (size_t i = 0; i < testValueLength; i++) {
+                    test->debug <<= 4;
+                    test->debug |= hexString8ToUint8(testValue[i]);
+                }
+            } else if (testHeadingLen == 11 && *testHeading == 'b') {
+                // blockNumber
+                test->blockNumber = malloc(8);
+                *test->blockNumber = 0;
+                jsonSkipExpectedChar(&testValue, '0');
+                jsonSkipExpectedChar(&testValue, 'x');
+                testValueLength -= 2;
+                for (size_t i = 0; i < testValueLength; i++) {
+                    *test->blockNumber <<= 4;
+                    *test->blockNumber |= hexString8ToUint8(testValue[i]);
+                }
+            } else if (testHeadingLen == 9 && *testHeading == 't') {
+                // timestamp
+                test->timestamp = malloc(8);
+                *test->timestamp = 0;
+                jsonSkipExpectedChar(&testValue, '0');
+                jsonSkipExpectedChar(&testValue, 'x');
+                testValueLength -= 2;
+                for (size_t i = 0; i < testValueLength; i++) {
+                    *test->timestamp <<= 4;
+                    *test->timestamp |= hexString8ToUint8(testValue[i]);
+                }
+            } else if (testHeadingLen == 6 && *testHeading == 'o') {
+                // output
+                test->outputSpecified = true;
+                jsonSkipExpectedChar(&testValue, '0');
+                jsonSkipExpectedChar(&testValue, 'x');
+                test->output.size = (testValueLength - 2) / 2;
+                test->output.content = malloc(test->output.size);
+                for (size_t i = 0; i < test->output.size; i++) {
+                    test->output.content[i] = hexString16ToUint8(testValue + i * 2);
+                }
+            } else if (testHeadingLen == 5 && *testHeading == 'v') {
+                // value
+                jsonSkipExpectedChar(&testValue, '0');
+                jsonSkipExpectedChar(&testValue, 'x');
+                while (*testValue != '"') {
+                    test->value[0] <<= 4;
+                    test->value[0] |= test->value[1] >> 28;
+                    test->value[1] <<= 4;
+                    test->value[1] |= test->value[2] >> 28;
+                    test->value[2] <<= 4;
+                    test->value[2] |= hexString8ToUint8(*testValue);
+                    testValue++;
+                }
+            } else if (testHeadingLen == 4 && *testHeading == 'f') {
+                // from
+                jsonSkipExpectedChar(&testValue, '0');
+                jsonSkipExpectedChar(&testValue, 'x');
+                for (unsigned int i = 0; i < 20; i++) {
+                    test->from.address[i] = hexString16ToUint8(testValue);
+                    testValue += 2;
+                }
+            } else if (testHeadingLen == 2 && *testHeading == 't') {
+                // to
+                if (test->to) {
+                    free(test->to);
+                }
+                test->to = jsonReadAddress(&testValue);
+            } else if (testHeadingLen == 7 && *testHeading == 'g') {
+                // gasUsed
+                jsonSkipExpectedChar(&testValue, '0');
+                jsonSkipExpectedChar(&testValue, 'x');
+                test->result.gasUsedBegin = testValue;
+                testValueLength -= 2;
+                test->result.gasUsedEnd = testValue + testValueLength;
+                for (size_t i = 0; i < testValueLength; i++) {
+                    test->gasUsed <<= 4;
+                    test->gasUsed |= hexString8ToUint8(testValue[i]);
+                }
+            } else if (testHeadingLen == 3 && *testHeading == 'g') {
+                // gas
+                jsonSkipExpectedChar(&testValue, '0');
+                jsonSkipExpectedChar(&testValue, 'x');
+                while (*testValue != '"') {
+                    test->gas <<= 4;
+                    test->gas |= hexString8ToUint8(*testValue);
+                    testValue++;
+                }
+            } else if (testHeadingLen == 2 && *testHeading == 'o') {
+                // op
+                const char *end;
+                test->op = parseOp(testValue, &end);
+            } else if (testHeadingLen == 6 && *testHeading == 's') {
+                // status
+                jsonSkipExpectedChar(&testValue, '0');
+                jsonSkipExpectedChar(&testValue, 'x');
+                clear256(&test->status);
+                while (*testValue != '"') {
+                    shiftl256(&test->status, 4, &test->status);
+                    LOWER(LOWER(test->status)) |= hexString8ToUint8(*testValue);
+                    testValue++;
+                }
+            } else {
+                fputs("Unexpected test heading: ", stderr);
+                for (size_t i = 0; i < testHeadingLen; i++) {
+                    fputc(testHeading[i], stderr);
+                }
+                fputc('\n', stderr);
+            }
+        }
+        if (test->result.gasUsedEnd == NULL) {
+            test->result.gasUsedEnd = *iter;
+        }
+        jsonScanWaste(iter);
+        if (**iter == ',') {
+            jsonSkipExpectedChar(iter, ',');
+            jsonScanWaste(iter);
+            continue;
+        } else {
+            break;
+        }
+    } while (1);
+
+    if (test->result.gasUsedBegin == NULL) {
+        test->result.gasUsedBegin = test->result.gasUsedEnd;
+    }
+    jsonSkipExpectedChar(iter, '}');
+    return test;
+}
+
 static void jsonScanEntry(const char **iter) {
     entry_t entry;
     bzero(&entry, sizeof(entry_t));
     jsonScanChar(iter, '{');
     do {
         const char *heading = jsonScanStr(iter);
+        size_t headingLen = *iter - heading - 1;
         jsonScanChar(iter, ':');
         jsonScanWaste(iter);
         switch(*(uint32_t *)heading) {
@@ -583,14 +866,17 @@ static void jsonScanEntry(const char **iter) {
                 }
                 break;
             case 'snoc':
-                // construct
-                {
+                if (headingLen == 9) {
+                    // construct
                     const char *start = jsonScanStr(iter);
                     size_t len = *iter - start - 1;
                     entry.path = malloc(len + 1);
                     memcpy(entry.path, start, len);
                     entry.path[len] = '\0';
                     entry.initCode = defaultConstructorForPath(entry.path);
+                } else {
+                    // constructTest
+                    entry.constructTest = jsonScanTestEntry(iter);
                 }
                 break;
             case 'tset':
@@ -599,250 +885,9 @@ static void jsonScanEntry(const char **iter) {
                     jsonSkipExpectedChar(iter, '[');
                     jsonScanWaste(iter);
                     if (**iter != ']') do {
-                        jsonScanChar(iter, '{');
-                        jsonScanWaste(iter);
-
-                        testEntry_t *test = calloc(1, sizeof(testEntry_t));
-                        *(testResults.tail) = &test->result;
-                        testResults.tail = &test->result.next;
+                        testEntry_t *test = jsonScanTestEntry(iter);
                         test->prev = entry.tests;
-                        LOWER(LOWER(test->status)) = 1;
                         entry.tests = test;
-
-                        if (**iter != '}') do {
-                            const char *testHeading = jsonScanStr(iter);
-                            size_t testHeadingLen = *iter - testHeading - 1;
-                            jsonScanChar(iter, ':');
-                            if (testHeadingLen == 10 && *testHeading == 'a') {
-                                // accessList
-                                jsonScanChar(iter, '{');
-                                jsonScanWaste(iter);
-                                if (**iter != '}') do {
-                                    accessList_t *accessList = calloc(1, sizeof(accessList_t));
-                                    accessList->prev = test->accessList;
-                                    test->accessList = accessList;
-                                    const char *accessListAccount = jsonScanStr(iter);
-                                    size_t accessListAccountLen = *iter - accessListAccount - 1;
-                                    if (accessListAccountLen != 42) {
-                                        fprintf(stderr, "Unexpected address length %zu\n", accessListAccountLen);
-                                        _exit(1);
-                                    }
-                                    accessList->address = AddressFromHex42(accessListAccount);
-
-                                    jsonScanChar(iter, ':');
-
-                                    jsonScanChar(iter, '[');
-                                    if (**iter != ']') do {
-                                        const char *accessListSlot = jsonScanStr(iter);
-
-                                        jsonSkipExpectedChar(&accessListSlot, '0');
-                                        jsonSkipExpectedChar(&accessListSlot, 'x');
-
-
-                                        accessListStorage_t *slot = calloc(1, sizeof(accessListStorage_t));
-                                        slot->prev = accessList->storage;
-                                        accessList->storage = slot;
-
-                                        while (*accessListSlot != '"') {
-                                            shiftl256(&slot->key, 4, &slot->key);
-                                            LOWER(LOWER(slot->key)) |= hexString8ToUint8(*accessListSlot);
-                                            accessListSlot++;
-                                        }
-
-                                        jsonScanWaste(iter);
-                                        if (**iter == ',') {
-                                            jsonSkipExpectedChar(iter, ',');
-                                            jsonScanWaste(iter);
-                                            continue;
-                                        } else {
-                                            break;
-                                        }
-                                    } while (1);
-                                    jsonScanChar(iter, ']');
-                                    jsonScanWaste(iter);
-                                    if (**iter == ',') {
-                                        jsonSkipExpectedChar(iter, ',');
-                                        jsonScanWaste(iter);
-                                        continue;
-                                    } else {
-                                        break;
-                                    }
-                                } while (1);
-                                jsonScanChar(iter, '}');
-                            } else if (testHeadingLen == 4 && *testHeading == 'l') {
-                                // logs
-                                jsonScanChar(iter, '{');
-                                jsonScanWaste(iter);
-                                if (**iter != '}') do {
-                                    jsonScanAccountLogs(iter, &test->logs);
-
-                                    jsonScanWaste(iter);
-                                    if (**iter == ',') {
-                                        jsonSkipExpectedChar(iter, ',');
-                                        jsonScanWaste(iter);
-                                        continue;
-                                    } else {
-                                        break;
-                                    }
-                                } while (1);
-                                jsonSkipExpectedChar(iter, '}');
-                            } else {
-                                const char *testValue = jsonScanStr(iter);
-                                size_t testValueLength = *iter - testValue - 1;
-                                if (testHeadingLen == 5 && *testHeading == 'i') {
-                                    // input
-                                    jsonSkipExpectedChar(&testValue, '0');
-                                    jsonSkipExpectedChar(&testValue, 'x');
-                                    test->input.size = (testValueLength - 2) / 2;
-                                    test->input.content = malloc(test->input.size);
-                                    uint32_t whitespaceCount = 0;
-                                    for (size_t i = 0; i < test->input.size; i++) {
-                                        char curr = testValue[i * 2 + whitespaceCount];
-                                        if (jsonIgnores(curr)) {
-                                            if (whitespaceCount++ & 1) {
-                                                test->input.size--;
-                                            }
-                                            if (curr == '\n') {
-                                                lineNumber++;
-                                            }
-                                            i--;
-                                            continue;
-                                        }
-                                        test->input.content[i] = hexString16ToUint8(testValue + i * 2 + whitespaceCount);
-                                    }
-                                } else if (testHeadingLen == 4 && *testHeading == 'n') {
-                                    // name
-                                    test->name = malloc(testValueLength + 1);
-                                    strncpy(test->name, testValue, testValueLength);
-                                    test->name[testValueLength] = '\0';
-                                } else if (testHeadingLen == 5 && *testHeading == 'd') {
-                                    // debug
-                                    jsonSkipExpectedChar(&testValue, '0');
-                                    jsonSkipExpectedChar(&testValue, 'x');
-                                    testValueLength -= 2;
-                                    for (size_t i = 0; i < testValueLength; i++) {
-                                        test->debug <<= 4;
-                                        test->debug |= hexString8ToUint8(testValue[i]);
-                                    }
-                                } else if (testHeadingLen == 11 && *testHeading == 'b') {
-                                    // blockNumber
-                                    test->blockNumber = malloc(8);
-                                    *test->blockNumber = 0;
-                                    jsonSkipExpectedChar(&testValue, '0');
-                                    jsonSkipExpectedChar(&testValue, 'x');
-                                    testValueLength -= 2;
-                                    for (size_t i = 0; i < testValueLength; i++) {
-                                        *test->blockNumber <<= 4;
-                                        *test->blockNumber |= hexString8ToUint8(testValue[i]);
-                                    }
-                                } else if (testHeadingLen == 9 && *testHeading == 't') {
-                                    // timestamp
-                                    test->timestamp = malloc(8);
-                                    *test->timestamp = 0;
-                                    jsonSkipExpectedChar(&testValue, '0');
-                                    jsonSkipExpectedChar(&testValue, 'x');
-                                    testValueLength -= 2;
-                                    for (size_t i = 0; i < testValueLength; i++) {
-                                        *test->timestamp <<= 4;
-                                        *test->timestamp |= hexString8ToUint8(testValue[i]);
-                                    }
-                                } else if (testHeadingLen == 6 && *testHeading == 'o') {
-                                    // output
-                                    test->outputSpecified = true;
-                                    jsonSkipExpectedChar(&testValue, '0');
-                                    jsonSkipExpectedChar(&testValue, 'x');
-                                    test->output.size = (testValueLength - 2) / 2;
-                                    test->output.content = malloc(test->output.size);
-                                    for (size_t i = 0; i < test->output.size; i++) {
-                                        test->output.content[i] = hexString16ToUint8(testValue + i * 2);
-                                    }
-                                } else if (testHeadingLen == 5 && *testHeading == 'v') {
-                                    // value
-                                    jsonSkipExpectedChar(&testValue, '0');
-                                    jsonSkipExpectedChar(&testValue, 'x');
-                                    while (*testValue != '"') {
-                                        test->value[0] <<= 4;
-                                        test->value[0] |= test->value[1] >> 28;
-                                        test->value[1] <<= 4;
-                                        test->value[1] |= test->value[2] >> 28;
-                                        test->value[2] <<= 4;
-                                        test->value[2] |= hexString8ToUint8(*testValue);
-                                        testValue++;
-                                    }
-                                } else if (testHeadingLen == 4 && *testHeading == 'f') {
-                                    // from
-                                    jsonSkipExpectedChar(&testValue, '0');
-                                    jsonSkipExpectedChar(&testValue, 'x');
-                                    for (unsigned int i = 0; i < 20; i++) {
-                                        test->from.address[i] = hexString16ToUint8(testValue);
-                                        testValue += 2;
-                                    }
-                                } else if (testHeadingLen == 2 && *testHeading == 't') {
-                                    // to
-                                    if (test->to) {
-                                        free(test->to);
-                                    }
-                                    test->to = jsonReadAddress(&testValue);
-                                } else if (testHeadingLen == 7 && *testHeading == 'g') {
-                                    // gasUsed
-                                    jsonSkipExpectedChar(&testValue, '0');
-                                    jsonSkipExpectedChar(&testValue, 'x');
-                                    test->result.gasUsedBegin = testValue;
-                                    testValueLength -= 2;
-                                    test->result.gasUsedEnd = testValue + testValueLength;
-                                    for (size_t i = 0; i < testValueLength; i++) {
-                                        test->gasUsed <<= 4;
-                                        test->gasUsed |= hexString8ToUint8(testValue[i]);
-                                    }
-                                } else if (testHeadingLen == 3 && *testHeading == 'g') {
-                                    // gas
-                                    jsonSkipExpectedChar(&testValue, '0');
-                                    jsonSkipExpectedChar(&testValue, 'x');
-                                    while (*testValue != '"') {
-                                        test->gas <<= 4;
-                                        test->gas |= hexString8ToUint8(*testValue);
-                                        testValue++;
-                                    }
-                                } else if (testHeadingLen == 2 && *testHeading == 'o') {
-                                    // op
-                                    const char *end;
-                                    test->op = parseOp(testValue, &end);
-                                } else if (testHeadingLen == 6 && *testHeading == 's') {
-                                    // status
-                                    jsonSkipExpectedChar(&testValue, '0');
-                                    jsonSkipExpectedChar(&testValue, 'x');
-                                    clear256(&test->status);
-                                    while (*testValue != '"') {
-                                        shiftl256(&test->status, 4, &test->status);
-                                        LOWER(LOWER(test->status)) |= hexString8ToUint8(*testValue);
-                                        testValue++;
-                                    }
-                                } else {
-                                    fputs("Unexpected test heading: ", stderr);
-                                    for (size_t i = 0; i < testHeadingLen; i++) {
-                                        fputc(testHeading[i], stderr);
-                                    }
-                                    fputc('\n', stderr);
-                                }
-                            }
-                            if (test->result.gasUsedEnd == NULL) {
-                                test->result.gasUsedEnd = *iter;
-                            }
-                            jsonScanWaste(iter);
-                            if (**iter == ',') {
-                                jsonSkipExpectedChar(iter, ',');
-                                jsonScanWaste(iter);
-                                continue;
-                            } else {
-                                break;
-                            }
-                        } while (1);
-
-                        if (test->result.gasUsedBegin == NULL) {
-                            test->result.gasUsedBegin = test->result.gasUsedEnd;
-                        }
-
-                        jsonSkipExpectedChar(iter, '}');
                         if (**iter == ',') {
                             jsonSkipExpectedChar(iter, ',');
                             jsonScanWaste(iter);
