@@ -133,6 +133,7 @@ If `code` is also supplied for the entry, the code will be used to verify the re
 | `creator` | address of the account creating this contract | `0x3249936bDdF8bF739d3f06d26C40EEfC81029BD1` | `0x0000000000000000000000000000000000000000` |
 | `initcode` | account creation code | `0x383d3d39383df3`, `tst/in/quine.evm` | `code` mocked without constructor |
 | `construct` | specify `initcode` as minimum constructor of file | `tst/in/quine.evm` | `initcode` |
+| `constructTest` | test constructor execution; shares fields of `tests` entries | `{"gasUsed": "0xd583"}` | none |
 | `code` | account code ; validated if `initcode` specified | `0x383d3d39383df3`, `tst/in/quine.evm` | `0x` |
 | `import` | load another configuration | `tst/quine.json` | |
 | `tests` | transactions executed sequentially, after account configuration | <pre>[<br>    {<br>        "input": "0x18160ddd",<br>        "output": "0x115eec47f6cf7e35000000"<br>    }<br>]</pre> | `[]` |

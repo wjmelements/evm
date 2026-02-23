@@ -1,0 +1,8 @@
+[
+    {
+        "address": "0x8af6a7af30d840ba137e8f3f34d54cfb8beba6e2",
+        "creator": "0xcccccccccccccccccccccccccccccccccccccccc",
+        "initcode": "tst/in/nonce.evm",
+        "code": "0x0000000000000000000000008af6a7af30d840ba137e8f3f34d54cfb8beba6e200000000000000000000000076566b860970d0dab6cdb9e3f95bb32409d9f739"
+    }
+]
