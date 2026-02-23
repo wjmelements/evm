@@ -344,9 +344,10 @@ static void applyEntry(entry_t *entry) {
     bool constructHeaderPrinted = false;
     if (entry->initCode.size) {
         address_t from;
-        bzero(&from, sizeof(from));
         if (entry->creator) {
             AddressCopy(from, (*entry->creator));
+        } else {
+            bzero(&from, sizeof(from));
         }
         uint64_t gas = 0xffffffffffffffff;
         if (entry->constructTest) {
