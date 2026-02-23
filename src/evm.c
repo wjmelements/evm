@@ -1883,7 +1883,9 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
 }
 
 result_t evmConstruct(address_t from, address_t to, uint64_t gas, val_t value, data_t input) {
-    return _evmConstruct(from, getAccount(to), gas, value, input);
+    account_t *created = getAccount(to);
+    created->nonce = 1;
+    return _evmConstruct(from, created, gas, value, input);
 }
 
 result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input, const accessList_t *accessList) {
