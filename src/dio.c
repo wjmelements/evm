@@ -279,7 +279,6 @@ static void reportResult(testEntry_t *test, result_t *result, uint64_t gas, cons
 
 static void runConstructTest(const entry_t *entry, testEntry_t *test, result_t *result, uint64_t gas) {
     printEntryHeader(entry);
-    evmSetDebug(test->debug);
     reportResult(test, result, gas, "constructor", false);
 }
 
@@ -351,8 +350,7 @@ static void applyEntry(entry_t *entry) {
         }
         uint64_t gas = 0xffffffffffffffff;
         if (entry->constructTest) {
-            static const uint8_t zeroBytes[20];
-            if (memcmp(entry->constructTest->from.address, zeroBytes, 20) != 0) {
+            if (!AddressZero(&entry->constructTest->from)) {
                 if (entry->creator && !AddressEqual(&entry->constructTest->from, entry->creator)) {
                     fprintf(stderr, "constructTest.from conflicts with creator\n");
                     _exit(1);
@@ -361,6 +359,15 @@ static void applyEntry(entry_t *entry) {
             }
             if (entry->constructTest->gas) {
                 gas = entry->constructTest->gas;
+            }
+            evmSetDebug(entry->constructTest->debug);
+            if (entry->constructTest->blockNumber) {
+                evmSetBlockNumber(*entry->constructTest->blockNumber);
+                free(entry->constructTest->blockNumber);
+            }
+            if (entry->constructTest->timestamp) {
+                evmSetTimestamp(*entry->constructTest->timestamp);
+                free(entry->constructTest->timestamp);
             }
         }
         val_t value;

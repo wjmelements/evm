@@ -13,12 +13,21 @@ typedef struct address {
 #define AddressCopy(dst, src) memcpy(dst.address, src.address, 20)
 
 static inline int AddressEqual(const address_t *expected, const address_t *actual) {
-    for (int i = 0; i < 20; i ++) {
+    for (uint8_t i = 0; i < 20; i++) {
         if (expected->address[i] != actual->address[i]) {
             return 0;
         }
     }
     return 1;
+}
+
+static inline int AddressZero(const address_t *address) {
+    for (uint8_t i = 0; i < 40; i++) {
+        if (address->address[i] != 0) {
+            return false;
+        }
+    }
+    return true;
 }
 
 static inline address_t AddressFromHex40(const char *hex) {
