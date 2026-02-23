@@ -168,6 +168,7 @@ All fields are optional; unset fields default to zero.
 | `code` | Runtime bytecode (hex or path to `.evm`) | `0x` |
 | `initcode` | Creation code (hex or path to `.evm`). If set, `code` is used as the expected deployed result. | — |
 | `construct` | Like `initcode`, but wraps the file in a minimum constructor | — |
+| `constructTest` | Test the constructor execution (see below) | — |
 | `creator` | `msg.sender` for the constructor call | `0x000…000` |
 | `import` | Path to another config file to merge | — |
 | `tests` | Array of test transactions (see below) | `[]` |
@@ -191,6 +192,38 @@ All fields are optional; unset fields default to zero.
 | `blockNumber` | `block.number` | `0x13a2228` | |
 | `timestamp` | `block.timestamp` | `0x65712600` | |
 | `debug` | debug bitmask | `0x0` | See below |
+
+### Constructor test
+
+`constructTest` runs once after the constructor executes, before any `tests`, and reports the outcome to stderr.
+It accepts a subset of the test fields:
+
+| Key | Description | Default |
+| :-: | ----------- | :-----: |
+| `name` | Label shown in output | `"constructor"` |
+| `from` | `msg.sender` for the constructor. Must equal `creator` if both are set. | `creator` (or `0x000…000`) |
+| `gas` | Gas limit | `0xffffffffffffffff` |
+| `output` | Expected deployed bytecode | ignored |
+| `logs` | Expected emitted logs | ignored |
+| `status` | Expected outcome | `0x1` (success) |
+| `gasUsed` | Expected gas | ignored (checked/updated if set) |
+| `debug` | Debug bitmask (see [Debug flags](#debug-flags)) | `0x0` |
+
+Example — measure constructor gas with `-u`:
+```json
+[
+    {
+        "construct": "tst/in/quine.evm",
+        "constructTest": {
+            "name": "deploy quine",
+            "gasUsed": "0xd583"
+        }
+    }
+]
+```
+```sh
+evm -uw tst/quine.json
+```
 
 ### Debug flags
 
