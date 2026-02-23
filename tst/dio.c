@@ -240,9 +240,9 @@ int main() {
     test_applyConfig_storage();
     test_applyConfig_balance();
     test_applyConfig_construct();
-    test_applyConfig_constructTest();
 
     close(2);
+    test_applyConfig_constructTest();
     test_applyConfig_tests();
     return 0;
 }
