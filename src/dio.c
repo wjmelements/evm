@@ -135,6 +135,7 @@ typedef struct testResult {
     uint64_t gasUsed;
     const char *gasUsedBegin;
     const char *gasUsedEnd;
+    bool emptyTest;
 } testResult_t;
 
 static struct testResults {
@@ -753,7 +754,11 @@ static testEntry_t *jsonScanTestEntry(const char **iter) {
         } else {
             break;
         }
-    } while (1);
+    } while (1); else {
+        // empty test entry
+        test->result.gasUsedEnd = *iter;
+        test->result.emptyTest = true;
+    }
 
     if (test->result.gasUsedBegin == NULL) {
         test->result.gasUsedBegin = test->result.gasUsedEnd;
@@ -991,6 +996,16 @@ void applyConfig(const char *json) {
 typedef char char_t;
 VECTOR(char, file);
 
+#define file_append(file, str, strlen)\
+    file_ensure(&file, file.num_chars + strlen);\
+    memcpy(file.chars + file.num_chars, str, strlen);\
+    file.num_chars += strlen
+
+// FIXME these can use the wrong indentation
+#define NEWLINE_INDENT "\n            "
+#define GASUSED_ITEM  "\n                \"gasUsed\": \"0x"
+#define COMMA_GASUSED_ITEM ",\n                \"gasUsed\": \"0x"
+
 static void updateConfig(const char *configContents, const char *dstPath) {
     file_t file;
     file_init(&file, 500000);
@@ -998,22 +1013,24 @@ static void updateConfig(const char *configContents, const char *dstPath) {
     const testResult_t *testResult = testResults.head;
     while (testResult) {
         const char *end = testResult->gasUsedBegin;
-        file_ensure(&file, file.num_chars + (end - start));
-        memcpy(file.chars + file.num_chars, start, end - start);
-        file.num_chars += (end - start);
+        file_append(file, start, (end - start));
         start = testResult->gasUsedEnd;
         if (start == end) {
             // need to add gasUsed key
-            const char gasUsedHeader[] = ",\n                \"gasUsed\": \"0x";
-            file_ensure(&file, file.num_chars + (end - start));
-            memcpy(file.chars + file.num_chars, gasUsedHeader, sizeof(gasUsedHeader) - 1);
-            file.num_chars += sizeof(gasUsedHeader) - 1;
+            if (testResult->emptyTest) {
+                file_append(file, GASUSED_ITEM, sizeof(GASUSED_ITEM) - 1);
+            } else {
+                file_append(file, COMMA_GASUSED_ITEM, sizeof(COMMA_GASUSED_ITEM) - 1);
+            }
         }
         file_ensure(&file, file.num_chars + 18);
         file.num_chars += snprintf(file.chars + file.num_chars, file.buffer_size - file.num_chars, "%" PRIx64, testResult->gasUsed);
         if (start == end) {
             file.chars[file.num_chars] = '"';
             file.num_chars += 1;
+            if (testResult->emptyTest) {
+                file_append(file, NEWLINE_INDENT, sizeof(NEWLINE_INDENT) - 1);
+            }
         }
         testResult = testResult->next;
     }
