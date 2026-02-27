@@ -1220,10 +1220,14 @@ static result_t doCall(context_t *callContext) {
             case CALLDATALOAD:
                 if (UPPER(LOWER_P(callContext->top - 1)) || LOWER(UPPER_P(callContext->top - 1)) || UPPER(UPPER_P(callContext->top - 1)) || LOWER(LOWER_P(callContext->top - 1)) >= callContext->callData.size) {
                     clear256(callContext->top - 1);
-                    break;
+                } else if (LOWER(LOWER_P(callContext->top - 1)) + 32 > callContext->callData.size) {
+                    uint8_t partial[32];
+                    bzero(partial, 32);
+                    memcpy(partial, callContext->callData.content + LOWER(LOWER_P(callContext->top - 1)), callContext->callData.size - LOWER(LOWER_P(callContext->top - 1)));
+                    readu256BE(partial, callContext->top - 1);
+                } else {
+                    readu256BE(callContext->callData.content + LOWER(LOWER_P(callContext->top - 1)), callContext->top - 1);
                 }
-                // TODO handle intersecting calldatasize boundary
-                readu256BE(callContext->callData.content + LOWER(LOWER_P(callContext->top - 1)), callContext->top - 1);
                 break;
             case LOG0:
             case LOG1:
