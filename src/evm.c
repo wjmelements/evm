@@ -1509,11 +1509,11 @@ static result_t doCall(context_t *callContext) {
                     uint64_t gas = L(callContext->gas);
                     callContext->gas -= gas;
 
-                    result_t result = evmCreate(callContext->account, gas, value, input);
-                    callContext->gas += result.gasRemaining;
-                    mergeStateChanges(&result.stateChanges, result.stateChanges);
-                    callContext->returnData = result.returnData;
-                    copy256(callContext->top - 1, &result.status);
+                    result_t createResult = evmCreate(callContext->account, gas, value, input);
+                    callContext->gas += createResult.gasRemaining;
+                    mergeStateChanges(&result.stateChanges, createResult.stateChanges);
+                    callContext->returnData = createResult.returnData;
+                    copy256(callContext->top - 1, &createResult.status);
                 }
                 break;
             case CALL:
