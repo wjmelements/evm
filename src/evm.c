@@ -1518,6 +1518,9 @@ static result_t doCall(context_t *callContext) {
                     callContext->gas += createResult.gasRemaining;
                     mergeStateChanges(&result.stateChanges, createResult.stateChanges);
                     callContext->returnData = createResult.returnData;
+                    if (!zero256(&createResult.status)) {
+                        callContext->returnData.size = 0; // EIP-211: success = empty buffer
+                    }
                     copy256(callContext->top - 1, &createResult.status);
                 }
                 break;

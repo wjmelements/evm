@@ -1,0 +1,19 @@
+[
+    {
+        "construct": "tst/in/create_returndata.evm",
+        "tests": [
+            {
+                "name": "success",
+                "gasUsed": "0xd03e",
+                "input": "0x60015ff3",
+                "output": "0x"
+            },
+            {
+                "name": "revert",
+                "gasUsed": "0xd002",
+                "input": "0x63deadbeef5f526004601cfd",
+                "output": "0xdeadbeef"
+            }
+        ]
+    }
+]
