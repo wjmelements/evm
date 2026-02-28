@@ -16,7 +16,7 @@ LIBS=$(patsubst src/%.cpp, lib/%.o, $(wildcard src/*.cpp)) $(patsubst src/%.m, l
 INTEGRATIONS=$(addprefix tst/in/,$(shell ls tst/in)) $(addprefix tst/dio,$(shell ls tst/*.json))
 
 
-.PHONY: default all clean again check distcheck dist-check
+.PHONY: default all clean again check distcheck dist-check force-version
 .SECONDARY:
 default: all
 all: $(EXECS) $(TESTS) README.md
@@ -94,6 +94,14 @@ make/.precompiles.out: make/precompiles.sh bin/precompiles
 	make/precompiles.sh > $@
 README.md: make/.ops.out make/.precompiles.out make/.rme.md CONTRIBUTING.md
 	cat make/.rme.md make/.ops.out make/.precompiles.out CONTRIBUTING.md > $@
+
+bin/evm: lib/version.o
+src/version.c: force-version
+	@printf 'const char *evm_build_version = "%s";\n' \
+		"$$(git describe --tags --match 'v[0-9]*.[0-9]*.[0-9]*' --dirty 2>/dev/null || echo unknown)" \
+		> $@.tmp
+	@cmp -s $@.tmp $@ 2>/dev/null || mv $@.tmp $@
+	@rm -f $@.tmp
 
 secp256k1/autogen.sh: .gitmodules
 	git submodule update --init --recursive secp256k1
