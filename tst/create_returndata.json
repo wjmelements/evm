@@ -4,7 +4,7 @@
         "tests": [
             {
                 "name": "success",
-                "gasUsed": "0x1",
+                "gasUsed": "0xd03e",
                 "input": "0x60015ff3",
                 "output": "0x"
             },
