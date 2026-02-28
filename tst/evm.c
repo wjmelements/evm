@@ -2155,6 +2155,52 @@ void test_createOutOfGas() {
     evmFinalize();
 }
 
+void test_returnDataCopyOOB() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    address_t inner_addr = AddressFromHex42("0xcccccccccccccccccccccccccccccccccccccccc");
+    address_t outer_addr = AddressFromHex42("0xdddddddddddddddddddddddddddddddddddddddd");
+    uint64_t gas = 1000000;
+    val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
+
+    op_t inner[] = {PUSH1, 10, PUSH0, RETURN};
+    data_t inner_data;
+    inner_data.content = inner;
+    inner_data.size = sizeof(inner);
+    evmMockCode(inner_addr, inner_data);
+
+#define INNER_ADDR \
+    0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, \
+    0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc
+    op_t outer[] = {
+        PUSH0, PUSH0, PUSH0, PUSH0, PUSH0, PUSH20, INNER_ADDR, GAS, CALL,
+        PUSH1, 5, PUSH1, 6, PUSH0, RETURNDATACOPY,
+        STOP
+    };
+#undef INNER_ADDR
+    data_t outer_data;
+    outer_data.content = outer;
+    outer_data.size = sizeof(outer);
+    evmMockCode(outer_addr, outer_data);
+
+    data_t empty;
+    empty.content = NULL;
+    empty.size = 0;
+    result_t result = txCall(from, gas, outer_addr, value, empty, NULL);
+
+    assertFailedInvalid(result);
+
+    // unmock; prevents heap error from freeing stack memory
+    evmMockCode(inner_addr, empty);
+    evmMockCode(outer_addr, empty);
+
+    evmFinalize();
+}
+
 // JUMP to a 0x5b byte that is PUSH1 data → exceptional halt
 void test_jumpDestInsidePush() {
     evmInit();
@@ -2304,6 +2350,7 @@ int main() {
     test_sha3();
     test_delegateCall();
     test_create();
+    test_returnDataCopyOOB();
     test_jumpDestInsidePush();
     test_jumpiDestInsidePush();
     test_staticcallSstore();
