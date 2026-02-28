@@ -1304,6 +1304,11 @@ static result_t doCall(context_t *callContext) {
                         break;
                     case RETURNDATACOPY:
                         code = &callContext->returnData;
+                        if (
+                            UPPER(LOWER_P(callContext->top + 1)) || LOWER(UPPER_P(callContext->top + 1)) || UPPER(UPPER_P(callContext->top + 1))
+                            || start + size > code->size) {
+                            FAIL_INVALID;
+                        }
                         break;
                     case MCOPY:
                         if (
