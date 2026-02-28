@@ -6,3 +6,4 @@ bin/
 make/.ops.out
 make/.precompiles.out
 .pass
+src/version.c

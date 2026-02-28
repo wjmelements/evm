@@ -2,11 +2,13 @@
 #include "path.h"
 #include "scan.h"
 #include "disassemble.h"
+#include "version.h"
 
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <inttypes.h>
 #include <fcntl.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -170,12 +172,17 @@ static void execute(const char *contents) {
 
 #define USAGE fputs("usage: evm [ [-w json-file [-u] ] [-x [-gs] ] | [-c | -C] [-j] | -d ] [-o input] [file...]\n", stderr)
 
+static const struct option long_options[] = {
+    {"version", no_argument, NULL, 'v'},
+    {0, 0, 0, 0},
+};
+
 int main(int argc, char *const argv[]) {
     pathInit(argv[0]);
 
     int option;
     char *contents = NULL;
-    while ((option = getopt (argc, argv, "cCdgjlo:suw:x")) != -1)
+    while ((option = getopt_long(argc, argv, "cCdgjlo:suvw:x", long_options, NULL)) != -1)
         switch (option) {
             case 'c':
                 wrapMinConstructor = 1;
@@ -207,6 +214,9 @@ int main(int argc, char *const argv[]) {
             case 'u':
                 updateConfigFile = 1;
                 break;
+            case 'v':
+                puts(evm_build_version);
+                return 0;
             case 'w':
                 if (configFile == NULL) {
                     evmInit();
