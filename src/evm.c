@@ -1596,7 +1596,7 @@ static result_t doCall(context_t *callContext) {
                         OUT_OF_GAS;
                     }
                     callContext->gas -= gasCost;
-                    if (UPPER(UPPER_P(callContext->top + 5)) || LOWER(UPPER_P(callContext->top + 5)) || UPPER(LOWER_P(callContext->top + 5)) || gas > L(callContext->gas)) {
+                    if (UPPER(UPPER_P(callContext->top + 4)) || LOWER(UPPER_P(callContext->top + 4)) || UPPER(LOWER_P(callContext->top + 4)) || gas > L(callContext->gas)) {
                         gas = L(callContext->gas);
                     }
                     callContext->gas -= gas;
