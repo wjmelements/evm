@@ -2062,6 +2062,44 @@ void test_create() {
     evmFinalize();
 }
 
+// Verify that code deployed by an inner CREATE is rolled back when the outer call REVERTs.
+void test_createRevertRollback() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0xc0ea0e0000000000000000000000000000000000");
+    uint64_t gas = 16777216;
+    val_t value;
+    data_t input;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
+
+    op_t outer[] = {
+        PUSH1, 11, PUSH1, 14, PUSH0, CODECOPY,
+        PUSH1, 11, PUSH0, PUSH0, CREATE,
+        CODESIZE, PUSH0, REVERT,
+        // Inner initcode at offset 14
+        PUSH3, PUSH0, PUSH0, REVERT,
+        PUSH0, MSTORE,
+        PUSH1, 3, PUSH1, 29, RETURN,
+    };
+    input.content = outer;
+    input.size = sizeof(outer);
+
+    result_t result = txCreate(from, gas, value, input);
+    assert(zero256(&result.status));
+
+    address_t inner_child = AddressFromHex42("0x314944f362442a3a22688712ff0ceb2548f74b1d");
+    input.content = NULL;
+    input.size = 0;
+    result_t child_call = txCall(from, 100000, inner_child, value, input, NULL);
+
+    assert(child_call.returnData.size == 0);
+    assert(LOWER(LOWER(child_call.status)) == 1);
+
+    evmFinalize();
+}
+
 void test_createInsufficientBalance() {
     evmInit();
     address_t from = AddressFromHex42("0x0000000000000000000000000000000000000000");
@@ -2350,6 +2388,7 @@ int main() {
     test_sha3();
     test_delegateCall();
     test_create();
+    test_createRevertRollback();
     test_returnDataCopyOOB();
     test_jumpDestInsidePush();
     test_jumpiDestInsidePush();
