@@ -1927,10 +1927,21 @@ result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t 
         evmIteration++;
         return result;
     }
+    uint64_t originalGas = gas;
     gas -= intrinsicGas;
     account_t *toAccount = getAccount(to);
     toAccount->warm = evmIteration;
     result_t result = evmCall(from, gas, to, value, input);
+
+    // Apply refund
+    uint64_t gasUsed = originalGas - result.gasRemaining;
+    uint64_t refund = gasUsed / MAX_REFUND_DIVISOR;
+    if (refund > refundCounter) {
+        refund = refundCounter;
+    }
+    result.gasRemaining += refund;
+    refundCounter = 0;
+
     evmIteration++;
     fromAccount->nonce++;
     return result;

@@ -970,7 +970,7 @@ void test_sstore_sload() {
     assert(result.gasRemaining == 0);
 }
 
-void test_sstore_refund() {
+void test_txCreate_sstore_refund() {
     evmInit();
 
     // 5f5f5560015f555f5f5500
@@ -999,6 +999,38 @@ void test_sstore_refund() {
     assert(result.returnData.size == 0);
     assert(result.gasRemaining == 17296);
 }
+
+void test_txCall_gas_refund() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    address_t to = AddressFromHex42("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+    uint64_t gas = 100000;
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+
+    op_t code[] = {
+        PUSH1, 1, PUSH0, SSTORE,
+        PUSH0, PUSH0, SSTORE,
+    };
+    data_t codeData;
+    codeData.content = code;
+    codeData.size = sizeof(code);
+    evmMockCode(to, codeData);
+
+    data_t empty;
+    empty.content = NULL;
+    empty.size = 0;
+    result_t result = txCall(from, gas, to, value, empty, NULL);
+
+    // https://hoodi.etherscan.io/tx/0x583c460939bb676089ceee960353f68d280a5f3ddd6befbdd99c1bb68b776246
+    assert(LOWER(LOWER(result.status)) == 1);
+    assert(gas - result.gasRemaining == 34568);
+
+    evmMockCode(to, empty);
+    evmFinalize();
+}
+
 
 void test_sstore_gauntlet() {
     evmInit();
@@ -2374,7 +2406,8 @@ int main() {
     test_signextend();
     test_spaghetti();
     test_sstore_sload();
-    test_sstore_refund();
+    test_txCreate_sstore_refund();
+    test_txCall_gas_refund();
     test_sstore_gauntlet();
     test_selfbalance();
     test_callEmpty();
