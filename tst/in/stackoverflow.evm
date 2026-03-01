@@ -1,0 +1,4 @@
+0
+loop:
+ADD(1, DUP1)
+JUMPI(loop, LT(DUP2, 1024))
