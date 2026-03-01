@@ -746,17 +746,6 @@ static result_t doCall(context_t *callContext) {
             }
             fprintf(stderr, "op %s\n", opString[op]);
         }
-        if (
-            (callContext->top < callContext->bottom + argCount[op])
-            || (op >= DUP1 && op <= DUP16 && callContext->top - (op - PUSH32) < callContext->bottom)
-            || (op >= SWAP1 && op <= SWAP16 && callContext->top - (op - DUP15) < callContext->bottom)
-        ) {
-            // stack underflow
-            fprintf(stderr, "Stack underflow at pc %" PRIu64 " op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom);
-            callContext->gas = 0;
-            result.returnData.size = 0;
-            return result;
-        }
         #define FAIL_INVALID \
             callContext->gas = 0; \
             result.returnData.size = 0; \
@@ -764,6 +753,15 @@ static result_t doCall(context_t *callContext) {
         #define OUT_OF_GAS \
             fprintf(stderr, "Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]);\
             FAIL_INVALID
+        if (
+            (callContext->top < callContext->bottom + argCount[op])
+            || (op >= DUP1 && op <= DUP16 && callContext->top - (op - PUSH32) < callContext->bottom)
+            || (op >= SWAP1 && op <= SWAP16 && callContext->top - (op - DUP15) < callContext->bottom)
+        ) {
+            // stack underflow
+            fprintf(stderr, "Stack underflow at pc %" PRIu64 " op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom);
+            FAIL_INVALID;
+        }
         // Check staticcall
         switch (op) {
         case CALL:
@@ -794,6 +792,10 @@ static result_t doCall(context_t *callContext) {
         }
         callContext->gas -= gasCost[op];
         callContext->top += retCount[op] - argCount[op];
+        if (callContext->top >= callContext->bottom + 1024) {
+            fprintf(stderr, "Stack overflow at pc %" PRIu64 " op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom);
+            FAIL_INVALID;
+        }
         switch (op) {
             case PUSH0:
             case PUSH1:
