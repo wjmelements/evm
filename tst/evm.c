@@ -2271,6 +2271,36 @@ void test_returnDataCopyOOB() {
     evmFinalize();
 }
 
+// Each loop iteration nets +1 stack item; the temporary depth peaks at +4 per
+// iteration, hitting 1024 at DUP2 after ~1021 iterations.
+void test_stackOverflow() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    address_t to = AddressFromHex42("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+
+    // 0; loop: ADD(1,DUP1); JUMPI(loop, LT(DUP2, 1024))
+    op_t code[] = { PUSH0, JUMPDEST, DUP1, PUSH1, 1, ADD, PUSH2, 4, 0, DUP2, LT, PUSH1, 1, JUMPI };
+    data_t codeData;
+    codeData.content = code;
+    codeData.size = sizeof(code);
+    evmMockCode(to, codeData);
+
+    data_t empty;
+    empty.content = NULL;
+    empty.size = 0;
+    assertStderr(
+        "Stack overflow at pc 9 op DUP2 stack depth 1024\n",
+        result_t result = txCall(from, 0xffffff, to, value, empty, NULL)
+    );
+    assertFailedInvalid(result);
+
+    evmMockCode(to, empty);
+    evmFinalize();
+}
+
 // JUMP to a 0x5b byte that is PUSH1 data → exceptional halt
 void test_jumpDestInsidePush() {
     evmInit();
@@ -2423,6 +2453,7 @@ int main() {
     test_create();
     test_createRevertRollback();
     test_returnDataCopyOOB();
+    test_stackOverflow();
     test_jumpDestInsidePush();
     test_jumpiDestInsidePush();
     test_staticcallSstore();
