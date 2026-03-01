@@ -794,6 +794,10 @@ static result_t doCall(context_t *callContext) {
         }
         callContext->gas -= gasCost[op];
         callContext->top += retCount[op] - argCount[op];
+        if (callContext->top >= callContext->bottom + 1024) {
+            fprintf(stderr, "Stack overflow at pc %" PRIu64 " op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom);
+            FAIL_INVALID;
+        }
         switch (op) {
             case PUSH0:
             case PUSH1:
