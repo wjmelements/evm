@@ -1,0 +1,14 @@
+[
+    {
+        "construct": "tst/in/create2.evm",
+        "address": "0xdeadbeef00000000000000000000000000000000",
+        "tests": [
+            {
+                "name": "EIP-1014 vector 1: salt=0 init=0x00",
+                "gasUsed": "0xcf35",
+                "input": "0x00",
+                "output": "0x000000000000000000000000b928f69bb1d91cd65274e3c79d8986362984fda3"
+            }
+        ]
+    }
+]

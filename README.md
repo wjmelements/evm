@@ -384,7 +384,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | CALLCODE | ✅ | ❌ |
 | RETURN | ✅ |✅ |
 | DELEGATECALL | ✅ |✅ |
-| CREATE2 | ✅ |❓ |
+| CREATE2 | ✅ |✅ |
 | STATICCALL | ✅ |✅ |
 | REVERT | ✅ |✅ |
 | INVALID | ✅ |❓ |

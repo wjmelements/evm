@@ -497,6 +497,21 @@ static account_t *createNewAccount(account_t *from) {
     return result;
 }
 
+// EIP-1014: keccak256(0xff ++ sender ++ salt ++ keccak256(initcode))[12:]
+static account_t *createNewAccount2(account_t *from, const uint256_t *salt, const data_t *initcode) {
+    uint8_t inputBuffer[85];
+    inputBuffer[0] = 0xff;
+    memcpy(inputBuffer + 1, from->address.address, 20);
+    dumpu256BE(salt, inputBuffer + 21);
+    keccak_256(inputBuffer + 53, 32, initcode->content, initcode->size);
+    addressHashResult_t hashResult;
+    keccak_256((uint8_t *)&hashResult, sizeof(hashResult), inputBuffer, 85);
+    account_t *result = getAccount(hashResult.bottom160);
+    result->nonce = 1;
+    result->warm = evmIteration;
+    return result;
+}
+
 static account_t *warmAccount(context_t *callContext, const address_t address) {
     account_t *account = getAccount(address);
     if (account->warm != evmIteration) {
@@ -680,6 +695,7 @@ static result_t evmStaticCall(address_t from, uint64_t gas, address_t to, data_t
 static result_t evmDelegateCall(uint64_t gas, account_t *codeSource, data_t input);
 static result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input);
 static result_t evmCreate(account_t *fromAccount, uint64_t gas, val_t value, data_t input);
+static result_t evmCreate2(account_t *fromAccount, uint64_t gas, val_t value, data_t input, const uint256_t *salt);
 
 static result_t doCall(context_t *callContext) {
     if (SHOW_CALLS) {
@@ -1526,6 +1542,47 @@ static result_t doCall(context_t *callContext) {
                     copy256(callContext->top - 1, &createResult.status);
                 }
                 break;
+            case CREATE2:
+                {
+                    data_t input;
+                    input.size = LOWER(LOWER_P(callContext->top));
+                    uint64_t src = LOWER(LOWER_P(callContext->top + 1));
+                    if (!ensureMemory(callContext, src + input.size)) {
+                        OUT_OF_GAS;
+                    }
+                    input.content = callContext->memory.uint8s + src;
+                    if (UPPER(UPPER_P(callContext->top + 2))
+                        || LOWER(UPPER_P(callContext->top + 2))
+                        || UPPER(LOWER_P(callContext->top + 2)) >> 32) {
+                        callContext->returnData.size = 0;
+                        clear256(callContext->top - 1);
+                        break;
+                    }
+                    val_t value;
+                    value[0] = UPPER(LOWER_P(callContext->top + 2));
+                    value[1] = LOWER(LOWER_P(callContext->top + 2)) >> 32;
+                    value[2] = LOWER(LOWER_P(callContext->top + 2));
+                    const uint256_t *salt = callContext->top - 1;
+
+                    // apply R function before L function; CREATE2 adds keccak word cost
+                    uint64_t rGas = initcodeGas(&input) + G_KECCAK_WORD * ((input.size + 31) >> 5);
+                    if (callContext->gas < rGas) {
+                        OUT_OF_GAS;
+                    }
+                    callContext->gas -= rGas;
+                    uint64_t gas = L(callContext->gas);
+                    callContext->gas -= gas;
+
+                    result_t createResult = evmCreate2(callContext->account, gas, value, input, salt);
+                    callContext->gas += createResult.gasRemaining;
+                    mergeStateChanges(&result.stateChanges, createResult.stateChanges);
+                    callContext->returnData = createResult.returnData;
+                    if (!zero256(&createResult.status)) {
+                        callContext->returnData.size = 0; // EIP-211: success = empty buffer
+                    }
+                    copy256(callContext->top - 1, &createResult.status);
+                }
+                break;
             case CALL:
                 {
                     data_t input;
@@ -1965,6 +2022,22 @@ result_t evmCreate(account_t *fromAccount, uint64_t gas, val_t value, data_t inp
     }
 
     return _evmConstruct(fromAccount->address, createNewAccount(fromAccount), gas, value, input);
+}
+
+static result_t evmCreate2(account_t *fromAccount, uint64_t gas, val_t value, data_t input, const uint256_t *salt) {
+    if (!BalanceSub(fromAccount->balance, value)) {
+        fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for create2 (need [0x%08x%08x%08x])\n",
+            fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
+            value[0], value[1], value[2]
+        );
+        result_t result;
+        result.gasRemaining = gas;
+        result.stateChanges = NULL;
+        clear256(&result.status);
+        result.returnData.size = 0;
+        return result;
+    }
+    return _evmConstruct(fromAccount->address, createNewAccount2(fromAccount, salt, &input), gas, value, input);
 }
 
 result_t txCreate(address_t from, uint64_t gas, val_t value, data_t input) {
