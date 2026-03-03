@@ -2225,6 +2225,75 @@ void test_createOutOfGas() {
     evmFinalize();
 }
 
+void test_create2() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0xf000000000000000000000000000000000000000");
+    address_t to   = AddressFromHex42("0xdeadbeef00000000000000000000000000000000");
+    uint64_t gas = 1000000;
+    val_t value;
+    data_t empty = {0, NULL};
+    value[0] = 0; value[1] = 0; value[2] = 0;
+    empty.size = 0;
+
+    op_t code[] = {
+        PUSH0, PUSH1, 0x01, PUSH0, PUSH0, CREATE2,
+        PUSH0, MSTORE,
+        PUSH1, 20, PUSH1, 12, RETURN,
+    };
+    data_t code_data = {sizeof(code), code};
+    evmMockCode(to, code_data);
+
+    result_t result = txCall(from, gas, to, value, empty, NULL);
+
+    assert(result.returnData.size == 20);
+    uint8_t expected[20] = {
+        0xb9, 0x28, 0xf6, 0x9b, 0xb1, 0xd9, 0x1c, 0xd6, 0x52, 0x74, 0xe3, 0xc7,
+        0x9d, 0x89, 0x86, 0x36, 0x29, 0x84, 0xfd, 0xa3,
+    };
+    assert(memcmp(result.returnData.content, expected, 20) == 0);
+    // https://hoodi.etherscan.io/tx/0xcf535e989d23766f325ca3d98f609c990b1eb72586abcb70a31101b1a91d8b76
+    assert(gas - result.gasRemaining == 53031);
+
+    evmMockCode(to, empty);
+    evmFinalize();
+}
+
+void test_create2InsufficientBalance() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0xf000000000000000000000000000000000000000");
+    address_t to   = AddressFromHex42("0xdeadbeef00000000000000000000000000000000");
+    uint64_t gas = 1000000;
+    val_t value;
+    data_t input = {0, NULL};
+    value[0] = 0; value[1] = 0; value[2] = 0;
+    input.size = 0;
+
+    op_t code[] = {
+        PUSH0, PUSH1, 0x01, DUP2, DUP2, CREATE2,
+        PUSH0, MSTORE,
+        PUSH1, 20, PUSH1, 12, RETURN,
+    };
+    data_t code_data = {sizeof(code), code};
+    evmMockCode(to, code_data);
+
+    assertStderr(
+        "Insufficient balance [0x000000000000000000000000] for create2 (need [0x000000000000000000000001])\n",
+        result_t result = txCall(from, gas, to, value, input, NULL)
+    );
+
+    assert(result.returnData.size == 20);
+    uint8_t zeroes[20];
+    bzero(zeroes, sizeof(zeroes));
+    assert(memcmp(result.returnData.content, zeroes, 20) == 0);
+    // https://hoodi.etherscan.io/tx/0xf3c3de8400562fe80b140a455b5842dbc971e090c9ddf67cbb3629bd3548bb02
+    assert(gas - result.gasRemaining == 53033);
+
+    evmMockCode(to, input);
+    evmFinalize();
+}
+
 void test_returnDataCopyOOB() {
     evmInit();
 
@@ -2459,6 +2528,8 @@ int main() {
     test_staticcallSstore();
     test_createInsufficientBalance();
     test_createOutOfGas();
+    test_create2();
+    test_create2InsufficientBalance();
 
     for (op_t PUSHx = PUSH0; PUSHx <= PUSH32; PUSHx++) {
         test_jumpForwardScan(PUSHx);
