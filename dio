@@ -145,7 +145,7 @@ def build_access_list(struct_logs, to_addr, from_addr):
     return access_list
 
 
-def write_config(account_data, call, block, outfile, extend):
+def write_config(account_data, call, block, outfile, extend, result=None):
     """Build and write the dio config JSON from collected account_data."""
     existing = []
     existing_by_addr = {}   # lowercase address -> index in existing
@@ -193,6 +193,8 @@ def write_config(account_data, call, block, outfile, extend):
         test["input"] = test.pop("data")
     test["blockNumber"] = block
     test.setdefault("debug", "0x20")
+    if result is not None:
+        test["output"] = result
     output.append({"tests": [test]})
 
     out_json = json.dumps(output, indent=4)
@@ -290,7 +292,7 @@ def run_via_evm(url, call, block, sender, outfile, extend):
     if sender and sender != "0x" + "0" * 40:
         ensure_account(sender)
 
-    write_config(account_data, call, block, outfile, extend)
+    write_config(account_data, call, block, outfile, extend, result=output_hex)
 
 
 def run(url, call_json, outfile, extend):
@@ -320,7 +322,9 @@ def run(url, call_json, outfile, extend):
         run_via_evm(url, call, block, sender, outfile, extend)
         return
 
-    struct_logs = trace_resp["result"]["structLogs"]
+    trace_result = trace_resp["result"]
+    struct_logs = trace_result["structLogs"]
+    return_value = "0x" + trace_result.get("returnValue", "")
     access_list = build_access_list(struct_logs, call["to"], sender)
 
     # Batch query balance, nonce, code, and storage for each account
@@ -366,7 +370,7 @@ def run(url, call_json, outfile, extend):
             else:
                 account_data[addr][field] = val
 
-    write_config(account_data, call, block, outfile, extend)
+    write_config(account_data, call, block, outfile, extend, result=return_value)
 
 
 def main():
