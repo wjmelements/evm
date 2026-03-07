@@ -73,9 +73,9 @@ def stack_to_address(val):
 
 
 def normalize_key(val):
-    """Normalize a storage key from the stack to a 0x-prefixed 64-char hex string."""
-    s = val[2:] if val.startswith(("0x", "0X")) else val
-    return "0x" + s.zfill(64)
+    """Normalize a storage key to a trimmed 0x-prefixed hex string."""
+    s = val[2:] if val.startswith("0x") else val
+    return "0x" + (s.lstrip("0") or "0")
 
 
 def build_access_list(struct_logs, to_addr, from_addr):
@@ -272,7 +272,7 @@ def run_via_evm(url, call, block, sender, outfile, extend):
 
             elif msg.get("method") == "eth_getStorageAt":
                 addr = ensure_account(msg["params"][0])
-                key = msg["params"][1]
+                key = normalize_key(msg["params"][1])
                 resp = json.loads(http_post(url, json.dumps(msg).encode()))
                 val = resp.get("result", "0x" + "0" * 64)
                 if val and val != "0x" + "0" * 64:
