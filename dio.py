@@ -374,11 +374,8 @@ def run(url, call_json, outfile, extend):
 
 
 def main():
-    if len(sys.argv) == 1 or sys.argv[1] in ("-h", "--help"):
-        print(__doc__.strip())
-        sys.exit(0)
-
     parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("-h", "--help", action="store_true")
     parser.add_argument("url", nargs="?", default=None)
     parser.add_argument("outfile", nargs="?")
     parser.add_argument("-o")
@@ -386,9 +383,13 @@ def main():
     parser.add_argument("files", nargs="*")
     args = parser.parse_args()
 
+    if args.help:
+        print(__doc__.strip())
+        sys.exit(0)
+
     url = args.url or os.environ.get("ETH_RPC_URL")
     if not url:
-        print("dio: provider URL required (positional arg or ETH_RPC_URL)", file=sys.stderr)
+        print(__doc__.strip())
         sys.exit(1)
 
     if args.o is not None:
