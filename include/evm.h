@@ -101,6 +101,12 @@ typedef struct callResult {
 void evmInit();
 void evmFinalize();
 
+typedef void (*account_fetch_t)(address_t address);
+typedef void (*storage_fetch_t)(address_t address, const uint256_t *key, uint256_t *value_out);
+void evmSetFetch(account_fetch_t, storage_fetch_t);
+bool evmBlockNumberIsSet(void);
+uint64_t evmGetBlockNumber(void);
+
 #define EVM_DEBUG_STACK 1
 #define EVM_DEBUG_MEMORY 2
 #define EVM_DEBUG_OPS (4 + 8 + 16)

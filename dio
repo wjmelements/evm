@@ -24,6 +24,7 @@ configuration file for use with bin/evm -w.
 import argparse
 import json
 import os
+import subprocess
 import sys
 import urllib.request
 
@@ -144,6 +145,154 @@ def build_access_list(struct_logs, to_addr, from_addr):
     return access_list
 
 
+def write_config(account_data, call, block, outfile, extend):
+    """Build and write the dio config JSON from collected account_data."""
+    existing = []
+    existing_by_addr = {}   # lowercase address -> index in existing
+    if extend:
+        with open(extend) as f:
+            existing = json.load(f)
+        for i, entry in enumerate(existing):
+            if "address" in entry:
+                existing_by_addr[entry["address"].lower()] = i
+
+    output = list(existing)
+
+    for addr, data in account_data.items():
+        if addr in existing_by_addr:
+            idx = existing_by_addr[addr]
+            ex = existing[idx]
+            for field, default in (("balance", "0x0"), ("nonce", "0x0"), ("code", "0x")):
+                new_val = data[field]
+                if new_val in (default, ""):
+                    continue
+                ex_val = ex.get(field, default)
+                if ex_val != new_val:
+                    print(
+                        f"Conflict for {addr}.{field}: "
+                        f"existing={ex_val!r} new={new_val!r}",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+            continue
+
+        entry = {"address": addr}
+        if data["balance"] not in ("0x0", "0x"):
+            entry["balance"] = data["balance"]
+        if data["nonce"] not in ("0x0", "0x"):
+            entry["nonce"] = data["nonce"]
+        if data["code"] not in ("0x", ""):
+            entry["code"] = data["code"]
+        if data["storage"]:
+            entry["storage"] = data["storage"]
+        output.append(entry)
+
+    # Build test entry; use "input" (dio convention) not "data" (RPC convention)
+    test = dict(call)
+    if "data" in test:
+        test["input"] = test.pop("data")
+    test["blockNumber"] = block
+    test.setdefault("debug", "0x20")
+    output.append({"tests": [test]})
+
+    out_json = json.dumps(output, indent=4)
+
+    if outfile and outfile != "-":
+        with open(outfile, "w") as f:
+            f.write(out_json + "\n")
+        print(f"Wrote {outfile}", file=sys.stderr)
+    else:
+        print(out_json)
+
+
+def find_evm():
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    candidate = os.path.join(script_dir, "evm")
+    if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+        return candidate
+    return "evm"
+
+
+def run_via_evm(url, call, block, sender, outfile, extend):
+    """Spawn evm -x -n with call JSON, proxy JSON-RPC on its stdin/stdout."""
+    call_arg = json.dumps({
+        "to": call["to"],
+        "from": sender,
+        "data": call.get("data", "0x"),
+    })
+    proc = subprocess.Popen(
+        [find_evm(), "-x", "-n", "-o", call_arg],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+    )
+
+    account_data = {}
+
+    def ensure_account(addr):
+        addr = addr.lower()
+        if addr not in account_data:
+            account_data[addr] = {"balance": "0x0", "nonce": "0x0", "code": "0x", "storage": {}}
+        return addr
+
+    output_hex = None
+    try:
+        for line in proc.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            msg = json.loads(line)
+
+            if isinstance(msg, list):
+                # Account batch: [{getCode,...}, {getTransactionCount,...}, {getBalance,...}]
+                addr = ensure_account(msg[0]["params"][0])
+                id_to_method = {m["id"]: m["method"] for m in msg}
+                resp = json.loads(http_post(url, json.dumps(msg).encode()))
+                resp.sort(key=lambda r: r["id"])
+                for item in resp:
+                    val = item["result"]
+                    method = id_to_method[item["id"]]
+                    if method == "eth_getCode":
+                        account_data[addr]["code"] = val
+                    elif method == "eth_getTransactionCount":
+                        account_data[addr]["nonce"] = val
+                    elif method == "eth_getBalance":
+                        account_data[addr]["balance"] = val
+                proc.stdin.write(json.dumps(resp) + "\n")
+                proc.stdin.flush()
+
+            elif "output" in msg:
+                output_hex = msg["output"]
+                break
+
+            elif msg.get("method") == "eth_blockNumber":
+                resp = {"jsonrpc": "2.0", "id": msg["id"], "result": block}
+                proc.stdin.write(json.dumps(resp) + "\n")
+                proc.stdin.flush()
+
+            elif msg.get("method") == "eth_getStorageAt":
+                addr = ensure_account(msg["params"][0])
+                key = msg["params"][1]
+                resp = json.loads(http_post(url, json.dumps(msg).encode()))
+                val = resp.get("result", "0x" + "0" * 64)
+                if val and val != "0x" + "0" * 64:
+                    account_data[addr]["storage"][key] = val
+                proc.stdin.write(json.dumps(resp) + "\n")
+                proc.stdin.flush()
+
+    finally:
+        proc.stdin.close()
+        proc.wait()
+
+    if output_hex is None or proc.returncode != 0:
+        print("dio: evm execution failed", file=sys.stderr)
+        sys.exit(1)
+
+    ensure_account(call["to"])
+    if sender and sender != "0x" + "0" * 40:
+        ensure_account(sender)
+
+    write_config(account_data, call, block, outfile, extend)
+
+
 def run(url, call_json, outfile, extend):
     call = json.loads(call_json)
 
@@ -161,10 +310,16 @@ def run(url, call_json, outfile, extend):
 
     sender = call.get("from", "0x" + "0" * 40)
 
-    trace_resp = rpc_call(
-        url, "debug_traceCall",
-        [call, block, {"disableStorage": True, "disableMemory": True}],
-    )
+    # Try debug_traceCall; fall back to evm -nx on any error
+    trace_payload = json.dumps({
+        "jsonrpc": "2.0", "id": 1, "method": "debug_traceCall",
+        "params": [call, block, {"disableStorage": True, "disableMemory": True}],
+    }).encode()
+    trace_resp = json.loads(http_post(url, trace_payload))
+    if "error" in trace_resp:
+        run_via_evm(url, call, block, sender, outfile, extend)
+        return
+
     struct_logs = trace_resp["result"]["structLogs"]
     access_list = build_access_list(struct_logs, call["to"], sender)
 
@@ -211,64 +366,7 @@ def run(url, call_json, outfile, extend):
             else:
                 account_data[addr][field] = val
 
-    # Load existing config if --extend was given
-    existing = []
-    existing_by_addr = {}   # lowercase address -> index in existing
-    if extend:
-        with open(extend) as f:
-            existing = json.load(f)
-        for i, entry in enumerate(existing):
-            if "address" in entry:
-                existing_by_addr[entry["address"].lower()] = i
-
-    output = list(existing)
-
-    for addr, data in account_data.items():
-        if addr in existing_by_addr:
-            # Conflict check against existing entry
-            idx = existing_by_addr[addr]
-            ex = existing[idx]
-            for field, default in (("balance", "0x0"), ("nonce", "0x0"), ("code", "0x")):
-                new_val = data[field]
-                if new_val in (default, ""):
-                    continue
-                ex_val = ex.get(field, default)
-                if ex_val != new_val:
-                    print(
-                        f"Conflict for {addr}.{field}: "
-                        f"existing={ex_val!r} new={new_val!r}",
-                        file=sys.stderr,
-                    )
-                    sys.exit(1)
-            continue
-
-        entry = {"address": addr}
-        if data["balance"] not in ("0x0", "0x"):
-            entry["balance"] = data["balance"]
-        if data["nonce"] not in ("0x0", "0x"):
-            entry["nonce"] = data["nonce"]
-        if data["code"] not in ("0x", ""):
-            entry["code"] = data["code"]
-        if data["storage"]:
-            entry["storage"] = data["storage"]
-        output.append(entry)
-
-    # Build test entry; use "input" (dio convention) not "data" (RPC convention)
-    test = dict(call)
-    if "data" in test:
-        test["input"] = test.pop("data")
-    test["blockNumber"] = block
-    test.setdefault("debug", "0x20")
-    output.append({"tests": [test]})
-
-    out_json = json.dumps(output, indent=4)
-
-    if outfile and outfile != "-":
-        with open(outfile, "w") as f:
-            f.write(out_json + "\n")
-        print(f"Wrote {outfile}", file=sys.stderr)
-    else:
-        print(out_json)
+    write_config(account_data, call, block, outfile, extend)
 
 
 def main():

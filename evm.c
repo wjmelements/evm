@@ -1,4 +1,5 @@
 #include "dio.h"
+#include "network.h"
 #include "path.h"
 #include "scan.h"
 #include "disassemble.h"
@@ -29,6 +30,7 @@ static int includeStatus = 0;
 static int includeLogs = 0;
 static const char *configFile = NULL;
 static int updateConfigFile = 0;
+static int networkMode = 0;
 
 static void assemble(const char *contents) {
     op_t *programStart = &ops[CONSTRUCTOR_OFFSET];
@@ -103,45 +105,88 @@ static void disassemble(const char *contents) {
     disassembleFinalize();
 }
 
+// Scan json for "key":"<value>". Strips leading "0x" if present.
+// Returns pointer into json at start of hex chars, sets *len to char count.
+// Returns NULL if the key is not found.
+static const char *jsonStrVal(const char *json, const char *key, size_t *len) {
+    size_t klen = strlen(key);
+    const char *p = json;
+    for (;;) {
+        p = strchr(p, '"');
+        if (!p) return NULL;
+        if (strncmp(p + 1, key, klen) == 0 && p[1 + klen] == '"') {
+            p += 1 + klen + 1;
+            while (*p == ' ' || *p == ':') p++;
+            if (*p != '"') return NULL;
+            p++;
+            if (p[0] == '0' && p[1] == 'x') p += 2;
+            const char *start = p;
+            while (*p && *p != '"') p++;
+            *len = (size_t)(p - start);
+            return start;
+        }
+        p++;
+    }
+}
+
 static void execute(const char *contents) {
     if (configFile == NULL) {
         evmInit();
     }
-    size_t len = strlen(contents);
-    if (len & 1 && contents[len - 1] != '\n') {
-        fputs("odd-lengthed input", stderr);
-        _exit(1);
+    if (networkMode) {
+        evmSetNetworkFetch();
     }
-    if (len > 2 && contents[0] == '0' && contents[1] == 'x') {
-        // allow 0x prefix
-        len -= 2;
-        contents += 2;
+
+    address_t from = {{0}};
+    address_t to;
+    int hasTo = 0;
+    const char *hexData = contents;
+    size_t hexLen;
+
+    if (contents[0] == '{') {
+        size_t flen;
+        const char *p = jsonStrVal(contents, "to", &flen);
+        if (p && flen == 40) { hasTo = 1; to = AddressFromHex40(p); }
+        p = jsonStrVal(contents, "from", &flen);
+        if (p && flen == 40) from = AddressFromHex40(p);
+        p = jsonStrVal(contents, "data", &flen);
+        if (!p) p = jsonStrVal(contents, "input", &flen);
+        hexData = p ? p : "";
+        hexLen = p ? flen : 0;
+    } else {
+        hexLen = strlen(contents);
+        if (hexLen & 1 && contents[hexLen - 1] != '\n') {
+            fputs("odd-lengthed input", stderr);
+            _exit(1);
+        }
+        if (hexLen > 2 && hexData[0] == '0' && hexData[1] == 'x') {
+            hexLen -= 2;
+            hexData += 2;
+        }
     }
     data_t input;
-    input.size = len / 2;
-    input.content = malloc(input.size);
-
+    input.size = hexLen / 2;
+    input.content = input.size ? malloc(input.size) : NULL;
     for (size_t i = 0; i < input.size; i++) {
-        input.content[i] = hexString16ToUint8(contents + i * 2);
+        input.content[i] = hexString16ToUint8(hexData + i * 2);
     }
 
-    // TODO support these eth_call parameters
-    address_t from;
     uint64_t gas = 0xffffffffffffffff;
-    val_t value;
-    value[0] = 0;
-    value[1] = 0;
-    value[2] = 0;
+    val_t value = {0, 0, 0};
     result_t result;
-    if (false) {
-        address_t to; // TODO support this parameter
+    if (hasTo) {
         result = txCall(from, gas, to, value, input, NULL);
     } else {
         result = txCreate(from, gas, value, input);
     }
     evmFinalize();
 
-    if (outputJson) {
+    if (networkMode) {
+        fputs("{\"output\":\"0x", stdout);
+        for (size_t i = 0; i < result.returnData.size; i++)
+            printf("%02x", result.returnData.content[i]);
+        fputs("\"}\n", stdout);
+    } else if (outputJson) {
         fputs("{\"", stdout);
         if (includeGas) {
             printf("gasUsed\":%" PRIu64 ",\"", gas - result.gasRemaining);
@@ -161,16 +206,17 @@ static void execute(const char *contents) {
             );
         }
         fputs("returnData\":\"0x", stdout);
-    }
-    for (;result.returnData.size--;) printf("%02x", *result.returnData.content++);
-    if (outputJson) {
+        for (;result.returnData.size--;) printf("%02x", *result.returnData.content++);
         fputs("\"}", stdout);
+        putchar('\n');
+    } else {
+        for (;result.returnData.size--;) printf("%02x", *result.returnData.content++);
+        putchar('\n');
     }
-    putchar('\n');
 
 }
 
-#define USAGE fputs("usage: evm [ [-w json-file [-u] ] [-x [-gs] ] | [-c | -C] [-j] | -d ] [-o input] [file...]\n", stderr)
+#define USAGE fputs("usage: evm [ [-w json-file [-u] ] [-x [-n] [-gs] ] | [-c | -C] [-j] | -d ] [-o input] [file...]\n", stderr)
 
 static const struct option long_options[] = {
     {"version", no_argument, NULL, 'v'},
@@ -182,7 +228,7 @@ int main(int argc, char *const argv[]) {
 
     int option;
     char *contents = NULL;
-    while ((option = getopt_long(argc, argv, "cCdgjlo:suvw:x", long_options, NULL)) != -1)
+    while ((option = getopt_long(argc, argv, "cCdgjlo:nsuvw:x", long_options, NULL)) != -1)
         switch (option) {
             case 'c':
                 wrapMinConstructor = 1;
@@ -204,6 +250,9 @@ int main(int argc, char *const argv[]) {
                 break;
             case 'g':
                 includeGas = 1;
+                break;
+            case 'n':
+                networkMode = 1;
                 break;
             case 's':
                 includeStatus = 1;

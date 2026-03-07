@@ -323,10 +323,13 @@ static uint64_t evmIteration = 0;
 static uint16_t logIndex = 0;
 static uint64_t refundCounter = 0;
 static uint64_t blockNumber = 20587048;
+static bool blockNumberSet = false;
 static uint64_t timestamp = 0x65712600;
 static address_t coinbase;
 static uint64_t debugFlags = 0;
 static account_t knownPrecompiles[KNOWN_PRECOMPILES];
+static account_fetch_t accountFetch = NULL;
+static storage_fetch_t storageFetch = NULL;
 
 uint16_t depthOf(context_t *context) {
     return context - callstack.bottom;
@@ -342,6 +345,20 @@ void fRepeat(FILE *file, const char *str, uint16_t times) {
 
 void evmSetBlockNumber(uint64_t _blockNumber) {
     blockNumber = _blockNumber;
+    blockNumberSet = true;
+}
+
+bool evmBlockNumberIsSet(void) {
+    return blockNumberSet;
+}
+
+uint64_t evmGetBlockNumber(void) {
+    return blockNumber;
+}
+
+void evmSetFetch(account_fetch_t af, storage_fetch_t sf) {
+    accountFetch = af;
+    storageFetch = sf;
 }
 
 void evmSetTimestamp(uint64_t _timestamp) {
@@ -383,6 +400,7 @@ static account_t *getAccount(const address_t address) {
         result->balance[0] = 0;
         result->balance[1] = 0;
         result->balance[2] = 0;
+        if (accountFetch) accountFetch(address);
     }
     return result;
 }
@@ -535,6 +553,7 @@ static storage_t *getAccountStorage(account_t *account, const uint256_t *key) {
     }
     *storage = calloc(1, sizeof(storage_t));
     copy256(&(*storage)->key, key);
+    if (storageFetch) storageFetch(account->address, key, &(*storage)->value);
     return *storage;
 }
 
