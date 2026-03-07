@@ -9,8 +9,8 @@ OCFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) -fmodules
 MKDIRS=lib bin tst/bin .pass .pass/tst/bin .make .make/bin .make/tst/bin .make/lib .pass/tst/in .pass/tst/diotst
 SECP256K1=secp256k1/.libs/libsecp256k1.a
 INCLUDE=$(addprefix -I,include) -Isecp256k1/include
-EXECS=$(patsubst %.c, bin/%, $(wildcard *.c)) bin/dio
-bin/dio: dio | bin
+EXECS=$(patsubst %.c, bin/%, $(wildcard *.c)) $(patsubst %.py, bin/%, $(wildcard *.py))
+bin/%: %.py | bin
 	cp $< $@
 	chmod +x $@
 TESTS=$(patsubst tst/%.c, tst/bin/%, $(wildcard tst/*.c))
