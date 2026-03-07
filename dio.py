@@ -22,6 +22,7 @@ configuration file for use with bin/evm -w.
 """
 
 import argparse
+import asyncio
 import json
 import os
 import subprocess
@@ -44,14 +45,14 @@ def http_post(url, payload):
         sys.exit(1)
 
 
-def rpc_call(url, method, params, req_id=1):
+async def rpc_call(post, method, params, req_id=1):
     payload = json.dumps({
         "jsonrpc": "2.0",
         "id": req_id,
         "method": method,
         "params": params,
     }).encode()
-    resp = json.loads(http_post(url, payload))
+    resp = json.loads(await post(payload))
     if "error" in resp:
         err = resp["error"]
         print(f"dio: {method} failed ({err.get('message', err)})", file=sys.stderr)
@@ -59,9 +60,9 @@ def rpc_call(url, method, params, req_id=1):
     return resp
 
 
-def batch_rpc(url, requests):
+async def batch_rpc(post, requests):
     payload = json.dumps(requests).encode()
-    result = json.loads(http_post(url, payload))
+    result = json.loads(await post(payload))
     result.sort(key=lambda r: r["id"])
     return result
 
@@ -215,7 +216,7 @@ def find_evm():
     return "evm"
 
 
-def run_via_evm(url, call, block, sender, outfile, extend):
+async def run_via_evm(call, block, sender, outfile, extend, post):
     """Spawn evm -x -n with call JSON, proxy JSON-RPC on its stdin/stdout."""
     call_arg = json.dumps({
         "to": call["to"],
@@ -247,7 +248,7 @@ def run_via_evm(url, call, block, sender, outfile, extend):
                 # Account batch: [{getCode,...}, {getTransactionCount,...}, {getBalance,...}]
                 addr = ensure_account(msg[0]["params"][0])
                 id_to_method = {m["id"]: m["method"] for m in msg}
-                resp = json.loads(http_post(url, json.dumps(msg).encode()))
+                resp = json.loads(await post(json.dumps(msg).encode()))
                 resp.sort(key=lambda r: r["id"])
                 for item in resp:
                     val = item["result"]
@@ -273,7 +274,7 @@ def run_via_evm(url, call, block, sender, outfile, extend):
             elif msg.get("method") == "eth_getStorageAt":
                 addr = ensure_account(msg["params"][0])
                 key = normalize_key(msg["params"][1])
-                resp = json.loads(http_post(url, json.dumps(msg).encode()))
+                resp = json.loads(await post(json.dumps(msg).encode()))
                 val = resp.get("result", "0x" + "0" * 64)
                 if val and val != "0x" + "0" * 64:
                     account_data[addr]["storage"][key] = val
@@ -295,7 +296,7 @@ def run_via_evm(url, call, block, sender, outfile, extend):
     write_config(account_data, call, block, outfile, extend, result=output_hex)
 
 
-def run(url, call_json, outfile, extend):
+async def run(call_json, outfile, extend, post):
     call = json.loads(call_json)
 
     if "to" not in call:
@@ -304,7 +305,7 @@ def run(url, call_json, outfile, extend):
 
     block = call.pop("block", "latest")
     if block == "latest":
-        block = rpc_call(url, "eth_blockNumber", [])["result"]
+        block = (await rpc_call(post, "eth_blockNumber", []))["result"]
 
     # Normalize: dio uses "input", RPC uses "data"
     if "input" in call and "data" not in call:
@@ -317,9 +318,9 @@ def run(url, call_json, outfile, extend):
         "jsonrpc": "2.0", "id": 1, "method": "debug_traceCall",
         "params": [call, block, {"disableStorage": True, "disableMemory": True}],
     }).encode()
-    trace_resp = json.loads(http_post(url, trace_payload))
+    trace_resp = json.loads(await post(trace_payload))
     if "error" in trace_resp:
-        run_via_evm(url, call, block, sender, outfile, extend)
+        await run_via_evm(call, block, sender, outfile, extend, post)
         return
 
     trace_result = trace_resp["result"]
@@ -354,7 +355,7 @@ def run(url, call_json, outfile, extend):
         for addr in access_list
     }
     if batch:
-        results = batch_rpc(url, batch)
+        results = await batch_rpc(post, batch)
         for i, resp in enumerate(results):
             if "error" in resp:
                 err = resp["error"]
@@ -371,6 +372,24 @@ def run(url, call_json, outfile, extend):
                 account_data[addr][field] = val
 
     write_config(account_data, call, block, outfile, extend, result=return_value)
+
+
+async def run_main(url, call_json, outfile, extend):
+    if url.startswith(("ws://", "wss://")):
+        try:
+            import websockets
+        except ImportError:
+            print("dio: websockets package required for ws:// URLs (pip install websockets)", file=sys.stderr)
+            sys.exit(1)
+        async with websockets.connect(url) as ws:
+            async def post(payload):
+                await ws.send(payload.decode() if isinstance(payload, bytes) else payload)
+                return (await ws.recv()).encode()
+            await run(call_json, outfile, extend, post)
+    else:
+        async def post(payload):
+            return http_post(url, payload)
+        await run(call_json, outfile, extend, post)
 
 
 def main():
@@ -393,13 +412,13 @@ def main():
         sys.exit(1)
 
     if args.o is not None:
-        run(url, args.o, args.outfile, args.extend)
+        asyncio.run(run_main(url, args.o, args.outfile, args.extend))
     elif args.files:
         for path in args.files:
             with open(path) as f:
-                run(url, f.read(), args.outfile, args.extend)
+                asyncio.run(run_main(url, f.read(), args.outfile, args.extend))
     else:
-        run(url, sys.stdin.read(), args.outfile, args.extend)
+        asyncio.run(run_main(url, sys.stdin.read(), args.outfile, args.extend))
 
 
 if __name__ == "__main__":
