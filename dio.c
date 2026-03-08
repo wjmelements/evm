@@ -370,6 +370,8 @@ static char *httpPost(const char *payload, void *ctx) {
         free(resp.buf);
         return NULL;
     }
+    while (resp.len > 0 && (resp.buf[resp.len-1] == '\n' || resp.buf[resp.len-1] == '\r'))
+        resp.buf[--resp.len] = '\0';
     return resp.buf ? resp.buf : strdup("");
 }
 
