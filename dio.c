@@ -400,7 +400,7 @@ static pid_t spawnEvm(const char *evm, const char *callJson,
         dup2(fromFds[1], STDOUT_FILENO);
         close(toFds[0]);  close(toFds[1]);
         close(fromFds[0]); close(fromFds[1]);
-        char *args[] = { (char *)evm, "-x", "-n", "-o", (char *)callJson, NULL };
+        char *args[] = { (char *)evm, "-glnsxo", (char *)callJson, NULL };
         execvp(evm, args);
         perror(evm);
         _exit(1);
@@ -534,7 +534,7 @@ static char *runViaEvm(
 
         } else {
             /* ---- Final output from evm ---- */
-            const char *ov = jFind(line, "output");
+            const char *ov = jFind(line, "returnData");
             if (ov && *ov == '"') {
                 ov++;
                 const char *end = ov;
@@ -617,7 +617,6 @@ static void writeConfig(
     if (input && strcmp(input, "0x") != 0)
         fprintf(f, ",\n                \"input\": \"%s\"", input);
     fprintf(f, ",\n                \"blockNumber\": \"%s\"", block);
-    fputs(",\n                \"debug\": \"0x20\"", f);
     if (output)
         fprintf(f, ",\n                \"output\": \"%s\"", output);
     fputs("\n            }\n        ]\n    }\n]\n", f);

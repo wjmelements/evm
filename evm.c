@@ -181,12 +181,7 @@ static void execute(const char *contents) {
     }
     evmFinalize();
 
-    if (networkMode) {
-        fputs("{\"output\":\"0x", stdout);
-        for (size_t i = 0; i < result.returnData.size; i++)
-            printf("%02x", result.returnData.content[i]);
-        fputs("\"}\n", stdout);
-    } else if (outputJson) {
+    if (outputJson) {
         fputs("{\"", stdout);
         if (includeGas) {
             printf("gasUsed\":%" PRIu64 ",\"", gas - result.gasRemaining);
