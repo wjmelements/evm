@@ -9,6 +9,7 @@ OCFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) -fmodules
 MKDIRS=lib bin tst/bin .pass .pass/tst/bin .make .make/bin .make/tst/bin .make/lib .pass/tst/in .pass/tst/diotst
 SECP256K1=secp256k1/.libs/libsecp256k1.a
 INCLUDE=$(addprefix -I,include) -Isecp256k1/include
+CURL_LDFLAGS := $(shell curl-config --libs 2>/dev/null || echo -lcurl)
 EXECS=$(patsubst %.c, bin/%, $(wildcard *.c)) $(patsubst %.py, bin/%, $(wildcard *.py))
 bin/%: %.py | bin
 	cp $< $@
@@ -76,6 +77,8 @@ bin/%: %.cpp
 	$(CPP) $(CXXFLAGS) $(INCLUDE) $^ -o $@
 bin/%: %.c
 	$(CC) $(CFLAGS) $(INCLUDE) $^ -o $@
+bin/dio: dio.c | bin
+	$(CC) $(CFLAGS) $(INCLUDE) $^ $(CURL_LDFLAGS) -o $@
 lib/%.o: src/%.m include/%.h | lib
 	$(CC) -c $(OCFLAGS) $(INCLUDE) $< -o $@
 lib/%.o: src/%.cpp include/%.h | lib
