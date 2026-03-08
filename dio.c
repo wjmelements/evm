@@ -20,7 +20,6 @@
 #include <curl/curl.h>
 #include <getopt.h>
 #include <inttypes.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,7 +35,6 @@
 #define HEX256_LEN  68      /* "0x" + 64 hex + NUL */
 #define NONCE_LEN   22      /* "0x" + up to 18 hex + NUL */
 #define LINE_CAP    131072  /* matches evm's rpcBuf */
-#define MAX_BATCH   8192    /* max requests in one JSON-RPC batch */
 
 typedef struct storage_kv {
     char *key;
@@ -44,28 +42,14 @@ typedef struct storage_kv {
     struct storage_kv *next;
 } storage_kv_t;
 
-/* Storage key recorded during trace (before value is fetched) */
-typedef struct storage_key {
-    char key[HEX256_LEN];
-    struct storage_key *next;
-} storage_key_t;
-
 typedef struct account {
     char  address[ADDR_LEN];
     char  balance[HEX256_LEN];
     char  nonce[NONCE_LEN];
     char *code;               /* dynamically allocated "0x..." */
     storage_kv_t  *storage;  /* fetched key→value pairs */
-    storage_key_t *keys;     /* keys to fetch (from access list) */
     struct account *next;
 } account_t;
-
-/* Metadata for one request in a batch, used to route responses */
-typedef struct {
-    char addr[ADDR_LEN];
-    char key[HEX256_LEN];   /* empty if not a storage slot */
-    int  field;             /* 0=balance 1=nonce 2=code 3=storage */
-} batch_meta_t;
 
 /* =========================================================
  * Growing string buffer
@@ -83,23 +67,6 @@ static void sbAppend(strbuf_t *sb, const char *s, size_t n) {
     memcpy(sb->buf + sb->len, s, n);
     sb->len += n;
     sb->buf[sb->len] = '\0';
-}
-
-static void sbFmt(strbuf_t *sb, const char *fmt, ...) {
-    va_list ap, ap2;
-    va_start(ap, fmt);
-    va_copy(ap2, ap);
-    int n = vsnprintf(NULL, 0, fmt, ap);
-    va_end(ap);
-    if (sb->len + (size_t)n + 1 > sb->cap) {
-        size_t nc = sb->cap ? sb->cap * 2 : 4096;
-        while (nc < sb->len + (size_t)n + 1) nc *= 2;
-        sb->buf = realloc(sb->buf, nc);
-        sb->cap = nc;
-    }
-    vsnprintf(sb->buf + sb->len, (size_t)n + 1, fmt, ap2);
-    va_end(ap2);
-    sb->len += (size_t)n;
 }
 
 /* =========================================================
@@ -234,31 +201,6 @@ static const char *jArrayGet(const char *p, int n) {
 }
 
 /*
- * Store pointers to the last n elements (n ≤ 2) of a JSON array into
- * out[0..n-1], where out[n-1] is the last element (EVM stack top).
- * Returns the actual count stored (may be < n for short arrays).
- */
-static int jArrayTailN(const char *arr, int n, const char **out) {
-    if (!arr || *arr != '[' || n <= 0 || n > 2) return 0;
-    const char *buf[2];
-    int count = 0;
-    const char *p = arr + 1;
-    while (*p) {
-        skipWs(&p);
-        if (*p == ']') break;
-        buf[count % n] = p;
-        count++;
-        jSkip(&p);
-        skipWs(&p);
-        if (*p == ',') p++;
-    }
-    int found = count < n ? count : n;
-    for (int i = 0; i < found; i++)
-        out[i] = buf[(count - found + i) % n];
-    return found;
-}
-
-/*
  * Return a dynamically-allocated copy of the quoted JSON string at p.
  * Returns "0x" if p is NULL or not a string.  Caller must free().
  */
@@ -271,28 +213,6 @@ static char *jStrDup(const char *p) {
     char *s = malloc(len + 1);
     memcpy(s, p, len);
     s[len] = '\0';
-    return s;
-}
-
-/*
- * Extract "key" string from json, prepend "0x" if absent.
- * Returns a dynamically-allocated string.  Caller must free().
- */
-static char *jStrHex(const char *json, const char *key) {
-    const char *p = jFind(json, key);
-    if (!p || *p != '"') return strdup("0x");
-    p++;
-    const char *end = p;
-    while (*end && *end != '"') end++;
-    size_t len = end - p;
-    int has0x = (len >= 2 && p[0] == '0' && p[1] == 'x');
-    char *s = malloc(len + (has0x ? 1 : 3));
-    if (has0x) {
-        memcpy(s, p, len); s[len] = '\0';
-    } else {
-        s[0] = '0'; s[1] = 'x';
-        memcpy(s + 2, p, len); s[len + 2] = '\0';
-    }
     return s;
 }
 
@@ -383,40 +303,6 @@ static void addStorage(account_t *acct, const char *key, const char *val) {
     s->value = strdup(val);
     s->next  = acct->storage;
     acct->storage = s;
-}
-
-/* Record a storage key to be fetched for this account (deduped, normalized). */
-static void addAccessKey(account_t *acct, const char *key) {
-    char norm[HEX256_LEN];
-    normalizeKey(key, norm, sizeof(norm));
-    for (storage_key_t *k = acct->keys; k; k = k->next)
-        if (strcmp(k->key, norm) == 0) return;
-    storage_key_t *k = calloc(1, sizeof(storage_key_t));
-    strncpy(k->key, norm, sizeof(k->key) - 1);
-    k->next  = acct->keys;
-    acct->keys = k;
-}
-
-/* =========================================================
- * EVM stack helpers
- * ========================================================= */
-
-/*
- * Convert a 32-byte stack value ("0x000...address") to a
- * 0x-prefixed lowercase 20-byte address string.
- */
-static void stackToAddress(const char *val, char *out) {
-    const char *s = (val[0] == '0' && val[1] == 'x') ? val + 2 : val;
-    size_t len = strlen(s);
-    if (len > 40) s += (len - 40);
-    int pad = (int)(40 - (len < 40 ? len : 40));
-    out[0] = '0'; out[1] = 'x';
-    for (int i = 0; i < pad; i++) out[2 + i] = '0';
-    for (int i = pad; i < 40; i++) {
-        unsigned char c = (unsigned char)s[i - pad];
-        out[2 + i] = (c >= 'A' && c <= 'Z') ? (char)(c - 'A' + 'a') : (char)c;
-    }
-    out[42] = '\0';
 }
 
 /* =========================================================
@@ -678,104 +564,6 @@ static char *runViaEvm(
     return output;
 }
 
-/* =========================================================
- * debug_traceCall path
- * ========================================================= */
-
-/*
- * Walk the structLogs array and build account entries with their
- * accessed storage keys.  Tracks the call stack to attribute
- * SLOAD to the correct contract context.
- */
-static void buildAccessList(
-    const char *structLogs,
-    const char *to,
-    const char *from,
-    account_t **accounts)
-{
-    static char callStack[1024][ADDR_LEN];
-    static int  callDepth;
-    callDepth = 0;
-
-    if (to && *to) {
-        ensureAccount(accounts, to);
-        normalizeAddr(to, callStack[callDepth++]);
-    }
-    if (from && *from &&
-        strcmp(from, "0x0000000000000000000000000000000000000000") != 0) {
-        ensureAccount(accounts, from);
-    }
-
-    const char *p = structLogs;
-    if (!p || *p != '[') return;
-    p++;
-
-    while (*p) {
-        skipWs(&p);
-        if (*p == ']' || !*p) break;
-
-        const char *entry = p;
-        char op[32] = "";
-        jStr(jFind(entry, "op"), op, sizeof(op));
-        const char *stackArr = jFind(entry, "stack");
-
-        if (strcmp(op, "SLOAD") == 0 && callDepth > 0) {
-            const char *top[1];
-            if (jArrayTailN(stackArr, 1, top) >= 1) {
-                char rawKey[HEX256_LEN];
-                jStr(top[0], rawKey, sizeof(rawKey));
-                account_t *acct = ensureAccount(accounts, callStack[callDepth - 1]);
-                addAccessKey(acct, rawKey);
-            }
-
-        } else if (strcmp(op, "CALL") == 0 || strcmp(op, "STATICCALL") == 0) {
-            /* stack: gas(top=-1), addr(-2) */
-            const char *top2[2];
-            if (jArrayTailN(stackArr, 2, top2) >= 2) {
-                char raw[HEX256_LEN], addr[ADDR_LEN];
-                jStr(top2[0], raw, sizeof(raw));   /* stack[-2] = addr */
-                stackToAddress(raw, addr);
-                ensureAccount(accounts, addr);
-                if (callDepth < 1024)
-                    normalizeAddr(addr, callStack[callDepth++]);
-            }
-
-        } else if (strcmp(op, "DELEGATECALL") == 0) {
-            /* Executes code at stack[-2] in the CALLER's storage context */
-            const char *top2[2];
-            if (jArrayTailN(stackArr, 2, top2) >= 2) {
-                char raw[HEX256_LEN], codeAddr[ADDR_LEN];
-                jStr(top2[0], raw, sizeof(raw));   /* stack[-2] = code addr */
-                stackToAddress(raw, codeAddr);
-                ensureAccount(accounts, codeAddr);
-                if (callDepth < 1024) {
-                    const char *ctx = callDepth > 0 ? callStack[callDepth - 1] : codeAddr;
-                    strncpy(callStack[callDepth++], ctx, ADDR_LEN);
-                }
-            }
-
-        } else if (strcmp(op, "EXTCODESIZE") == 0 ||
-                   strcmp(op, "EXTCODECOPY") == 0) {
-            const char *top[1];
-            if (jArrayTailN(stackArr, 1, top) >= 1) {
-                char raw[HEX256_LEN], addr[ADDR_LEN];
-                jStr(top[0], raw, sizeof(raw));
-                stackToAddress(raw, addr);
-                ensureAccount(accounts, addr);
-            }
-
-        } else if (strcmp(op, "STOP")   == 0 ||
-                   strcmp(op, "RETURN") == 0 ||
-                   strcmp(op, "REVERT") == 0) {
-            if (callDepth > 0) callDepth--;
-        }
-
-        jSkip(&p);
-        skipWs(&p);
-        if (*p == ',') p++;
-    }
-}
-
 /*
  * Write the dio JSON config to outfile (stdout if NULL or "-").
  */
@@ -882,136 +670,10 @@ static void run(
         free(resp);
     }
 
-    /* Try debug_traceCall */
-    strbuf_t callObj = {0};
-    sbFmt(&callObj, "{\"to\":\"%s\",\"from\":\"%s\"", to, from);
-    if (strcmp(input, "0x") != 0)
-        sbFmt(&callObj, ",\"data\":\"%s\"", input);
-    sbAppend(&callObj, "}", 1);
-
-    strbuf_t traceReq = {0};
-    sbFmt(&traceReq,
-          "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"debug_traceCall\","
-          "\"params\":[%s,\"%s\","
-          "{\"disableStorage\":true,\"disableMemory\":true}]}",
-          callObj.buf, block);
-    free(callObj.buf);
-
-    char *traceResp = post(traceReq.buf, ctx);
-    free(traceReq.buf);
-
-    if (!traceResp || jFind(traceResp, "error")) {
-        free(traceResp);
-        account_t *accounts = NULL;
-        char *output = runViaEvm(self, to, from, input, block, post, ctx, &accounts);
-        writeConfig(accounts, to, from, input, block, outfile, output);
-        free(output);
-        free(input);
-        return;
-    }
-
-    /* Parse trace */
-    const char *result  = jFind(traceResp, "result");
-    const char *logsArr = jFind(result, "structLogs");
-    char *returnValue   = jStrHex(result, "returnValue");
-
-    /* Build access list */
     account_t *accounts = NULL;
-    buildAccessList(logsArr, to, from, &accounts);
-
-    /* Batch-fetch all account state */
-    strbuf_t batch = {0};
-    batch_meta_t *meta = malloc(MAX_BATCH * sizeof(batch_meta_t));
-    int bid = 1, metaCount = 0;
-
-    sbAppend(&batch, "[", 1);
-    int first = 1;
-    for (account_t *a = accounts; a; a = a->next) {
-        if (!first) sbAppend(&batch, ",", 1); first = 0;
-        sbFmt(&batch,
-              "{\"jsonrpc\":\"2.0\",\"id\":%d,"
-              "\"method\":\"eth_getBalance\",\"params\":[\"%s\",\"%s\"]}",
-              bid, a->address, block);
-        strncpy(meta[metaCount].addr, a->address, ADDR_LEN);
-        meta[metaCount].key[0] = '\0';
-        meta[metaCount].field  = 0;
-        metaCount++; bid++;
-
-        sbFmt(&batch,
-              ",{\"jsonrpc\":\"2.0\",\"id\":%d,"
-              "\"method\":\"eth_getTransactionCount\",\"params\":[\"%s\",\"%s\"]}",
-              bid, a->address, block);
-        strncpy(meta[metaCount].addr, a->address, ADDR_LEN);
-        meta[metaCount].key[0] = '\0';
-        meta[metaCount].field  = 1;
-        metaCount++; bid++;
-
-        sbFmt(&batch,
-              ",{\"jsonrpc\":\"2.0\",\"id\":%d,"
-              "\"method\":\"eth_getCode\",\"params\":[\"%s\",\"%s\"]}",
-              bid, a->address, block);
-        strncpy(meta[metaCount].addr, a->address, ADDR_LEN);
-        meta[metaCount].key[0] = '\0';
-        meta[metaCount].field  = 2;
-        metaCount++; bid++;
-
-        for (storage_key_t *k = a->keys; k; k = k->next) {
-            sbFmt(&batch,
-                  ",{\"jsonrpc\":\"2.0\",\"id\":%d,"
-                  "\"method\":\"eth_getStorageAt\","
-                  "\"params\":[\"%s\",\"%s\",\"%s\"]}",
-                  bid, a->address, k->key, block);
-            strncpy(meta[metaCount].addr, a->address, ADDR_LEN);
-            strncpy(meta[metaCount].key,  k->key, HEX256_LEN);
-            meta[metaCount].field = 3;
-            metaCount++; bid++;
-        }
-    }
-    sbAppend(&batch, "]", 1);
-
-    char *batchResp = NULL;
-    if (metaCount > 0) {
-        batchResp = post(batch.buf, ctx);
-        if (!batchResp) { fputs("dio: batch RPC failed\n", stderr); _exit(1); }
-    }
-    free(batch.buf);
-
-    if (batchResp) {
-        const char *p = batchResp;
-        if (*p == '[') p++;
-        while (*p) {
-            skipWs(&p);
-            if (*p == ']' || !*p) break;
-            const char *elem = p;
-            int id = (int)jUint(jFind(elem, "id"));
-            if (id >= 1 && id < bid) {
-                int idx = id - 1;
-                account_t *a = ensureAccount(&accounts, meta[idx].addr);
-                const char *rv = jFind(elem, "result");
-                switch (meta[idx].field) {
-                    case 0: jStr(rv, a->balance, sizeof(a->balance)); break;
-                    case 1: jStr(rv, a->nonce,   sizeof(a->nonce));   break;
-                    case 2: free(a->code); a->code = jStrDup(rv);     break;
-                    case 3: {
-                        char val[HEX256_LEN];
-                        jStr(rv, val, sizeof(val));
-                        addStorage(a, meta[idx].key, val);
-                        break;
-                    }
-                }
-            }
-            jSkip(&p);
-            skipWs(&p);
-            if (*p == ',') p++;
-        }
-        free(batchResp);
-    }
-
-    free(meta);
-    free(traceResp);
-
-    writeConfig(accounts, to, from, input, block, outfile, returnValue);
-    free(returnValue);
+    char *output = runViaEvm(self, to, from, input, block, post, ctx, &accounts);
+    writeConfig(accounts, to, from, input, block, outfile, output);
+    free(output);
     free(input);
 }
 
