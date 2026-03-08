@@ -52,6 +52,9 @@ typedef struct logChanges {
 
 static int LogsEqual(const logChanges_t *expectedLog, const logChanges_t *actualLog) {
     while (expectedLog && actualLog) {
+        if (expectedLog->logIndex && expectedLog->logIndex != actualLog->logIndex) {
+            return false;
+        }
         if (!DataEqual(&expectedLog->data, &actualLog->data)) {
             return false;
         }

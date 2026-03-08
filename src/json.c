@@ -111,6 +111,17 @@ const char *jArrayGet(const char *p, int n) {
     return NULL;
 }
 
+char *jValDup(const char *p) {
+    if (!p) return NULL;
+    const char *start = p;
+    jSkip(&p);
+    size_t len = p - start;
+    char *s = malloc(len + 1);
+    memcpy(s, start, len);
+    s[len] = '\0';
+    return s;
+}
+
 char *jStrDup(const char *p) {
     if (!p || *p != '"') return strdup("0x");
     p++;

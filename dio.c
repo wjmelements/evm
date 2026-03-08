@@ -58,6 +58,9 @@ typedef struct call_result {
     char  block[32];
     char *input;
     char *output;
+    char *logs;
+    char *status;
+    char *gasUsed;
     struct call_result *next;
 } call_result_t;
 
@@ -364,16 +367,12 @@ static void runViaEvm(
 
         } else {
             /* ---- Final output from evm ---- */
-            const char *ov = jFind(line, "returnData");
-            if (ov && *ov == '"') {
-                ov++;
-                const char *end = ov;
-                while (*end && *end != '"') end++;
-                size_t len = end - ov;
-                output = malloc(len + 1);
-                memcpy(output, ov, len);
-                output[len] = '\0';
-            }
+            output = jStrDup(jFind(line, "returnData"));
+            char gasHex[20];
+            snprintf(gasHex, sizeof(gasHex), "0x%" PRIx64, jUint(jFind(line, "gasUsed")));
+            r->gasUsed = strdup(gasHex);
+            r->status  = jStrDup(jFind(line, "status"));
+            r->logs    = jValDup(jFind(line, "logs"));
             break;
         }
     }
@@ -446,6 +445,12 @@ static void writeConfig(
         if (r->input && strcmp(r->input, "0x") != 0)
             fprintf(f, ",\n                \"input\": \"%s\"", r->input);
         fprintf(f, ",\n                \"blockNumber\": \"%s\"", r->block);
+        if (r->gasUsed)
+            fprintf(f, ",\n                \"gasUsed\": \"%s\"", r->gasUsed);
+        if (r->logs)
+            fprintf(f, ",\n                \"logs\": %s", r->logs);
+        if (r->status)
+            fprintf(f, ",\n                \"status\": \"%s\"", r->status);
         if (r->output)
             fprintf(f, ",\n                \"output\": \"%s\"", r->output);
         fputs("\n            }", f);

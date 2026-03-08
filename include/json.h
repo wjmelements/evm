@@ -35,6 +35,12 @@ const char *jArrayGet(const char *p, int n);
 char *jStrDup(const char *p);
 
 /*
+ * Return a dynamically-allocated copy of the raw JSON value at p
+ * (string, array, object, number, or literal).  Caller must free().
+ */
+char *jValDup(const char *p);
+
+/*
  * In a JSON-RPC batch response array, find the element with "id": targetId
  * and return a newly-allocated copy of its "result" string value.
  * Caller must free(). Returns NULL if not found.

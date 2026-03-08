@@ -460,6 +460,15 @@ static void jsonScanLog(const char **iter, logChanges_t **prev) {
         } else if (logHeadingLen == 4 && *logHeading == 'd') {
             // data
             jsonScanData(iter, &log->data);
+        } else if (logHeadingLen == 8 && *logHeading == 'l') {
+            // logIndex
+            const char *v = jsonScanStr(iter);
+            jsonSkipExpectedChar(&v, '0');
+            jsonSkipExpectedChar(&v, 'x');
+            while (*v != '"') {
+                log->logIndex = (log->logIndex << 4) | hexString8ToUint8(*v);
+                v++;
+            }
         } else {
             fprintf(stderr, "Unexpected log heading: ");
             for (size_t i = 0; i < logHeadingLen; i++) {
