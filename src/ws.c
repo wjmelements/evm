@@ -218,8 +218,8 @@ static char *wsRecvMsg(CURL *curl) {
     return msg ? msg : strdup("");
 }
 
-char *wsPost(const char *payload, void *ctx) {
+char *wsPost(const char *payload, size_t len, void *ctx) {
     CURL *curl = ctx;
-    if (wsSendFrame(curl, payload, strlen(payload)) != 0) return NULL;
+    if (wsSendFrame(curl, payload, len) != 0) return NULL;
     return wsRecvMsg(curl);
 }

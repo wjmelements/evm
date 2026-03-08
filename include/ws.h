@@ -13,4 +13,4 @@ CURL *wsConnect(const char *url);
  * return the response as a dynamically-allocated string.
  * ctx must be the CURL * returned by wsConnect.  Caller must free().
  */
-char *wsPost(const char *payload, void *ctx);
+char *wsPost(const char *payload, size_t len, void *ctx);
