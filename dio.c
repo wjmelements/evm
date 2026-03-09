@@ -340,8 +340,9 @@ static void runViaEvm(
     strbuf_t cj = {0};
 #define sbLit(s) sbAppend(&cj, s, sizeof(s) - 1)
 #define sbStr(s) sbAppend(&cj, s, strlen(s))
-    sbLit("{\"to\":\"");    sbStr(r->to);
-    sbLit("\",\"from\":\""); sbStr(r->from);
+    sbLit("{");
+    if (r->to[0]) { sbLit("\"to\":\""); sbStr(r->to); sbLit("\","); }
+    sbLit("\"from\":\""); sbStr(r->from);
     sbLit("\",\"data\":\""); sbStr(r->input);
     if (r->value[0]) { sbLit("\",\"value\":\""); sbStr(r->value); }
     sbLit("\"}");
@@ -444,7 +445,8 @@ static void runViaEvm(
         _exit(1);
     }
 
-    ensureAccount(accounts, r->to);
+    if (r->to[0])
+        ensureAccount(accounts, r->to);
     if (strcmp(r->from, "0x0000000000000000000000000000000000000000") != 0)
         ensureAccount(accounts, r->from);
 
@@ -456,7 +458,8 @@ static void runViaEvm(
  */
 static void writeConfig(
     account_t     *accounts,
-    call_result_t *results,
+    call_result_t *creates,
+    call_result_t *calls,
     const char    *outfile)
 {
     FILE *f;
@@ -480,40 +483,68 @@ static void writeConfig(
             fprintf(f, ",\n        \"code\": \"%s\"", a->code);
         if (a->storage) {
             fputs(",\n        \"storage\": {\n", f);
-            int first = 1;
             for (storage_kv_t *s = a->storage; s; s = s->next) {
-                if (!first) fputs(",\n", f);
+                if (s != a->storage) fputs(",\n", f);
                 fprintf(f, "            \"%s\": \"%s\"", s->key, s->value);
-                first = 0;
             }
             fputs("\n        }", f);
         }
         fputs("\n    },\n", f);
     }
 
-    fputs("    {\n        \"tests\": [\n", f);
-    for (call_result_t *r = results; r; r = r->next) {
-        if (r != results) fputs(",\n", f);
-        fputs("            {\n", f);
-        fprintf(f, "                \"to\": \"%s\"", r->to);
-        if (strcmp(r->from, "0x0000000000000000000000000000000000000000") != 0)
-            fprintf(f, ",\n                \"from\": \"%s\"", r->from);
-        if (r->value[0])
-            fprintf(f, ",\n                \"value\": \"%s\"", r->value);
-        if (r->input && strcmp(r->input, "0x") != 0)
-            fprintf(f, ",\n                \"input\": \"%s\"", r->input);
-        fprintf(f, ",\n                \"blockNumber\": \"%s\"", r->block);
+    /* Create entries */
+    for (call_result_t *r = creates; r; r = r->next) {
+        if (r != creates) fputs(",\n", f);
+        fputs("    {\n", f);
+        fprintf(f, "        \"initcode\": \"%s\"", r->input);
+        fputs(",\n        \"constructTest\": {", f);
+        const char *ctSep = "\n            ";
+        if (strcmp(r->from, "0x0000000000000000000000000000000000000000") != 0) {
+            fprintf(f, "%s\"from\": \"%s\"", ctSep, r->from); ctSep = ",\n            ";
+        }
+        if (r->value[0]) {
+            fprintf(f, "%s\"value\": \"%s\"", ctSep, r->value); ctSep = ",\n            ";
+        }
+        fprintf(f, "%s\"blockNumber\": \"%s\"", ctSep, r->block);
         if (r->gasUsed)
-            fprintf(f, ",\n                \"gasUsed\": \"%s\"", r->gasUsed);
+            fprintf(f, ",\n            \"gasUsed\": \"%s\"", r->gasUsed);
         if (r->logs)
-            fprintf(f, ",\n                \"logs\": %s", r->logs);
-        if (r->status)
-            fprintf(f, ",\n                \"status\": \"%s\"", r->status);
+            fprintf(f, ",\n            \"logs\": %s", r->logs);
+        const char *ctStatus = (r->status && strcmp(r->status, "0x0") != 0) ? "0x1" : "0x0";
+        fprintf(f, ",\n            \"status\": \"%s\"", ctStatus);
         if (r->output)
-            fprintf(f, ",\n                \"output\": \"%s\"", r->output);
-        fputs("\n            }", f);
+            fprintf(f, ",\n            \"output\": \"%s\"", r->output);
+        fputs("\n        }\n    }", f);
     }
-    fputs("\n        ]\n    }\n]\n", f);
+    if (creates && calls) fputs(",\n", f);
+
+    /* Tests entry — only if there are calls */
+    if (calls) {
+        fputs("    {\n        \"tests\": [\n", f);
+        for (call_result_t *r = calls; r; r = r->next) {
+            if (r != calls) fputs(",\n", f);
+            fputs("            {\n", f);
+            fprintf(f, "                \"to\": \"%s\"", r->to);
+            if (strcmp(r->from, "0x0000000000000000000000000000000000000000") != 0)
+                fprintf(f, ",\n                \"from\": \"%s\"", r->from);
+            if (r->value[0])
+                fprintf(f, ",\n                \"value\": \"%s\"", r->value);
+            if (r->input && strcmp(r->input, "0x") != 0)
+                fprintf(f, ",\n                \"input\": \"%s\"", r->input);
+            fprintf(f, ",\n                \"blockNumber\": \"%s\"", r->block);
+            if (r->gasUsed)
+                fprintf(f, ",\n                \"gasUsed\": \"%s\"", r->gasUsed);
+            if (r->logs)
+                fprintf(f, ",\n                \"logs\": %s", r->logs);
+            if (r->status)
+                fprintf(f, ",\n                \"status\": \"%s\"", r->status);
+            if (r->output)
+                fprintf(f, ",\n                \"output\": \"%s\"", r->output);
+            fputs("\n            }", f);
+        }
+        fputs("\n        ]\n    }", f);
+    }
+    fputs("\n]\n", f);
 
     if (f != stdout) {
         fclose(f);
@@ -529,10 +560,11 @@ static void run(
     const char    *callJson,
     postFn         post, void *ctx,
     account_t    **accounts,
-    call_result_t **results)
+    call_result_t **creates,
+    call_result_t **calls)
 {
     call_result_t *r = malloc(sizeof(call_result_t));
-    strcpy(r->to,    "0x0000000000000000000000000000000000000000");
+    r->to[0]   = '\0';
     strcpy(r->from,  "0x0000000000000000000000000000000000000000");
     strcpy(r->block, "latest");
     r->value[0] = '\0';
@@ -572,8 +604,8 @@ static void run(
 
     runViaEvm(r, post, ctx, accounts);
 
-    r->next  = *results;
-    *results = r;
+    if (r->to[0]) { r->next = *calls;   *calls   = r; }
+    else          { r->next = *creates; *creates = r; }
 }
 
 /* =========================================================
@@ -651,25 +683,26 @@ int main(int argc, char *const argv[]) {
     evmPath = findEvm(argv[0]);
 
     account_t     *accounts = NULL;
-    call_result_t *results  = NULL;
+    call_result_t *creates  = NULL;
+    call_result_t *calls    = NULL;
 
     if (inlineJson) {
-        run(inlineJson, post, ctx, &accounts, &results);
+        run(inlineJson, post, ctx, &accounts, &creates, &calls);
     } else if (optind < argc) {
         for (; optind < argc; optind++) {
             FILE *f = fopen(argv[optind], "r");
             if (!f) { perror(argv[optind]); return 1; }
             char *json = readAll(f);
             fclose(f);
-            run(json, post, ctx, &accounts, &results);
+            run(json, post, ctx, &accounts, &creates, &calls);
             free(json);
         }
     } else {
         char *json = readAll(stdin);
-        run(json, post, ctx, &accounts, &results);
+        run(json, post, ctx, &accounts, &creates, &calls);
         free(json);
     }
 
-    writeConfig(accounts, results, outfile);
+    writeConfig(accounts, creates, calls, outfile);
     return 0;
 }
