@@ -278,6 +278,54 @@ static void writeSortedBatch(FILE *f,
     fflush(f);
 }
 
+static void printMethod(const char *obj) {
+    char method[64];
+    if (jStr(jFind(obj, "method"), method, sizeof(method)) > 0) {
+        fputc(' ', stderr);
+        fputs(method, stderr);
+    }
+}
+
+/* Print "dio: RPC failed: <method(s)>\n" and exit for a request that got NULL */
+static void rpcFailed(const char *req) {
+    fputs("dio: RPC failed:", stderr);
+    if (*req == '[') {
+        for (const char *elem = jArrayGet(req, 0); elem; elem = jArrayNext(elem))
+            printMethod(elem);
+    } else {
+        printMethod(req);
+    }
+    fputc('\n', stderr);
+    _exit(1);
+}
+
+/* Print "dio: <method> error: <obj>\n" and exit */
+static void rpcError(const char *req, const char *errField) {
+    fputs("dio:", stderr);
+    printMethod(req);
+    fputs(" error: ", stderr);
+    char *errStr = jValDup(errField);
+    fputs(errStr ? errStr : "?", stderr);
+    free(errStr);
+    fputc('\n', stderr);
+    _exit(1);
+}
+
+/* Check a batch resp for error objects; match method names from the batch req */
+static void checkBatchErrors(const char *resp, const char *req) {
+    const char *qHead = jArrayGet(req, 0);
+    for (const char *rElem = jArrayGet(resp, 0); rElem; rElem = jArrayNext(rElem)) {
+        const char *errField = jFind(rElem, "error");
+        if (!errField) continue;
+        uint64_t id = jUint(jFind(rElem, "id"));
+        for (const char *qElem = qHead; qElem; qElem = jArrayNext(qElem)) {
+            if (jUint(jFind(qElem, "id")) == id)
+                rpcError(qElem, errField);
+        }
+        rpcError(qHead, errField);
+    }
+}
+
 /*
  * Run the call via `evm -x -n`, proxying its JSON-RPC requests through
  * the provided post function.  Collects account state into *accounts
@@ -317,10 +365,8 @@ static void runViaEvm(
             uint64_t balanceId = jUint(jFind(jArrayGet(line, 2), "id"));
 
             char *resp = post(line, nl - line, ctx);
-            if (!resp) {
-                fputs("dio: RPC failed for account batch\n", stderr);
-                _exit(1);
-            }
+            if (!resp) rpcFailed(line);
+            checkBatchErrors(resp, line);
 
             char *code    = resultById(resp, codeId);
             char *nonce   = resultById(resp, nonceId);
@@ -354,10 +400,9 @@ static void runViaEvm(
             account_t *acct = ensureAccount(accounts, addr);
 
             char *resp = post(line, nl - line, ctx);
-            if (!resp) {
-                fputs("dio: RPC failed for eth_getStorageAt\n", stderr);
-                _exit(1);
-            }
+            if (!resp) rpcFailed(line);
+            const char *errField = jFind(resp, "error");
+            if (errField) rpcError(line, errField);
             char val[HEX256_LEN];
             jStr(jFind(resp, "result"), val, sizeof(val));
             addStorage(acct, rawKey, val);
@@ -503,7 +548,9 @@ static void run(
             "{\"jsonrpc\":\"2.0\",\"id\":1,"
             "\"method\":\"eth_blockNumber\",\"params\":[]}";
         char *resp = post(kBlockNumber, sizeof(kBlockNumber) - 1, ctx);
-        if (!resp) { fputs("dio: eth_blockNumber failed\n", stderr); _exit(1); }
+        if (!resp) rpcFailed(kBlockNumber);
+        const char *errField = jFind(resp, "error");
+        if (errField) rpcError(kBlockNumber, errField);
         jStr(jFind(resp, "result"), r->block, sizeof(r->block));
         free(resp);
     }

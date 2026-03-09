@@ -29,6 +29,12 @@ uint64_t jUint(const char *p);
 const char *jArrayGet(const char *p, int n);
 
 /*
+ * Advance past the element at p and return a pointer to the next element
+ * in the enclosing array, or NULL if the end of the array is reached.
+ */
+const char *jArrayNext(const char *p);
+
+/*
  * Return a dynamically-allocated copy of the quoted JSON string at p.
  * Returns "0x" if p is NULL or not a string.  Caller must free().
  */

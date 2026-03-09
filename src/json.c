@@ -134,6 +134,15 @@ char *jStrDup(const char *p) {
     return s;
 }
 
+const char *jArrayNext(const char *p) {
+    jSkip(&p);
+    skipWs(&p);
+    if (*p == ',') p++;
+    skipWs(&p);
+    if (!*p || *p == ']') return NULL;
+    return p;
+}
+
 char *resultById(const char *resp, uint64_t targetId) {
     const char *p = resp;
     if (*p == '[') p++;
