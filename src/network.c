@@ -54,7 +54,7 @@ static void ensureNetworkBlock(void) {
 static void networkFetchAccount(address_t address) {
     ensureNetworkBlock();
     uint32_t base = ++rpcId; rpcId += 2;
-    printf("[");
+    putchar('[');
     printf("{\"jsonrpc\":\"2.0\",\"id\":%u,\"method\":\"eth_getCode\",\"params\":[\"", base);
     fprintAddress(stdout, address);
     printf("\",\"%s\"]},", networkBlockHex);
@@ -64,7 +64,7 @@ static void networkFetchAccount(address_t address) {
     printf("{\"jsonrpc\":\"2.0\",\"id\":%u,\"method\":\"eth_getBalance\",\"params\":[\"", base + 2);
     fprintAddress(stdout, address);
     printf("\",\"%s\"]}", networkBlockHex);
-    printf("]\n");
+    puts("]");
     fflush(stdout);
 
     if (!fgets(rpcBuf, sizeof(rpcBuf), stdin)) {
@@ -110,10 +110,9 @@ static void networkFetchStorage(address_t address, const uint256_t *key, uint256
     ensureNetworkBlock();
     printf("{\"jsonrpc\":\"2.0\",\"id\":%u,\"method\":\"eth_getStorageAt\",\"params\":[\"", ++rpcId);
     fprintAddress(stdout, address);
-    printf("\",\"0x%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "\",\"%s\"]}\n",
-        UPPER(UPPER_P(key)), LOWER(UPPER_P(key)),
-        UPPER(LOWER_P(key)), LOWER(LOWER_P(key)),
-        networkBlockHex);
+    fputs("\",\"0x", stdout);
+    fprint256(stdout, key);
+    printf("\",\"%s\"]}\n", networkBlockHex);
     fflush(stdout);
 
     if (!fgets(rpcBuf, sizeof(rpcBuf), stdin)) {

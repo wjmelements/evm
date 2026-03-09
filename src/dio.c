@@ -266,9 +266,9 @@ static void reportResult(testEntry_t *test, result_t *result, uint64_t gas, cons
             // less actual gasUsed than expected
             fprintf(stderr, "gasUsed \033[0;32m%" PRIu64 "\033[0m expected %" PRIu64 " (\033[0;32m-%" PRIu64 "\033[0m)\n", gasUsed, test->gasUsed, test->gasUsed - gasUsed);
         } else if (testFailure) {
-            fprintf(stderr, "\033[0;31mfail\033[0m\n");
+            fputs("\033[0;31mfail\033[0m\n", stderr);
         } else {
-            fprintf(stderr, "\033[0;32mpass\033[0m\n");
+            fputs("\033[0;32mpass\033[0m\n", stderr);
         }
     } else if (testFailure) {
         fprintf(stderr, "\033[0;31mfail\033[0m\n");
@@ -319,9 +319,9 @@ static void verifyConstructResult(result_t *constructResult, entry_t *entry) {
         if (constructResult->returnData.size != entry->code.size || memcmp(constructResult->returnData.content, entry->code.content, entry->code.size)) {
             fputs("Code mismatch at address ", stderr);
             fprintAddress(stderr, (*entry->address));
-            fprintf(stderr, ":\ninitcode result:\n");
+            fputs(":\ninitcode result:\n", stderr);
             fprintData(stderr, constructResult->returnData);
-            fprintf(stderr, "\nexpected:\n");
+            fputs("\nexpected:\n", stderr);
             fprintData(stderr, entry->code);
             fputc('\n', stderr);
             _exit(-1);
@@ -353,7 +353,7 @@ static void applyEntry(entry_t *entry) {
         if (entry->constructTest) {
             if (!AddressZero(&entry->constructTest->from)) {
                 if (entry->creator && !AddressEqual(&entry->constructTest->from, entry->creator)) {
-                    fprintf(stderr, "constructTest.from conflicts with creator\n");
+                    fputs("constructTest.from conflicts with creator\n", stderr);
                     _exit(1);
                 }
                 AddressCopy(from, entry->constructTest->from);
@@ -470,7 +470,7 @@ static void jsonScanLog(const char **iter, logChanges_t **prev) {
                 v++;
             }
         } else {
-            fprintf(stderr, "Unexpected log heading: ");
+            fputs("Unexpected log heading: ", stderr);
             for (size_t i = 0; i < logHeadingLen; i++) {
                 fputc(logHeading[i], stderr);
             }

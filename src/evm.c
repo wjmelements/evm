@@ -27,15 +27,10 @@ uint16_t fprintLog(FILE *file, const logChanges_t *log, int showLogIndex) {
     }
     fputs("\",\"topics\":[", file);
     for (uint8_t i = log->topicCount; i-->0;) {
-        fprintf(file, "\"0x%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "\"",
-            UPPER(UPPER(log->topics[i])),
-            LOWER(UPPER(log->topics[i])),
-            UPPER(LOWER(log->topics[i])),
-            LOWER(LOWER(log->topics[i]))
-        );
-        if (i) {
-            fputc(',', file);
-        }
+        fputc('"', file);
+        fprintCompact256(file, &log->topics[i]);
+        fputc('"', file);
+        if (i) fputc(',', file);
     }
     fputs("]}", file);
     return items + 1;
@@ -94,15 +89,10 @@ uint16_t fprintLogDiff(FILE *file, const logChanges_t *log, const logChanges_t *
         }
     } else {
         for (uint8_t i = log->topicCount; i-->0;) {
-            fprintf(file, "\"0x%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "\"",
-                UPPER(UPPER(log->topics[i])),
-                LOWER(UPPER(log->topics[i])),
-                UPPER(LOWER(log->topics[i])),
-                LOWER(LOWER(log->topics[i]))
-            );
-            if (i) {
-                fputc(',', file);
-            }
+            fputc('"', file);
+            fprintCompact256(file, &log->topics[i]);
+            fputc('"', file);
+            if (i) fputc(',', file);
         }
     }
     fputs("]}", file);
@@ -719,25 +709,25 @@ static result_t evmCreate2(account_t *fromAccount, uint64_t gas, val_t value, da
 static result_t doCall(context_t *callContext) {
     if (SHOW_CALLS) {
         INDENT;
-        fprintf(stderr, "from: ");
+        fputs("from: ", stderr);
         fprintAddress(stderr, callContext->caller);
-        fprintf(stderr, "\n");
+        fputc('\n', stderr);
 
         if (callContext->account) {
             INDENT;
-            fprintf(stderr, "to: ");
+            fputs("to: ", stderr);
             fprintAddress(stderr, callContext->account->address);
-            fprintf(stderr, "\n");
+            fputc('\n', stderr);
         }
         if (!ValueIsZero(callContext->callValue)) {
             INDENT;
-            fprintf(stderr, "value: ");
+            fputs("value: ", stderr);
             fprintVal(stderr, callContext->callValue);
-            fprintf(stderr, "\n");
+            fputc('\n', stderr);
         }
 
         INDENT;
-        fprintf(stderr, "input: ");
+        fputs("input: ", stderr);
 
         dumpCallData(callContext);
     }
@@ -1309,9 +1299,9 @@ static result_t doCall(context_t *callContext) {
 
                     stateChanges_t *stateChanges = getCurrentAccountStateChanges(&result, callContext);
                     if (SHOW_LOGS) {
-                        fprintf(stderr, "\033[94m");
+                        fputs("\033[94m", stderr);
                         fprintLog(stderr, log, true);
-                        fprintf(stderr, "\033[0m\n");
+                        fputs("\033[0m\n", stderr);
                     }
                     log->prev = stateChanges->logChanges;
                     stateChanges->logChanges = log;
@@ -1750,13 +1740,13 @@ static result_t doCall(context_t *callContext) {
                 if (SHOW_CALLS) {
                     INDENT;
                     if (zero256(&result.status)) {
-                        fprintf(stderr, "\033[0;31m");
+                        fputs("\033[0;31m", stderr);
                     }
-                    fprintf(stderr, "output: ");
+                    fputs("output: ", stderr);
                     fprintData(stderr, result.returnData);
-                    fprintf(stderr, "\n");
+                    fputc('\n', stderr);
                     if (zero256(&result.status)) {
-                        fprintf(stderr, "\033[0m");
+                        fputs("\033[0m", stderr);
                     }
                 }
                 return result;

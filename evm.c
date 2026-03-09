@@ -38,7 +38,7 @@ static void assemble(const char *contents) {
     scanInit();
     for (; scanValid(&contents); programLength++) {
         if (programLength > (PROGRAM_BUFFER_LENGTH - CONSTRUCTOR_OFFSET)) {
-            fprintf(stderr, "Program size exceeds limit; terminating");
+            fputs("Program size exceeds limit; terminating", stderr);
             break;
         }
         programStart[programLength] = scanNextOp(&contents);
@@ -192,13 +192,9 @@ static void execute(const char *contents) {
             fputs(",\"", stdout);
         }
         if (includeStatus) {
-            printf(
-                "status\":\"0x%08" PRIx64 "%08" PRIx64 "%08" PRIx64 "%08" PRIx64 "\",\"",
-                UPPER(UPPER(result.status)),
-                LOWER(UPPER(result.status)),
-                UPPER(LOWER(result.status)),
-                LOWER(LOWER(result.status))
-            );
+            fputs("status\":\"", stdout);
+            fprintCompact256(stdout, &result.status);
+            fputs("\",\"", stdout);
         }
         fputs("returnData\":\"0x", stdout);
         for (;result.returnData.size--;) printf("%02x", *result.returnData.content++);

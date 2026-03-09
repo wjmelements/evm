@@ -77,6 +77,27 @@ void fprint512(FILE *fp, const uint512_t *number) {
     fprint256(fp, &LOWER_P(number));
 }
 
+static int fprintCompact64(FILE *fp, uint64_t v, int started) {
+    if (started) {
+        fprintf(fp, "%016" PRIx64, v);
+        return 1;
+    }
+    if (v == 0) return 0;
+    fprintf(fp, "0x%" PRIx64, v);
+    return 1;
+}
+
+static int fprintCompact128(FILE *fp, const uint128_t *number, int started) {
+    return fprintCompact64(fp, LOWER_P(number),
+                           fprintCompact64(fp, UPPER_P(number), started));
+}
+
+void fprintCompact256(FILE *fp, const uint256_t *number) {
+    if (!fprintCompact128(fp, &LOWER_P(number),
+                          fprintCompact128(fp, &UPPER_P(number), 0)))
+        fputs("0x0", fp);
+}
+
 bool zero128(const uint128_t *number) {
     return ((LOWER_P(number) == 0) && (UPPER_P(number) == 0));
 }

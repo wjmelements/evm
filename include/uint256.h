@@ -42,6 +42,7 @@ void dumpu256BE(const uint256_t *source, uint8_t *target);
 void fprint128(FILE *, const uint128_t *);
 void fprint256(FILE *, const uint256_t *);
 void fprint512(FILE *, const uint512_t *);
+void fprintCompact256(FILE *, const uint256_t *);
 bool zero128(const uint128_t *number);
 bool zero256(const uint256_t *number);
 void copy128(uint128_t *target, const uint128_t *number);
