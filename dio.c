@@ -360,9 +360,11 @@ static void runViaEvm(
             jStr(jArrayGet(params0, 0), addr, sizeof(addr));
             account_t *acct = ensureAccount(accounts, addr);
 
-            uint64_t codeId    = jUint(jFind(jArrayGet(line, 0), "id"));
-            uint64_t nonceId   = jUint(jFind(jArrayGet(line, 1), "id"));
-            uint64_t balanceId = jUint(jFind(jArrayGet(line, 2), "id"));
+            const char *elem1  = jArrayNext(elem0);
+            const char *elem2  = jArrayNext(elem1);
+            uint64_t codeId    = jUint(jFind(elem0, "id"));
+            uint64_t nonceId   = jUint(jFind(elem1, "id"));
+            uint64_t balanceId = jUint(jFind(elem2, "id"));
 
             char *resp = post(line, nl - line, ctx);
             if (!resp) rpcFailed(line);
@@ -395,8 +397,9 @@ static void runViaEvm(
         } else if (strstr(line, "\"eth_getStorageAt\"")) {
             const char *params = jFind(line, "params");
             char addr[ADDR_LEN], rawKey[HEX256_LEN];
-            jStr(jArrayGet(params, 0), addr,   sizeof(addr));
-            jStr(jArrayGet(params, 1), rawKey, sizeof(rawKey));
+            const char *param0 = jArrayGet(params, 0);
+            jStr(param0,             addr,   sizeof(addr));
+            jStr(jArrayNext(param0), rawKey, sizeof(rawKey));
             account_t *acct = ensureAccount(accounts, addr);
 
             char *resp = post(line, nl - line, ctx);
