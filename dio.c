@@ -56,6 +56,7 @@ typedef struct call_result {
     char  to[ADDR_LEN];
     char  from[ADDR_LEN];
     char  block[32];
+    char  value[HEX256_LEN];
     char *input;
     char *output;
     char *logs;
@@ -336,13 +337,19 @@ static void runViaEvm(
     postFn         post, void *ctx,
     account_t    **accounts)
 {
-    char callJson[512];
-    snprintf(callJson, sizeof(callJson),
-             "{\"to\":\"%s\",\"from\":\"%s\",\"data\":\"%s\"}",
-             r->to, r->from, r->input);
+    strbuf_t cj = {0};
+#define sbLit(s) sbAppend(&cj, s, sizeof(s) - 1)
+#define sbStr(s) sbAppend(&cj, s, strlen(s))
+    sbLit("{\"to\":\"");    sbStr(r->to);
+    sbLit("\",\"from\":\""); sbStr(r->from);
+    sbLit("\",\"data\":\""); sbStr(r->input);
+    if (r->value[0]) { sbLit("\",\"value\":\""); sbStr(r->value); }
+    sbLit("\"}");
+#undef sbLit
+#undef sbStr
 
     FILE *toChild, *fromChild;
-    pid_t pid = spawnEvm(evmPath, callJson, &toChild, &fromChild);
+    pid_t pid = spawnEvm(evmPath, cj.buf, &toChild, &fromChild);
 
     char *line   = malloc(LINE_CAP);
     char *output = NULL;
@@ -430,6 +437,7 @@ static void runViaEvm(
     int status;
     waitpid(pid, &status, 0);
     free(line);
+    free(cj.buf);
 
     if (!output || WEXITSTATUS(status) != 0) {
         fputs("dio: evm execution failed\n", stderr);
@@ -490,6 +498,8 @@ static void writeConfig(
         fprintf(f, "                \"to\": \"%s\"", r->to);
         if (strcmp(r->from, "0x0000000000000000000000000000000000000000") != 0)
             fprintf(f, ",\n                \"from\": \"%s\"", r->from);
+        if (r->value[0])
+            fprintf(f, ",\n                \"value\": \"%s\"", r->value);
         if (r->input && strcmp(r->input, "0x") != 0)
             fprintf(f, ",\n                \"input\": \"%s\"", r->input);
         fprintf(f, ",\n                \"blockNumber\": \"%s\"", r->block);
@@ -525,10 +535,12 @@ static void run(
     strcpy(r->to,    "0x0000000000000000000000000000000000000000");
     strcpy(r->from,  "0x0000000000000000000000000000000000000000");
     strcpy(r->block, "latest");
+    r->value[0] = '\0';
 
     char tmp[ADDR_LEN + 2];
     if (jStr(jFind(callJson, "to"),   tmp, sizeof(tmp)) > 0) normalizeAddr(tmp, r->to);
     if (jStr(jFind(callJson, "from"), tmp, sizeof(tmp)) > 0) normalizeAddr(tmp, r->from);
+    jStr(jFind(callJson, "value"), r->value, sizeof(r->value));
 
     const char *blkVal = jFind(callJson, "block");
     if (blkVal) jStr(blkVal, r->block, sizeof(r->block));
