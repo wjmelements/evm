@@ -11,7 +11,7 @@ static char *readFile(const char *path) {
     long len = ftell(f);
     rewind(f);
     char *buf = malloc(len + 1);
-    fread(buf, 1, len, f);
+    assert(fread(buf, 1, len, f) == (size_t)len);
     buf[len] = '\0';
     fclose(f);
     return buf;

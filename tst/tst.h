@@ -5,7 +5,7 @@
 
 #define assertStderr(expectedErr, statement)\
     int rw[2];\
-    pipe(rw);\
+    if (pipe(rw) == -1) { perror("pipe"); exit(1); }\
     int savedStderr = dup(2);\
     close(2);\
     dup2(rw[1], 2);\

@@ -87,7 +87,7 @@ static account_t *ensureAccount(account_t **head, const char *addr) {
  * "0x000...abc" -> "0xabc",  "0x000...0" -> "0x0"
  */
 static void normalizeKey(const char *in, char *out, size_t outlen) {
-    const char *s = (in[0] == '0' && in[1] == 'x') ? in + 2 : in;
+    const char *s = in + 2;
     while (*s == '0' && *(s + 1)) s++;
     snprintf(out, outlen, "0x%s", s);
 }
@@ -311,8 +311,8 @@ static void runViaEvm(
 #define sbLit(s) sbAppend(&cj, s, sizeof(s) - 1)
 #define sbStr(s) sbAppend(&cj, s, strlen(s))
     sbLit("{");
-    if (r->to[0]) { sbLit("\"to\":\""); sbStr(r->to); sbLit("\","); }
-    sbLit("\"from\":\""); sbStr(r->from);
+    if (r->to[0]) { sbLit("\"to\":\""); sbLit(r->to); sbLit("\","); }
+    sbLit("\"from\":\""); sbLit(r->from);
     sbLit("\",\"data\":\""); sbStr(r->input);
     if (r->value[0]) { sbLit("\",\"value\":\""); sbStr(r->value); }
     sbLit("\"}");
