@@ -11,9 +11,6 @@ SECP256K1=secp256k1/.libs/libsecp256k1.a
 INCLUDE=$(addprefix -I,include) -Isecp256k1/include
 CURL_LDFLAGS := $(shell curl-config --libs 2>/dev/null || echo -lcurl)
 EXECS=$(patsubst %.c, bin/%, $(wildcard *.c)) $(patsubst %.py, bin/%, $(wildcard *.py))
-bin/%: %.py | bin
-	cp $< $@
-	chmod +x $@
 TESTS=$(patsubst tst/%.c, tst/bin/%, $(wildcard tst/*.c))
 SRC=$(wildcard src/*.cpp) $(wildcard src/*.m) $(wildcard src/%.c)
 LIBS=$(patsubst src/%.cpp, lib/%.o, $(wildcard src/*.cpp)) $(patsubst src/%.m, lib/%.o, $(wildcard src/*.m)) $(patsubst src/%.c, lib/%.o, $(wildcard src/*.c))

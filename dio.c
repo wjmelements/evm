@@ -16,6 +16,7 @@
  * The provider URL may also be set via the ETH_RPC_URL environment variable.
  */
 
+#include "config.h"
 #include "json.h"
 #include "ws.h"
 #include <curl/curl.h>
@@ -32,38 +33,7 @@
  * Data structures
  * ========================================================= */
 
-#define ADDR_LEN    43      /* "0x" + 40 hex + NUL */
-#define HEX256_LEN  68      /* "0x" + 64 hex + NUL */
-#define NONCE_LEN   22      /* "0x" + up to 18 hex + NUL */
 #define LINE_CAP    131072  /* matches evm's rpcBuf */
-
-typedef struct storage_kv {
-    char *key;
-    char *value;
-    struct storage_kv *next;
-} storage_kv_t;
-
-typedef struct account {
-    char  address[ADDR_LEN];
-    char  balance[HEX256_LEN];
-    char  nonce[NONCE_LEN];
-    char *code;               /* dynamically allocated "0x..." */
-    storage_kv_t  *storage;  /* fetched key→value pairs */
-    struct account *next;
-} account_t;
-
-typedef struct call_result {
-    char  to[ADDR_LEN];
-    char  from[ADDR_LEN];
-    char  block[32];
-    char  value[HEX256_LEN];
-    char *input;
-    char *output;
-    char *logs;
-    char *status;
-    char *gasUsed;
-    struct call_result *next;
-} call_result_t;
 
 /* =========================================================
  * Growing string buffer
@@ -453,104 +423,6 @@ static void runViaEvm(
     r->output = output;
 }
 
-/*
- * Write the dio JSON config to outfile (stdout if NULL or "-").
- */
-static void writeConfig(
-    account_t     *accounts,
-    call_result_t *creates,
-    call_result_t *calls,
-    const char    *outfile)
-{
-    FILE *f;
-    if (outfile && strcmp(outfile, "-") != 0) {
-        f = fopen(outfile, "w");
-        if (!f) { perror(outfile); _exit(1); }
-    } else {
-        f = stdout;
-    }
-
-    fputs("[\n", f);
-
-    for (account_t *a = accounts; a; a = a->next) {
-        fputs("    {\n", f);
-        fprintf(f, "        \"address\": \"%s\"", a->address);
-        if (strcmp(a->balance, "0x0") != 0 && strcmp(a->balance, "0x") != 0)
-            fprintf(f, ",\n        \"balance\": \"%s\"", a->balance);
-        if (strcmp(a->nonce, "0x0") != 0 && strcmp(a->nonce, "0x") != 0)
-            fprintf(f, ",\n        \"nonce\": \"%s\"", a->nonce);
-        if (strcmp(a->code, "0x") != 0 && strcmp(a->code, "") != 0)
-            fprintf(f, ",\n        \"code\": \"%s\"", a->code);
-        if (a->storage) {
-            fputs(",\n        \"storage\": {\n", f);
-            for (storage_kv_t *s = a->storage; s; s = s->next) {
-                if (s != a->storage) fputs(",\n", f);
-                fprintf(f, "            \"%s\": \"%s\"", s->key, s->value);
-            }
-            fputs("\n        }", f);
-        }
-        fputs("\n    },\n", f);
-    }
-
-    /* Create entries */
-    for (call_result_t *r = creates; r; r = r->next) {
-        if (r != creates) fputs(",\n", f);
-        fputs("    {\n", f);
-        fprintf(f, "        \"initcode\": \"%s\"", r->input);
-        fputs(",\n        \"constructTest\": {", f);
-        const char *ctSep = "\n            ";
-        if (strcmp(r->from, "0x0000000000000000000000000000000000000000") != 0) {
-            fprintf(f, "%s\"from\": \"%s\"", ctSep, r->from); ctSep = ",\n            ";
-        }
-        if (r->value[0]) {
-            fprintf(f, "%s\"value\": \"%s\"", ctSep, r->value); ctSep = ",\n            ";
-        }
-        fprintf(f, "%s\"blockNumber\": \"%s\"", ctSep, r->block);
-        if (r->gasUsed)
-            fprintf(f, ",\n            \"gasUsed\": \"%s\"", r->gasUsed);
-        if (r->logs)
-            fprintf(f, ",\n            \"logs\": %s", r->logs);
-        const char *ctStatus = (r->status && strcmp(r->status, "0x0") != 0) ? "0x1" : "0x0";
-        fprintf(f, ",\n            \"status\": \"%s\"", ctStatus);
-        if (r->output)
-            fprintf(f, ",\n            \"output\": \"%s\"", r->output);
-        fputs("\n        }\n    }", f);
-    }
-    if (creates && calls) fputs(",\n", f);
-
-    /* Tests entry — only if there are calls */
-    if (calls) {
-        fputs("    {\n        \"tests\": [\n", f);
-        for (call_result_t *r = calls; r; r = r->next) {
-            if (r != calls) fputs(",\n", f);
-            fputs("            {\n", f);
-            fprintf(f, "                \"to\": \"%s\"", r->to);
-            if (strcmp(r->from, "0x0000000000000000000000000000000000000000") != 0)
-                fprintf(f, ",\n                \"from\": \"%s\"", r->from);
-            if (r->value[0])
-                fprintf(f, ",\n                \"value\": \"%s\"", r->value);
-            if (r->input && strcmp(r->input, "0x") != 0)
-                fprintf(f, ",\n                \"input\": \"%s\"", r->input);
-            fprintf(f, ",\n                \"blockNumber\": \"%s\"", r->block);
-            if (r->gasUsed)
-                fprintf(f, ",\n                \"gasUsed\": \"%s\"", r->gasUsed);
-            if (r->logs)
-                fprintf(f, ",\n                \"logs\": %s", r->logs);
-            if (r->status)
-                fprintf(f, ",\n                \"status\": \"%s\"", r->status);
-            if (r->output)
-                fprintf(f, ",\n                \"output\": \"%s\"", r->output);
-            fputs("\n            }", f);
-        }
-        fputs("\n        ]\n    }", f);
-    }
-    fputs("\n]\n", f);
-
-    if (f != stdout) {
-        fclose(f);
-        fprintf(stderr, "Wrote %s\n", outfile);
-    }
-}
 
 /*
  * Parse callJson, resolve the block number, run via evm, and append the
