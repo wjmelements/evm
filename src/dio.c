@@ -329,17 +329,19 @@ static void verifyConstructResult(result_t *constructResult, entry_t *entry) {
     }
 }
 
+static address_t *anonymousAddress() {
+    address_t *addr = calloc(1, sizeof(address_t));
+    addr->address[0] = 0xaa;
+    addr->address[1] = 0xbb;
+    static uint32_t anonymousId;
+    *(uint32_t *)(&addr->address[15]) = anonymousId++;
+    return addr;
+}
+
 static void applyEntry(entry_t *entry) {
     if (entry->importPath) {
         loadConfig(entry->importPath, false);
         return;
-    }
-    if (entry->address == NULL) {
-        entry->address = calloc(1, sizeof(address_t));
-        entry->address->address[0] = 0xaa;
-        entry->address->address[1] = 0xbb;
-        static uint32_t anonymousId;
-        *(uint32_t *)(&entry->address->address[15]) = anonymousId++;
     }
     bool constructHeaderPrinted = false;
     if (entry->initCode.size) {
@@ -376,7 +378,21 @@ static void applyEntry(entry_t *entry) {
         value[1] = 0;
         value[2] = 0;
 
-        result_t constructResult = evmConstruct(from, *entry->address, gas, value, entry->initCode);
+        result_t constructResult;
+        if (entry->address == NULL && !AddressZero(&from)) {
+            constructResult = txCreate(from, gas, value, entry->initCode);
+            if (!zero256(&constructResult.status)) {
+                entry->address = malloc(sizeof(address_t));
+                *entry->address = AddressFromUint256(&constructResult.status);
+            } else {
+                entry->address = anonymousAddress();
+            }
+        } else {
+            if (entry->address == NULL) {
+                entry->address = anonymousAddress();
+            }
+            constructResult = evmConstruct(from, *entry->address, gas, value, entry->initCode);
+        }
         verifyConstructResult(&constructResult, entry);
         if (entry->constructTest) {
             // normalize status to 1/0 for test comparison: deployed address → 1
@@ -387,8 +403,13 @@ static void applyEntry(entry_t *entry) {
             runConstructTest(entry, entry->constructTest, &constructResult, gas);
             constructHeaderPrinted = true;
         }
-    } else if (entry->code.size) {
-        evmMockCode(*entry->address, entry->code);
+    } else {
+        if (entry->address == NULL) {
+            entry->address = anonymousAddress();
+        }
+        if (entry->code.size) {
+            evmMockCode(*entry->address, entry->code);
+        }
     }
     evmMockNonce(*entry->address, entry->nonce);
     evmMockBalance(*entry->address, entry->balance);
