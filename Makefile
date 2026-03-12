@@ -6,7 +6,9 @@ CXXSTD=-std=gnu++11
 CFLAGS=-O3 -fdiagnostics-color=auto -Wno-multichar -pthread -g $(CCSTD)
 CXXFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) $(CXXSTD) -fno-exceptions -Wno-write-strings -Wno-pointer-arith
 OCFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) -fmodules
-MKDIRS=lib bin tst/bin .pass .pass/tst/bin .make .make/bin .make/tst/bin .make/lib .pass/tst/in .pass/tst/diotst
+MKDIRS=lib bin tst/bin .pass .pass/tst/bin .make .make/bin .make/tst/bin .make/lib .pass/tst/in .pass/tst/diotst .pass/tst/dio tst/dio/out
+DIO_RPC=$(or $(ETH_RPC_URL),https://eth.llamarpc.com)
+DIOTESTS=$(wildcard tst/dio/*.json)
 SECP256K1=secp256k1/.libs/libsecp256k1.a
 INCLUDE=$(addprefix -I,include) -Isecp256k1/include
 CURL_LDFLAGS := $(shell curl-config --libs 2>/dev/null || echo -lcurl)
@@ -25,7 +27,7 @@ clean:
 	rm -rf $(MKDIRS)
 	make -C secp256k1 clean
 again: clean all
-check: $(addprefix .pass/,$(TESTS) $(INTEGRATIONS))
+check: $(addprefix .pass/,$(TESTS) $(INTEGRATIONS) $(DIOTESTS))
 
 FNM=\([-+a-z_A-Z0-9/]*\)
 .make/%.d: %.m
@@ -67,6 +69,24 @@ distcheck dist-check:
 .pass/tst/diotst/%.json: bin/evm tst/%.json | .pass/tst/diotst
 	@echo [$(patsubst .pass/tst/diotst/%,tst/%,$@)]
 	@$(subst $(eval ) , -w ,$^) && touch $@
+# dio integration tests: each tst/dio/*.json is a JSON array of call inputs for bin/dio.
+# Step 1: split inputs into tst/dio/out/<stem>/<n>.json, run bin/dio writing tst/dio/out/<stem>.json.
+# Step 2: verify no standalone "tests" entry (all tests co-located), then run bin/evm -w.
+tst/dio/out/%.json: tst/dio/%.json bin/dio | tst/dio/out
+	@echo [dio $<]
+	@mkdir -p tst/dio/out/$*; \
+	n=$$(jq 'length' $<); \
+	i=0; while [ "$$i" -lt "$$n" ]; do \
+		jq -c ".[$$i]" $< > "tst/dio/out/$*/$$i.json"; \
+		i=$$((i+1)); \
+	done; \
+	bin/dio $(DIO_RPC) $@ tst/dio/out/$*/*.json
+.pass/tst/dio/%.json: tst/dio/out/%.json bin/evm | .pass/tst/dio
+	@printf "tst/dio/$*.json: "
+	@{ jq -e 'all(.[]; has("address") or has("initcode"))' $< >/dev/null \
+		&& bin/evm -w $<; } \
+		&& echo -e "\033[0;32mpass\033[0m" && touch $@ \
+		|| { echo -e "\033[0;31mfail\033[0m"; exit 1; }
 $(MKDIRS):
 	@mkdir -p $@
 $(EXECS): | bin
