@@ -24,6 +24,30 @@ make distcheck # clean test run
 | `include/precompiles.h` | `PRECOMPILES` X-macro — source of truth for precompile list |
 | `include/ops.h` | `OPS` X-macro — source of truth for opcode table |
 | `evm.c` | `main()` — CLI entry point |
+| `dio.c` | `bin/dio` — fetches on-chain state via JSON-RPC, generates evm test config |
+| `src/dio.c` | Config JSON parser and test runner (`applyConfig`, `loadConfig`) |
+| `src/config.c` | `writeConfig` — serializes state to config JSON |
+
+## bin/dio — On-chain state fetcher
+
+`bin/dio` fetches live contract state from an Ethereum node and emits a config JSON suitable for `bin/evm -w`.
+
+```sh
+# From stdin / -o flag:
+echo '{"to":"0x...","from":"0x...","data":"0x..."}' | dio https://mainnet.infura.io/v3/KEY
+# Or pipe through jq:
+echo '{"to":"0x...","data":"0x..."}' | dio $ETH_RPC_URL | jq
+
+# With a create (no "to"):
+echo '{"data":"0x<initcode>","from":"0x<deployer>"}' | dio $ETH_RPC_URL
+```
+
+- `to` is required for calls; omit `to` to generate a CREATE entry
+- `from` is optional; when present for creates, the deployed address is computed from `from`+nonce
+- `block` defaults to `"latest"`
+- Provider URL can also be set via `ETH_RPC_URL` env var
+- Fetches code, storage, balance, and nonce for all touched accounts
+- Output is written to stdout (or `outfile` positional arg)
 
 ## Adding a Precompile
 
@@ -58,9 +82,30 @@ The assembler output (hex bytecode) must match `tst/out/foo.out`.
 make .pass/tst/diotst/foo.json
 # or run directly:
 bin/evm -w tst/foo.json
+# update gasUsed in-place:
+bin/evm -u -w tst/foo.json
 ```
-JSON fields: `construct` (path to .evm), `tests` (array of `from`, `value`, `gasUsed`, `output`, `debug`).
-`gasUsed` in hex. Get it from: `bin/evm -w tst/foo.json` output or by running with `-gs`.
+
+Config JSON is an array of entry objects. Key entry fields:
+
+| Field | Description |
+|-------|-------------|
+| `address` | Contract address (hex). Omit for CREATE entries with known `from` — address is computed. |
+| `balance` | Account balance |
+| `nonce` | Account nonce |
+| `code` | Deployed bytecode (hex) |
+| `initcode` | Constructor bytecode — triggers deployment via `txCreate`/`evmConstruct` |
+| `creator` | Deployer address; used to compute CREATE address when `address` is omitted |
+| `storage` | Object mapping slot keys to values |
+| `tests` | Array of call test objects (see below) |
+| `constructTest` | Object asserting constructor execution results |
+| `import` | Path to another config JSON to load first |
+
+Call test fields: `name`, `from`, `to`, `value`, `input`, `output`, `gasUsed`, `gas`, `status`, `logs`, `debug`, `blockNumber`, `timestamp`.
+
+`constructTest` fields: `name`, `from`, `gasUsed`, `gas`, `output`, `status`, `logs`, `debug`, `blockNumber`, `timestamp`.
+
+`gasUsed` is in hex. Get it from `bin/evm -w tst/foo.json` output or update in-place with `bin/evm -u -w tst/foo.json`.
 
 ### Unit tests (`tst/*.c`)
 Exit 0 with no output = pass.
