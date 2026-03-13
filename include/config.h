@@ -10,16 +10,19 @@ typedef struct storage_kv {
     struct storage_kv *next;
 } storage_kv_t;
 
+typedef struct call_result call_result_t;
+
 typedef struct account {
     char  address[ADDR_LEN];
     char  balance[HEX256_LEN];
     char  nonce[NONCE_LEN];
     char *code;
     storage_kv_t  *storage;
+    call_result_t *tests;
     struct account *next;
 } account_t;
 
-typedef struct call_result {
+struct call_result {
     char  to[ADDR_LEN];
     char  from[ADDR_LEN];
     char  block[32];
@@ -30,7 +33,7 @@ typedef struct call_result {
     char *status;
     char *gasUsed;
     struct call_result *next;
-} call_result_t;
+};
 
 /*
  * Write the dio JSON config to outfile (stdout if NULL or "-").

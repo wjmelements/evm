@@ -4,6 +4,38 @@
 #include <string.h>
 #include <unistd.h>
 
+/*
+ * Write a single call test object at 12-space indent.
+ * If accountAddr is non-NULL and matches r->to, the "to" field is omitted.
+ */
+static void writeCallTest(FILE *f, const call_result_t *r, const char *accountAddr) {
+    fputs("            {\n", f);
+    const char *sep = "";
+    if (!accountAddr || strcmp(accountAddr, r->to) != 0) {
+        fprintf(f, "                \"to\": \"%s\"", r->to);
+        sep = ",\n";
+    }
+    if (strcmp(r->from, "0x0000000000000000000000000000000000000000") != 0) {
+        fprintf(f, "%s                \"from\": \"%s\"", sep, r->from); sep = ",\n";
+    }
+    if (r->value[0]) {
+        fprintf(f, "%s                \"value\": \"%s\"", sep, r->value); sep = ",\n";
+    }
+    if (r->input && strcmp(r->input, "0x") != 0) {
+        fprintf(f, "%s                \"input\": \"%s\"", sep, r->input); sep = ",\n";
+    }
+    fprintf(f, "%s                \"blockNumber\": \"%s\"", sep, r->block);
+    if (r->gasUsed)
+        fprintf(f, ",\n                \"gasUsed\": \"%s\"", r->gasUsed);
+    if (r->logs)
+        fprintf(f, ",\n                \"logs\": %s", r->logs);
+    if (strcmp(r->status, "0x1") != 0)
+        fprintf(f, ",\n                \"status\": \"%s\"", r->status);
+    if (r->output)
+        fprintf(f, ",\n                \"output\": \"%s\"", r->output);
+    fputs("\n            }", f);
+}
+
 void writeConfig(
     account_t     *accounts,
     call_result_t *creates,
@@ -38,6 +70,14 @@ void writeConfig(
             }
             fputs("\n        }", f);
         }
+        if (a->tests) {
+            fputs(",\n        \"tests\": [\n", f);
+            for (call_result_t *r = a->tests; r; r = r->next) {
+                if (r != a->tests) fputs(",\n", f);
+                writeCallTest(f, r, a->address);
+            }
+            fputs("\n        ]", f);
+        }
         fputs("\n    }", f);
     }
 
@@ -65,29 +105,12 @@ void writeConfig(
         fputs("\n        }\n    }", f);
     }
 
-    /* Tests entry — only if there are calls */
+    /* Standalone tests entry — only for calls not co-located with an account */
     if (calls) {
         fputs(",\n    {\n        \"tests\": [\n", f);
         for (call_result_t *r = calls; r; r = r->next) {
             if (r != calls) fputs(",\n", f);
-            fputs("            {\n", f);
-            fprintf(f, "                \"to\": \"%s\"", r->to);
-            if (strcmp(r->from, "0x0000000000000000000000000000000000000000") != 0)
-                fprintf(f, ",\n                \"from\": \"%s\"", r->from);
-            if (r->value[0])
-                fprintf(f, ",\n                \"value\": \"%s\"", r->value);
-            if (r->input && strcmp(r->input, "0x") != 0)
-                fprintf(f, ",\n                \"input\": \"%s\"", r->input);
-            fprintf(f, ",\n                \"blockNumber\": \"%s\"", r->block);
-            if (r->gasUsed)
-                fprintf(f, ",\n                \"gasUsed\": \"%s\"", r->gasUsed);
-            if (r->logs)
-                fprintf(f, ",\n                \"logs\": %s", r->logs);
-            if (strcmp(r->status, "0x1") != 0)
-                fprintf(f, ",\n                \"status\": \"%s\"", r->status);
-            if (r->output)
-                fprintf(f, ",\n                \"output\": \"%s\"", r->output);
-            fputs("\n            }", f);
+            writeCallTest(f, r, NULL);
         }
         fputs("\n        ]\n    }", f);
     }

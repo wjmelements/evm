@@ -415,8 +415,6 @@ static void runViaEvm(
         _exit(1);
     }
 
-    if (r->to[0])
-        ensureAccount(accounts, r->to);
     if (strcmp(r->from, "0x0000000000000000000000000000000000000000") != 0)
         ensureAccount(accounts, r->from);
 
@@ -474,10 +472,48 @@ static void run(
         free(resp);
     }
 
+    account_t *prevHead = *accounts;
     runViaEvm(r, post, ctx, accounts);
 
-    if (r->to[0]) { r->next = *calls;   *calls   = r; }
-    else          { r->next = *creates; *creates = r; }
+    if (r->to[0] == '\0') {
+        r->next = *creates; *creates = r;
+        return;
+    }
+
+    /* Move newly-added accounts to the end of the list (preserving order within
+     * the new section).  Because ensureAccount prepends (LIFO) and to's code is
+     * fetched first, to sits at the tail of the new section (lastNew). */
+    account_t *lastNew = NULL;
+    if (*accounts != prevHead) {
+        account_t *newHead = *accounts;
+        lastNew = newHead;
+        while (lastNew->next != prevHead) lastNew = lastNew->next;
+        lastNew->next = NULL;
+        if (prevHead) {
+            account_t *tail = prevHead;
+            while (tail->next) tail = tail->next;
+            tail->next = newHead;
+            *accounts = prevHead;
+        } else {
+            *accounts = newHead;
+        }
+    }
+
+    /* Bind test to the to account */
+    account_t *toAcct = (lastNew && strcmp(lastNew->address, r->to) == 0)
+        ? lastNew : NULL;
+    if (!toAcct) {
+        for (account_t *a = *accounts; a; a = a->next)
+            if (strcmp(a->address, r->to) == 0) { toAcct = a; break; }
+    }
+    if (toAcct) {
+        call_result_t **tp = &toAcct->tests;
+        while (*tp) tp = &(*tp)->next;
+        r->next = NULL;
+        *tp = r;
+    } else {
+        r->next = *calls; *calls = r;
+    }
 }
 
 /* =========================================================

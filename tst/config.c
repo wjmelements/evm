@@ -418,6 +418,45 @@ void test_two_calls() {
     free(out);
 }
 
+void test_call_colocated() {
+    call_result_t call = {
+        .to      = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        .from    = "0x0000000000000000000000000000000000000000",
+        .block   = "0x1",
+        .value   = "",
+        .input   = "0x",
+        .output  = NULL,
+        .logs    = NULL,
+        .status  = "0x1",
+        .gasUsed = NULL,
+        .next    = NULL,
+    };
+    account_t acct = {
+        .address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        .balance = "0x0",
+        .nonce   = "0x0",
+        .code    = "0x6001",
+        .storage = NULL,
+        .tests   = &call,
+        .next    = NULL,
+    };
+    char *out = captureWriteConfig(&acct, NULL, NULL);
+    const char *expected =
+        "[\n"
+        "    {\n"
+        "        \"address\": \"0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\","
+        "\n        \"code\": \"0x6001\","
+        "\n        \"tests\": [\n"
+        "            {\n"
+        "                \"blockNumber\": \"0x1\""
+        "\n            }"
+        "\n        ]"
+        "\n    }"
+        "\n]\n";
+    assert(strcmp(out, expected) == 0);
+    free(out);
+}
+
 int main() {
     test_single_account_defaults();
     test_account_with_balance();
@@ -431,5 +470,6 @@ int main() {
     test_call_entry();
     test_call_with_from_input_gasused_status_output();
     test_two_calls();
+    test_call_colocated();
     return 0;
 }
