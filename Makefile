@@ -74,13 +74,7 @@ distcheck dist-check:
 # Step 2: verify no standalone "tests" entry (all tests co-located), then run bin/evm -w.
 tst/dio/out/%.json: tst/dio/%.json bin/dio | tst/dio/out
 	@echo [dio $<]
-	@mkdir -p tst/dio/out/$*; \
-	n=$$(jq 'length' $<); \
-	i=0; while [ "$$i" -lt "$$n" ]; do \
-		jq -c ".[$$i]" $< > "tst/dio/out/$*/$$i.json"; \
-		i=$$((i+1)); \
-	done; \
-	bin/dio $(DIO_RPC) $@ tst/dio/out/$*/*.json
+	@bin/dio $(DIO_RPC) $@ $<
 .pass/tst/dio/%.json: tst/dio/out/%.json bin/evm | .pass/tst/dio
 	@printf "tst/dio/$*.json: "
 	@{ jq -e 'all(.[]; has("address") or has("initcode"))' $< >/dev/null \

@@ -520,6 +520,30 @@ static void run(
  * main
  * ========================================================= */
 
+/*
+ * Run one JSON input: if it is an array, run each element; otherwise run it
+ * directly.  Elements are jValDup'd to ensure null-termination before run().
+ */
+static void runJson(
+    const char    *json,
+    postFn         post, void *ctx,
+    account_t    **accounts,
+    call_result_t **creates,
+    call_result_t **calls)
+{
+    const char *p = json;
+    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+    if (*p == '[') {
+        for (const char *elem = jArrayGet(json, 0); elem; elem = jArrayNext(elem)) {
+            char *copy = jValDup(elem);
+            run(copy, post, ctx, accounts, creates, calls);
+            free(copy);
+        }
+    } else {
+        run(json, post, ctx, accounts, creates, calls);
+    }
+}
+
 static char *readAll(FILE *f) {
     strbuf_t sb = {0};
     char buf[4096];
@@ -535,8 +559,10 @@ static const char usage[] =
     "Usage:\n"
     "    dio [provider-url] [outfile] [-o json] [file...]\n"
     "\n"
-    "The call JSON (from -o, a file argument, or stdin) is the eth_call object:\n"
+    "The call JSON (from -o, a file argument, or stdin) is an eth_call object or\n"
+    "an array of eth_call objects:\n"
     "    {\"to\": \"0x...\", \"from\": \"0x...\", \"data\": \"0x...\", \"block\": \"latest\"}\n"
+    "    [{\"to\": \"0x...\"}, {\"to\": \"0x...\"}]\n"
     "\n"
     "Only \"to\" is required.  \"block\" defaults to \"latest\".\n"
     "The generated config is written to outfile, or stdout if omitted.\n"
@@ -595,19 +621,19 @@ int main(int argc, char *const argv[]) {
     call_result_t *calls    = NULL;
 
     if (inlineJson) {
-        run(inlineJson, post, ctx, &accounts, &creates, &calls);
+        runJson(inlineJson, post, ctx, &accounts, &creates, &calls);
     } else if (optind < argc) {
         for (; optind < argc; optind++) {
             FILE *f = fopen(argv[optind], "r");
             if (!f) { perror(argv[optind]); return 1; }
             char *json = readAll(f);
             fclose(f);
-            run(json, post, ctx, &accounts, &creates, &calls);
+            runJson(json, post, ctx, &accounts, &creates, &calls);
             free(json);
         }
     } else {
         char *json = readAll(stdin);
-        run(json, post, ctx, &accounts, &creates, &calls);
+        runJson(json, post, ctx, &accounts, &creates, &calls);
         free(json);
     }
 
