@@ -7,7 +7,7 @@ CFLAGS=-O3 -fdiagnostics-color=auto -Wno-multichar -pthread -g $(CCSTD)
 CXXFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) $(CXXSTD) -fno-exceptions -Wno-write-strings -Wno-pointer-arith
 OCFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) -fmodules
 MKDIRS=lib bin tst/bin .pass .pass/tst/bin .make .make/bin .make/tst/bin .make/lib .pass/tst/in .pass/tst/diotst .pass/tst/dio tst/dio/out
-DIO_RPC=$(or $(ETH_RPC_URL),https://eth.llamarpc.com)
+DIO_RPC=$(or $(ETH_RPC_URL),https://mainnet.gateway.tenderly.co)
 DIOTESTS=$(wildcard tst/dio/*.json)
 SECP256K1=secp256k1/.libs/libsecp256k1.a
 INCLUDE=$(addprefix -I,include) -Isecp256k1/include
