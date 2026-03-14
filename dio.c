@@ -393,12 +393,23 @@ static void runViaEvm(
 
         } else {
             /* ---- Final output from evm ---- */
-            output = jStrDup(jFind(line, "returnData"));
-            char gasHex[20];
-            snprintf(gasHex, sizeof(gasHex), "0x%" PRIx64, jUint(jFind(line, "gasUsed")));
-            r->gasUsed = strdup(gasHex);
-            r->status  = jStrDup(jFind(line, "status"));
-            r->logs    = jValDup(jFind(line, "logs"));
+            const char *key, *val; size_t klen;
+            for (const char *p = line; (p = jNextKeyVal(p, &key, &klen, &val)); ) {
+                switch (klen) {
+                case 4:
+                    if (!memcmp(key, "logs", 4)) { r->logs = jValDup(val); }
+                    break;
+                case 6:
+                    if (!memcmp(key, "status", 6)) { r->status = jStrDup(val); }
+                    break;
+                case 7:
+                    if (!memcmp(key, "gasUsed", 7)) { r->gasUsed = jStrDup(val); }
+                    break;
+                case 10:
+                    if (!memcmp(key, "returnData", 10)) { output = jStrDup(val); }
+                    break;
+                }
+            }
             break;
         }
     }
@@ -440,15 +451,24 @@ static void run(
     r->value[0] = '\0';
 
     char tmp[ADDR_LEN + 2];
-    if (jStr(jFind(callJson, "to"),   tmp, sizeof(tmp)) > 0) normalizeAddr(tmp, r->to);
-    if (jStr(jFind(callJson, "from"), tmp, sizeof(tmp)) > 0) normalizeAddr(tmp, r->from);
-    jStr(jFind(callJson, "value"), r->value, sizeof(r->value));
-
-    const char *blkVal = jFind(callJson, "block");
-    if (blkVal) jStr(blkVal, r->block, sizeof(r->block));
-
-    const char *dataField = jFind(callJson, "data");
-    if (!dataField) dataField = jFind(callJson, "input");
+    const char *dataField = NULL;
+    const char *key, *val; size_t klen;
+    for (const char *p = callJson; (p = jNextKeyVal(p, &key, &klen, &val)); ) {
+        switch (klen) {
+        case 2:
+            if (!memcmp(key, "to",    2)) { if (jStr(val, tmp, sizeof(tmp)) > 0) normalizeAddr(tmp, r->to); }
+            break;
+        case 4:
+            if      (!memcmp(key, "from", 4)) { if (jStr(val, tmp, sizeof(tmp)) > 0) normalizeAddr(tmp, r->from); }
+            else if (!memcmp(key, "data", 4)) { dataField = val; }
+            break;
+        case 5:
+            if      (!memcmp(key, "value", 5)) { jStr(val, r->value, sizeof(r->value)); }
+            else if (!memcmp(key, "block", 5)) { jStr(val, r->block, sizeof(r->block)); }
+            else if (!memcmp(key, "input", 5)) { dataField = val; }
+            break;
+        }
+    }
     r->input = jStrDup(dataField);
     if (r->input[0] != '0' || r->input[1] != 'x') {
         size_t ilen = strlen(r->input);

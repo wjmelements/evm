@@ -50,6 +50,23 @@ static void jSkip(const char **p) {
         (*p)++;
 }
 
+const char *jNextKeyVal(const char *p, const char **keyp, size_t *keylen, const char **valp) {
+    while (*p && *p != '"' && *p != '}') p++;
+    if (!*p || *p == '}') return NULL;
+    p++;
+    *keyp = p;
+    while (*p && *p != '"') p++;
+    if (!*p) return NULL;
+    *keylen = p - *keyp;
+    p++;
+    while (*p == ' ' || *p == '\t') p++;
+    if (*p++ != ':') return NULL;
+    while (*p == ' ' || *p == '\t') p++;
+    *valp = p;
+    jSkip(&p);
+    return p;
+}
+
 const char *jFind(const char *p, const char *key) {
     size_t klen = strlen(key);
     while (*p) {

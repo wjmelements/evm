@@ -6,6 +6,15 @@
  */
 
 /*
+ * Iterator over key-value pairs in a JSON object.
+ * p should point at or before the opening '{'.
+ * Sets *keyp to the key start (not NUL-terminated), *keylen to its length,
+ * and *valp to the value start.  Returns a pointer past the value for the
+ * next call, or NULL when the object ends.
+ */
+const char *jNextKeyVal(const char *p, const char **keyp, size_t *keylen, const char **valp);
+
+/*
  * Scan forward in p for "key": and return a pointer to the value.
  * Sufficient for flat JSON-RPC messages.  Returns NULL if not found.
  */

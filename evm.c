@@ -184,7 +184,7 @@ static void execute(const char *contents) {
     if (outputJson) {
         fputs("{\"", stdout);
         if (includeGas) {
-            printf("gasUsed\":%" PRIu64 ",\"", gas - result.gasRemaining);
+            printf("gasUsed\":\"0x%" PRIx64 "\",\"", gas - result.gasRemaining);
         }
         if (includeLogs) {
             fputs("logs\":", stdout);
