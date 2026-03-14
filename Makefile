@@ -130,4 +130,4 @@ secp256k1/Makefile: secp256k1/configure
 	cd $(dir $@); ./configure --enable-module-recovery
 
 secp256k1/.libs/libsecp256k1.a: secp256k1/Makefile
-	$(MAKE) -C secp256k1
+	$(MAKE) -C secp256k1 libsecp256k1.la
