@@ -188,6 +188,7 @@ typedef struct account {
     data_t code;
     uint64_t nonce;
     uint64_t warm;
+    bool local;
     storage_t *storage;
     tstorage_t *tstorage;
 } account_t;
@@ -367,6 +368,21 @@ void evmSetDebug(uint64_t flags) {
 #define SHOW_CALLS (debugFlags & EVM_DEBUG_CALLS)
 #define SHOW_LOGS (debugFlags & EVM_DEBUG_LOGS)
 
+static account_t *createLocalAccount(const address_t address) {
+    account_t *result = emptyAccount++;
+    AddressCopy(result->address, address);
+    result->code.size = 0;
+    result->nonce = 0;
+    result->balance[0] = 0;
+    result->balance[1] = 0;
+    result->balance[2] = 0;
+    result->local = true;
+    result->storage = NULL;
+    result->tstorage = NULL;
+    result->warm = 0;
+    return result;
+}
+
 static account_t *getAccount(const address_t address) {
     if (AddressIsPrecompile(address)) {
         if (PrecompileIsKnownPrecompile(address)) {
@@ -390,6 +406,7 @@ static account_t *getAccount(const address_t address) {
         result->balance[0] = 0;
         result->balance[1] = 0;
         result->balance[2] = 0;
+        result->local = false;
         if (accountFetch) accountFetch(address);
     }
     return result;
@@ -413,6 +430,7 @@ void evmInit() {
         emptyAccount->storage = NULL;
         emptyAccount->tstorage = NULL;
         emptyAccount->warm = 0;
+        emptyAccount->local = false;
         bzero(emptyAccount->address.address, 20);
         op_t *code = emptyAccount->code.content;
         if (code != NULL) {
@@ -499,7 +517,7 @@ static account_t *createNewAccount(account_t *from) {
     memcpy(inputBuffer + 2, from->address.address, 20);
     addressHashResult_t hashResult;
     keccak_256((uint8_t *)&hashResult, sizeof(hashResult), inputBuffer, inputBuffer[0] - 0xbf);
-    account_t *result = getAccount(hashResult.bottom160);
+    account_t *result = createLocalAccount(hashResult.bottom160);
     result->nonce = 1;
     result->warm = evmIteration;
     return result;
@@ -514,7 +532,7 @@ static account_t *createNewAccount2(account_t *from, const uint256_t *salt, cons
     keccak_256(inputBuffer + 53, 32, initcode->content, initcode->size);
     addressHashResult_t hashResult;
     keccak_256((uint8_t *)&hashResult, sizeof(hashResult), inputBuffer, 85);
-    account_t *result = getAccount(hashResult.bottom160);
+    account_t *result = createLocalAccount(hashResult.bottom160);
     result->nonce = 1;
     result->warm = evmIteration;
     return result;
@@ -543,7 +561,7 @@ static storage_t *getAccountStorage(account_t *account, const uint256_t *key) {
     }
     *storage = calloc(1, sizeof(storage_t));
     copy256(&(*storage)->key, key);
-    if (storageFetch) storageFetch(account->address, key, &(*storage)->value);
+    if (storageFetch && !account->local) storageFetch(account->address, key, &(*storage)->value);
     return *storage;
 }
 
