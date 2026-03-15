@@ -55,9 +55,3 @@ char *jStrDup(const char *p);
  */
 char *jValDup(const char *p);
 
-/*
- * In a JSON-RPC batch response array, find the element with "id": targetId
- * and return a newly-allocated copy of its "result" string value.
- * Caller must free(). Returns NULL if not found.
- */
-char *resultById(const char *resp, uint64_t targetId);

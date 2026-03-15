@@ -159,36 +159,6 @@ void test_jValDup() {
     assert(v == NULL);
 }
 
-void test_resultById() {
-    const char *batch =
-        "[{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":\"0xbb\"},"
-         "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0xaa\"},"
-         "{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":\"0xcc\"}]";
-
-    char *r1 = resultById(batch, 1);
-    assert(r1 != NULL);
-    assert(strcmp(r1, "0xaa") == 0);
-    free(r1);
-
-    char *r2 = resultById(batch, 2);
-    assert(r2 != NULL);
-    assert(strcmp(r2, "0xbb") == 0);
-    free(r2);
-
-    char *r3 = resultById(batch, 3);
-    assert(r3 != NULL);
-    assert(strcmp(r3, "0xcc") == 0);
-    free(r3);
-
-    // missing id
-    assert(resultById(batch, 99) == NULL);
-
-    // element with error instead of result
-    const char *withErr =
-        "[{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32000}}]";
-    assert(resultById(withErr, 1) == NULL);
-}
-
 int main() {
     test_jFind();
     test_jStr();
@@ -197,6 +167,5 @@ int main() {
     test_jArrayNext();
     test_jStrDup();
     test_jValDup();
-    test_resultById();
     return 0;
 }

@@ -282,20 +282,6 @@ static void rpcError(const char *req, const char *errField) {
     _exit(1);
 }
 
-/* Check a batch resp for error objects; match method names from the batch req */
-static void checkBatchErrors(const char *resp, const char *req) {
-    const char *qHead = jArrayGet(req, 0);
-    for (const char *rElem = jArrayGet(resp, 0); rElem; rElem = jArrayNext(rElem)) {
-        const char *errField = jFind(rElem, "error");
-        if (!errField) continue;
-        uint64_t id = jUint(jFind(rElem, "id"));
-        for (const char *qElem = qHead; qElem; qElem = jArrayNext(qElem)) {
-            if (jUint(jFind(qElem, "id")) == id)
-                rpcError(qElem, errField);
-        }
-        rpcError(qHead, errField);
-    }
-}
 
 /*
  * Run the call via `evm -x -n`, proxying its JSON-RPC requests through
@@ -346,11 +332,27 @@ static void runViaEvm(
 
             char *resp = post(line, nl - line, ctx);
             if (!resp) rpcFailed(line);
-            checkBatchErrors(resp, line);
-
-            char *code    = resultById(resp, codeId);
-            char *nonce   = resultById(resp, nonceId);
-            char *balance = resultById(resp, balanceId);
+            const char *qHead = jArrayGet(line, 0);
+            char *code = NULL, *nonce = NULL, *balance = NULL;
+            for (const char *rElem = jArrayGet(resp, 0); rElem; rElem = jArrayNext(rElem)) {
+                uint64_t id = 0; const char *errField = NULL, *resultVal = NULL;
+                const char *key, *val; size_t klen;
+                for (const char *p = rElem; (p = jNextKeyVal(p, &key, &klen, &val)); ) {
+                    switch (klen) {
+                    case 2: if (!memcmp(key, "id",     2)) { id        = jUint(val); } break;
+                    case 5: if (!memcmp(key, "error",  5)) { errField  = val;        } break;
+                    case 6: if (!memcmp(key, "result", 6)) { resultVal = val;        } break;
+                    }
+                }
+                if (errField) {
+                    for (const char *qElem = qHead; qElem; qElem = jArrayNext(qElem)) {
+                        if (jUint(jFind(qElem, "id")) == id) rpcError(qElem, errField);
+                    }
+                    rpcError(qHead, errField);
+                }
+                char **out = (id == codeId) ? &code : (id == nonceId) ? &nonce : (id == balanceId) ? &balance : NULL;
+                if (out && resultVal) *out = jStrDup(resultVal);
+            }
             free(resp);
 
             free(acct->code);
@@ -382,10 +384,17 @@ static void runViaEvm(
 
             char *resp = post(line, nl - line, ctx);
             if (!resp) rpcFailed(line);
-            const char *errField = jFind(resp, "error");
+            const char *errField = NULL, *resultField = NULL;
+            const char *key, *v; size_t klen;
+            for (const char *p = resp; (p = jNextKeyVal(p, &key, &klen, &v)); ) {
+                switch (klen) {
+                case 5: if (!memcmp(key, "error",  5)) { errField    = v; } break;
+                case 6: if (!memcmp(key, "result", 6)) { resultField = v; } break;
+                }
+            }
             if (errField) rpcError(line, errField);
             char val[HEX256_LEN];
-            jStr(jFind(resp, "result"), val, sizeof(val));
+            jStr(resultField, val, sizeof(val));
             addStorage(acct, rawKey, val);
             fprintf(toChild, "%s\n", resp);
             fflush(toChild);

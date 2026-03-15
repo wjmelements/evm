@@ -160,29 +160,3 @@ const char *jArrayNext(const char *p) {
     return p;
 }
 
-char *resultById(const char *resp, uint64_t targetId) {
-    const char *p = resp;
-    if (*p == '[') p++;
-    while (*p) {
-        skipWs(&p);
-        if (*p == ']' || !*p) break;
-        const char *elem = p;
-        if (jUint(jFind(elem, "id")) == targetId) {
-            const char *rv = jFind(elem, "result");
-            if (rv && *rv == '"') {
-                rv++;
-                const char *end = rv;
-                while (*end && *end != '"') end++;
-                size_t len = end - rv;
-                char *s = malloc(len + 1);
-                memcpy(s, rv, len);
-                s[len] = '\0';
-                return s;
-            }
-        }
-        jSkip(&p);
-        skipWs(&p);
-        if (*p == ',') p++;
-    }
-    return NULL;
-}
