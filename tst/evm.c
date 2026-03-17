@@ -2251,7 +2251,7 @@ void test_create2InsufficientBalance() {
     evmMockCode(to, code_data);
 
     assertStderr(
-        "Insufficient balance [0x000000000000000000000000] for create2 (need [0x000000000000000000000001])\n",
+        "Insufficient balance [0x000000000000000000000000] for create (need [0x000000000000000000000001])\n",
         result_t result = txCall(from, gas, to, value, input, NULL)
     );
 

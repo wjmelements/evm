@@ -210,21 +210,41 @@ typedef struct {
     data_t callData;
     uint64_t gas;
     bool readonly;
+    stateChanges_t *stateChanges;
 } context_t;
 
 
-stateChanges_t *getCurrentAccountStateChanges(result_t *result, context_t *context) {
-    stateChanges_t **stateChanges = &result->stateChanges;
+static stateChanges_t *getAccountStateChanges(stateChanges_t **stateChanges, const account_t *account) {
     while (*stateChanges != NULL) {
-        if (AddressEqual(&(*stateChanges)->account, &context->account->address)) {
+        if (AddressEqual(&(*stateChanges)->account, &account->address))
             return *stateChanges;
-        }
         stateChanges = &(*stateChanges)->next;
     }
-    // DNF
     *stateChanges = calloc(1, sizeof(stateChanges_t));
-    AddressCopy(&(*stateChanges)->account, &context->account->address);
+    AddressCopy(&(*stateChanges)->account, &account->address);
     return *stateChanges;
+}
+
+stateChanges_t *getCurrentAccountStateChanges(result_t *result, context_t *context) {
+    return getAccountStateChanges(&result->stateChanges, context->account);
+}
+
+static void trackBalanceChange(stateChanges_t **stateChanges, account_t *account, const val_t before) {
+    balanceChanges_t *change = malloc(sizeof(balanceChanges_t));
+    BalanceCopy(change->before, before);
+    BalanceCopy(change->after, account->balance);
+    stateChanges_t *entry = getAccountStateChanges(stateChanges, account);
+    change->prev = entry->balanceChanges;
+    entry->balanceChanges = change;
+}
+
+static void trackNonceChange(stateChanges_t **stateChanges, account_t *account, uint64_t before) {
+    nonceChanges_t *change = malloc(sizeof(nonceChanges_t));
+    change->before = before;
+    change->after = account->nonce;
+    stateChanges_t *entry = getAccountStateChanges(stateChanges, account);
+    change->prev = entry->nonceChanges;
+    entry->nonceChanges = change;
 }
 
 // for debugging
@@ -517,10 +537,7 @@ static account_t *createNewAccount(account_t *from) {
     memcpy(inputBuffer + 2, from->address.address, 20);
     addressHashResult_t hashResult;
     keccak_256((uint8_t *)&hashResult, sizeof(hashResult), inputBuffer, inputBuffer[0] - 0xbf);
-    account_t *result = createLocalAccount(hashResult.bottom160);
-    result->nonce = 1;
-    result->warm = evmIteration;
-    return result;
+    return createLocalAccount(hashResult.bottom160);
 }
 
 // EIP-1014: keccak256(0xff ++ sender ++ salt ++ keccak256(initcode))[12:]
@@ -532,10 +549,7 @@ static account_t *createNewAccount2(account_t *from, const uint256_t *salt, cons
     keccak_256(inputBuffer + 53, 32, initcode->content, initcode->size);
     addressHashResult_t hashResult;
     keccak_256((uint8_t *)&hashResult, sizeof(hashResult), inputBuffer, 85);
-    account_t *result = createLocalAccount(hashResult.bottom160);
-    result->nonce = 1;
-    result->warm = evmIteration;
-    return result;
+    return createLocalAccount(hashResult.bottom160);
 }
 
 static account_t *warmAccount(context_t *callContext, const address_t address) {
@@ -590,6 +604,20 @@ static void mergeStateChanges(stateChanges_t **dst, stateChanges_t *src) {
             // merge!
 
             // concatenate the linked lists
+            balanceChanges_t **balanceEnd = &src->balanceChanges;
+            while (*balanceEnd != NULL) {
+                balanceEnd = &(*balanceEnd)->prev;
+            }
+            *balanceEnd = (*dst)->balanceChanges;
+            (*dst)->balanceChanges = src->balanceChanges;
+
+            nonceChanges_t **nonceEnd = &src->nonceChanges;
+            while (*nonceEnd != NULL) {
+                nonceEnd = &(*nonceEnd)->prev;
+            }
+            *nonceEnd = (*dst)->nonceChanges;
+            (*dst)->nonceChanges = src->nonceChanges;
+
             codeChanges_t **codeEnd = &src->codeChanges;
             while (*codeEnd != NULL) {
                 codeEnd = &(*codeEnd)->prev;
@@ -644,7 +672,8 @@ static storage_t *warmStorage(context_t *callContext, uint256_t *key, uint64_t w
 static result_t doSupportedPrecompile(precompile_t precompile, context_t *callContext) {
     uint64_t gasCost;
     result_t result;
-    result.stateChanges = NULL;
+    result.stateChanges = callContext->stateChanges;
+    callContext->stateChanges = NULL;
     LOWER(LOWER(result.status)) = 1;
     UPPER(LOWER(result.status)) = 0;
     LOWER(UPPER(result.status)) = 0;
@@ -762,7 +791,8 @@ static result_t doCall(context_t *callContext) {
         }
     }
     result_t result;
-    result.stateChanges = NULL;
+    result.stateChanges = callContext->stateChanges;
+    callContext->stateChanges = NULL;
     clear256(&result.status);
     uint64_t pc = 0;
     uint8_t buffer[32];
@@ -1773,6 +1803,22 @@ static result_t doCall(context_t *callContext) {
 #undef OUT_OF_GAS
 }
 
+static void evmRevertBalanceChanges(account_t *account, balanceChanges_t **changes) {
+    if (!*changes) return;
+    BalanceCopy(account->balance, (*changes)->before);
+    evmRevertBalanceChanges(account, &(*changes)->prev);
+    free(*changes);
+    *changes = NULL;
+}
+
+static void evmRevertNonceChanges(account_t *account, nonceChanges_t **changes) {
+    if (!*changes) return;
+    account->nonce = (*changes)->before;
+    evmRevertNonceChanges(account, &(*changes)->prev);
+    free(*changes);
+    *changes = NULL;
+}
+
 static void evmRevertCodeChanges(account_t *account, codeChanges_t **changes) {
     if (*changes == NULL) {
         return;
@@ -1814,6 +1860,8 @@ static void evmRevert(stateChanges_t **changes) {
         return;
     }
     account_t *account = getAccount((*changes)->account);
+    evmRevertBalanceChanges(account, &(*changes)->balanceChanges);
+    evmRevertNonceChanges(account, &(*changes)->nonceChanges);
     evmRevertCodeChanges(account, &(*changes)->codeChanges);
     evmRevertStorageChanges(account, &(*changes)->storageChanges);
     evmRevertLogChanges(&(*changes)->logChanges);
@@ -1882,39 +1930,44 @@ static result_t evmStaticCall(address_t from, uint64_t gas, address_t to, data_t
 
 static result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input) {
     account_t *fromAccount = getAccount(from);
-    if (!BalanceSub(fromAccount->balance, value)) {
-        fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for call (need [0x%08x%08x%08x])\n",
-            fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
-            value[0], value[1], value[2]
-        );
-
-        result_t result;
-        result.gasRemaining = 0;
-        result.stateChanges = NULL;
-        clear256(&result.status);
-        result.returnData.size = 0;
-        return result;
-    }
-
+    account_t *toAccount = getAccount(to);
     context_t *callContext = callstack.next;
+    if (!ValueIsZero(value)) {
+        val_t fromBefore;
+        BalanceCopy(fromBefore, fromAccount->balance);
+        if (!BalanceSub(fromAccount->balance, value)) {
+            fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for call (need [0x%08x%08x%08x])\n",
+                fromBefore[0], fromBefore[1], fromBefore[2],
+                value[0], value[1], value[2]
+            );
+            result_t result;
+            result.gasRemaining = 0;
+            result.stateChanges = NULL;
+            clear256(&result.status);
+            result.returnData.size = 0;
+            return result;
+        }
+        val_t toBefore;
+        BalanceCopy(toBefore, toAccount->balance);
+        BalanceAdd(toAccount->balance, value);
+        trackBalanceChange(&callContext->stateChanges, fromAccount, fromBefore);
+        trackBalanceChange(&callContext->stateChanges, toAccount, toBefore);
+    }
     callContext->gas = gas;
     if (callstack.next == callstack.bottom) {
         callContext->readonly = false;
     } else {
         callContext->readonly = callContext[-1].readonly;
     }
-
     BalanceCopy(callContext->callValue, value);
     AddressCopy(callContext->caller, from);
-    callContext->account = getAccount(to);
-    BalanceAdd(callContext->account->balance, value);
-    callContext->code = callContext->account->code;
+    callContext->account = toAccount;
+    callContext->code = toAccount->code;
     callContext->callData = input;
-
     return _evmCall(callContext);
 }
 
-static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t value, data_t input) {
+static result_t _evmConstruct(account_t *fromAccount, account_t *to, uint64_t gas, val_t value, data_t input) {
     context_t *callContext = callstack.next;
     callContext->gas = gas;
     if (callstack.next == callstack.bottom) {
@@ -1924,8 +1977,10 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
         if (gas < callContext->gas) {
             // underflow indicates insufficient initial gas
             fprintf(stderr, "Out of gas while initializing initcode (have %" PRIu64 " need %" PRIu64 ")\n", gas, gas - callContext->gas);
+            evmRevert(&callContext->stateChanges);
             result_t result;
             result.gasRemaining = 0;
+            result.stateChanges = NULL;
             clear256(&result.status);
             result.returnData.size = 0;
             return result;
@@ -1934,12 +1989,36 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
     callContext->readonly = false;
 
     BalanceCopy(callContext->callValue, value);
-    AddressCopy(callContext->caller, from);
+    AddressCopy(callContext->caller, fromAccount->address);
     callContext->account = to;
+    callContext->account->nonce = 1;
     callContext->account->warm = evmIteration;
-    BalanceAdd(callContext->account->balance, value);
     callContext->code = input;
     callContext->callData.size = 0;
+
+    if (!ValueIsZero(value)) {
+        val_t fromBefore;
+        BalanceCopy(fromBefore, fromAccount->balance);
+        if (!BalanceSub(fromAccount->balance, value)) {
+            fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for create (need [0x%08x%08x%08x])\n",
+                fromBefore[0], fromBefore[1], fromBefore[2],
+                value[0], value[1], value[2]
+            );
+            evmRevert(&callContext->stateChanges);
+            result_t result;
+            result.gasRemaining = gas;
+            result.stateChanges = NULL;
+            clear256(&result.status);
+            result.returnData.size = 0;
+            return result;
+        }
+        trackBalanceChange(&callContext->stateChanges, fromAccount, fromBefore);
+        val_t toBefore;
+        BalanceCopy(toBefore, callContext->account->balance);
+        BalanceAdd(callContext->account->balance, value);
+        trackBalanceChange(&callContext->stateChanges, callContext->account, toBefore);
+    }
+    trackNonceChange(&callContext->stateChanges, callContext->account, 0);
 
     result_t result = _evmCall(callContext);
 
@@ -1981,9 +2060,7 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
 }
 
 result_t evmConstruct(address_t from, address_t to, uint64_t gas, val_t value, data_t input) {
-    account_t *created = getAccount(to);
-    created->nonce = 1;
-    return _evmConstruct(from, created, gas, value, input);
+    return _evmConstruct(getAccount(from), getAccount(to), gas, value, input);
 }
 
 result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input, const accessList_t *accessList) {
@@ -2034,37 +2111,11 @@ result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t 
 }
 
 result_t evmCreate(account_t *fromAccount, uint64_t gas, val_t value, data_t input) {
-    if (!BalanceSub(fromAccount->balance, value)) {
-        fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for create (need [0x%08x%08x%08x])\n",
-            fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
-            value[0], value[1], value[2]
-        );
-
-        result_t result;
-        result.gasRemaining = gas;
-        result.stateChanges = NULL;
-        clear256(&result.status);
-        result.returnData.size = 0;
-        return result;
-    }
-
-    return _evmConstruct(fromAccount->address, createNewAccount(fromAccount), gas, value, input);
+    return _evmConstruct(fromAccount, createNewAccount(fromAccount), gas, value, input);
 }
 
 static result_t evmCreate2(account_t *fromAccount, uint64_t gas, val_t value, data_t input, const uint256_t *salt) {
-    if (!BalanceSub(fromAccount->balance, value)) {
-        fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for create2 (need [0x%08x%08x%08x])\n",
-            fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
-            value[0], value[1], value[2]
-        );
-        result_t result;
-        result.gasRemaining = gas;
-        result.stateChanges = NULL;
-        clear256(&result.status);
-        result.returnData.size = 0;
-        return result;
-    }
-    return _evmConstruct(fromAccount->address, createNewAccount2(fromAccount, salt, &input), gas, value, input);
+    return _evmConstruct(fromAccount, createNewAccount2(fromAccount, salt, &input), gas, value, input);
 }
 
 result_t txCreate(address_t from, uint64_t gas, val_t value, data_t input) {

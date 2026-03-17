@@ -72,13 +72,25 @@ static int LogsEqual(const logChanges_t *expectedLog, const logChanges_t *actual
     return expectedLog == NULL && actualLog == NULL;
 }
 
+typedef struct balanceChanges {
+    val_t before;
+    val_t after;
+    struct balanceChanges *prev;
+} balanceChanges_t;
+
+typedef struct nonceChanges {
+    uint64_t before;
+    uint64_t after;
+    struct nonceChanges *prev;
+} nonceChanges_t;
+
 // state changes are reverted on failure and returned on success
 typedef struct stateChanges {
     address_t account;
-    // TODO balance change
+    balanceChanges_t *balanceChanges; // LIFO
     codeChanges_t *codeChanges; // LIFO
+    nonceChanges_t *nonceChanges; // LIFO
     // TODO selfdestruct
-    // TODO nonce
     logChanges_t *logChanges; // LIFO
     // TODO warm
     storageChanges_t *storageChanges; // LIFO
