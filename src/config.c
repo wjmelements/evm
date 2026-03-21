@@ -70,6 +70,28 @@ void writeConfig(
             }
             fputs("\n        }", f);
         }
+        if (a->constructTest) {
+            call_result_t *r = a->constructTest;
+            fprintf(f, ",\n        \"initcode\": \"%s\"", r->input);
+            fputs(",\n        \"constructTest\": {", f);
+            const char *ctSep = "\n            ";
+            if (strcmp(r->from, "0x0000000000000000000000000000000000000000") != 0) {
+                fprintf(f, "%s\"from\": \"%s\"", ctSep, r->from); ctSep = ",\n            ";
+            }
+            if (r->value[0]) {
+                fprintf(f, "%s\"value\": \"%s\"", ctSep, r->value); ctSep = ",\n            ";
+            }
+            fprintf(f, "%s\"blockNumber\": \"%s\"", ctSep, r->block);
+            if (r->gasUsed)
+                fprintf(f, ",\n            \"gasUsed\": \"%s\"", r->gasUsed);
+            if (r->logs)
+                fprintf(f, ",\n            \"logs\": %s", r->logs);
+            if (strcmp(r->status, "0x0") == 0)
+                fprintf(f, ",\n            \"status\": \"0x0\"");
+            if (r->output)
+                fprintf(f, ",\n            \"output\": \"%s\"", r->output);
+            fputs("\n        }", f);
+        }
         if (a->tests) {
             fputs(",\n        \"tests\": [\n", f);
             for (call_result_t *r = a->tests; r; r = r->next) {
@@ -81,7 +103,7 @@ void writeConfig(
         fputs("\n    }", f);
     }
 
-    /* Create entries */
+    /* Create entries without a linked deployed account */
     for (call_result_t *r = creates; r; r = r->next) {
         fputs(",\n    {\n", f);
         fprintf(f, "        \"initcode\": \"%s\"", r->input);

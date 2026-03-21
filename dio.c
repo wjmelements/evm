@@ -117,6 +117,8 @@ static void addStorage(account_t *acct, const char *key, const char *val) {
 static char        evmBinPath[4096];
 static const char *evmPath;
 
+typedef struct { FILE *toChild; FILE *fromChild; pid_t pid; } subprocess_t;
+
 /*
  * Look for an "evm" sibling next to the running binary (argv[0]).
  * Falls back to "evm" for PATH resolution if not found.
@@ -187,35 +189,32 @@ static char *httpPost(const char *payload, size_t len, void *ctx) {
  * ========================================================= */
 
 /*
- * Spawn `evm -x -n -o <callJson>` with bidirectional pipes.
- *   *toChild   — parent writes here → child stdin
- *   *fromChild — parent reads here  ← child stdout
- * Returns the child PID.
+ * Spawn `evm -glnsx` with bidirectional pipes and return the subprocess.
  */
-static pid_t spawnEvm(const char *evm, const char *callJson,
-                      FILE **toChild, FILE **fromChild) {
+static subprocess_t spawnEvm(void) {
     int toFds[2], fromFds[2];
     if (pipe(toFds) == -1 || pipe(fromFds) == -1) {
         perror("dio: pipe");
         _exit(1);
     }
-    pid_t pid = fork();
-    if (pid == -1) { perror("dio: fork"); _exit(1); }
-    if (pid == 0) {
+    subprocess_t sub;
+    sub.pid = fork();
+    if (sub.pid == -1) { perror("dio: fork"); _exit(1); }
+    if (sub.pid == 0) {
         dup2(toFds[0],   STDIN_FILENO);
         dup2(fromFds[1], STDOUT_FILENO);
         close(toFds[0]);  close(toFds[1]);
         close(fromFds[0]); close(fromFds[1]);
-        char *args[] = { (char *)evm, "-glnsxo", (char *)callJson, NULL };
-        execvp(evm, args);
-        perror(evm);
+        char *args[] = { (char *)evmPath, "-glnsx", NULL };
+        execvp(evmPath, args);
+        perror(evmPath);
         _exit(1);
     }
     close(toFds[0]);
     close(fromFds[1]);
-    *toChild   = fdopen(toFds[1],   "w");
-    *fromChild = fdopen(fromFds[0], "r");
-    return pid;
+    sub.toChild   = fdopen(toFds[1],   "w");
+    sub.fromChild = fdopen(fromFds[0], "r");
+    return sub;
 }
 
 /*
@@ -284,14 +283,15 @@ static void rpcError(const char *req, const char *errField) {
 
 
 /*
- * Run the call via `evm -x -n`, proxying its JSON-RPC requests through
- * the provided post function.  Collects account state into *accounts
- * and writes the output into r->output.
+ * Run the call via the persistent evm subprocess, proxying its JSON-RPC
+ * requests through the provided post function.  Collects account state
+ * into *accounts and writes the output into r->output.
  */
 static void runViaEvm(
     call_result_t *r,
     postFn         post, void *ctx,
-    account_t    **accounts)
+    account_t    **accounts,
+    subprocess_t  *sub)
 {
     strbuf_t cj = {0};
 #define sbLit(s) sbAppend(&cj, s, sizeof(s) - 1)
@@ -305,9 +305,13 @@ static void runViaEvm(
 #undef sbLit
 #undef sbStr
 
-    FILE *toChild, *fromChild;
-    pid_t pid = spawnEvm(evmPath, cj.buf, &toChild, &fromChild);
+    fputs(cj.buf, sub->toChild);
+    fputc('\n', sub->toChild);
+    fflush(sub->toChild);
+    free(cj.buf);
 
+    FILE *toChild   = sub->toChild;
+    FILE *fromChild = sub->fromChild;
     char *line   = malloc(LINE_CAP);
     char *output = NULL;
 
@@ -423,14 +427,9 @@ static void runViaEvm(
         }
     }
 
-    fclose(toChild);
-    fclose(fromChild);
-    int status;
-    waitpid(pid, &status, 0);
     free(line);
-    free(cj.buf);
 
-    if (!output || WEXITSTATUS(status) != 0) {
+    if (!output) {
         fputs("dio: evm execution failed\n", stderr);
         _exit(1);
     }
@@ -451,7 +450,8 @@ static void run(
     postFn         post, void *ctx,
     account_t    **accounts,
     call_result_t **creates,
-    call_result_t **calls)
+    call_result_t **calls,
+    subprocess_t  *sub)
 {
     call_result_t *r = malloc(sizeof(call_result_t));
     r->to[0]   = '\0';
@@ -502,10 +502,18 @@ static void run(
     }
 
     account_t *prevHead = *accounts;
-    runViaEvm(r, post, ctx, accounts);
+    runViaEvm(r, post, ctx, accounts, sub);
 
     if (r->to[0] == '\0') {
-        r->next = *creates; *creates = r;
+        /* Register the deployed account so subsequent calls can find it locally */
+        if (r->status && strlen(r->status) == 42) {
+            account_t *deployed = ensureAccount(accounts, r->status);
+            free(deployed->code);
+            deployed->code = strdup(r->output ? r->output : "0x");
+            deployed->constructTest = r;
+        } else {
+            r->next = *creates; *creates = r;
+        }
         return;
     }
 
@@ -558,18 +566,19 @@ static void runJson(
     postFn         post, void *ctx,
     account_t    **accounts,
     call_result_t **creates,
-    call_result_t **calls)
+    call_result_t **calls,
+    subprocess_t  *sub)
 {
     const char *p = json;
     while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
     if (*p == '[') {
         for (const char *elem = jArrayGet(json, 0); elem; elem = jArrayNext(elem)) {
             char *copy = jValDup(elem);
-            run(copy, post, ctx, accounts, creates, calls);
+            run(copy, post, ctx, accounts, creates, calls, sub);
             free(copy);
         }
     } else {
-        run(json, post, ctx, accounts, creates, calls);
+        run(json, post, ctx, accounts, creates, calls, sub);
     }
 }
 
@@ -645,26 +654,36 @@ int main(int argc, char *const argv[]) {
 
     evmPath = findEvm(argv[0]);
 
+    subprocess_t sub = spawnEvm();
     account_t     *accounts = NULL;
     call_result_t *creates  = NULL;
     call_result_t *calls    = NULL;
 
     if (inlineJson) {
-        runJson(inlineJson, post, ctx, &accounts, &creates, &calls);
+        runJson(inlineJson, post, ctx, &accounts, &creates, &calls, &sub);
     } else if (optind < argc) {
         for (; optind < argc; optind++) {
             FILE *f = fopen(argv[optind], "r");
             if (!f) { perror(argv[optind]); return 1; }
             char *json = readAll(f);
             fclose(f);
-            runJson(json, post, ctx, &accounts, &creates, &calls);
+            runJson(json, post, ctx, &accounts, &creates, &calls, &sub);
             free(json);
         }
     } else {
         char *json = readAll(stdin);
-        runJson(json, post, ctx, &accounts, &creates, &calls);
+        runJson(json, post, ctx, &accounts, &creates, &calls, &sub);
         free(json);
     }
+
+    fclose(sub.toChild);
+    int status;
+    waitpid(sub.pid, &status, 0);
+    if (WEXITSTATUS(status) != 0) {
+        fputs("dio: evm subprocess failed\n", stderr);
+        _exit(1);
+    }
+    fclose(sub.fromChild);
 
     writeConfig(accounts, creates, calls, outfile);
     return 0;

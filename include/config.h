@@ -19,6 +19,7 @@ typedef struct account {
     char *code;
     storage_kv_t  *storage;
     call_result_t *tests;
+    call_result_t *constructTest;
     struct account *next;
 } account_t;
 

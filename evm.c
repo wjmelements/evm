@@ -130,13 +130,6 @@ static const char *jsonStrVal(const char *json, const char *key, size_t *len) {
 }
 
 static void execute(const char *contents) {
-    if (configFile == NULL) {
-        evmInit();
-    }
-    if (networkMode) {
-        evmSetNetworkFetch();
-    }
-
     address_t from = {{0}};
     address_t to;
     int hasTo = 0;
@@ -179,7 +172,6 @@ static void execute(const char *contents) {
     } else {
         result = txCreate(from, gas, value, input);
     }
-    evmFinalize();
 
     if (outputJson) {
         fputs("{\"", stdout);
@@ -204,7 +196,7 @@ static void execute(const char *contents) {
         for (;result.returnData.size--;) printf("%02x", *result.returnData.content++);
         putchar('\n');
     }
-
+    fflush(stdout);
 }
 
 #define USAGE fputs("usage: evm [ [-w json-file [-u] ] [-x [-n] [-gs] ] | [-c | -C] [-j] | -d ] [-o input] [file...]\n", stderr)
@@ -320,41 +312,57 @@ int main(int argc, char *const argv[]) {
     } else {
         subprogram = assemble;
     }
+    if (runtime && configFile == NULL) {
+        evmInit();
+        if (networkMode) evmSetNetworkFetch();
+    }
     if (contents != NULL) {
         // input is from the command line
         subprogram(contents);
     } else if (optind == argc) {
-        // read from stdin
-        size_t bufferSize = 4;
-        size_t capacity = bufferSize - 1;
-        char *input = calloc(1, bufferSize);
-        char *pos = input;
-        while (1) {
-            ssize_t red = read(0, pos, capacity);
-            if (red == -1) {
-                perror("stdin");
-                return 1;
+        if (runtime) {
+            // line-by-line: each JSON object is a separate call sharing EVM state
+            char *line = NULL;
+            size_t cap = 0;
+            ssize_t len;
+            while ((len = getline(&line, &cap, stdin)) != -1) {
+                if (len > 0 && line[len - 1] == '\n') line[--len] = '\0';
+                if (len > 0) subprogram(line);
             }
-            if (red == 0) {
-                // EOF
-                break;
+            free(line);
+        } else {
+            // read from stdin as one blob (assemble / disassemble)
+            size_t bufferSize = 4;
+            size_t capacity = bufferSize - 1;
+            char *input = calloc(1, bufferSize);
+            char *pos = input;
+            while (1) {
+                ssize_t red = read(0, pos, capacity);
+                if (red == -1) {
+                    perror("stdin");
+                    return 1;
+                }
+                if (red == 0) {
+                    // EOF
+                    break;
+                }
+                capacity -= red;
+                if (capacity) {
+                    pos += red;
+                } else {
+                    char *next = calloc(1, bufferSize << 1);
+                    memcpy(next, input, bufferSize);
+                    pos = next + bufferSize - 1;
+                    capacity = bufferSize;
+                    bufferSize <<= 1;
+                    free(input);
+                    input = next;
+                }
             }
-            capacity -= red;
-            if (capacity) {
-                pos += red;
-            } else {
-                char *next = calloc(1, bufferSize << 1);
-                memcpy(next, input, bufferSize);
-                pos = next + bufferSize - 1;
-                capacity = bufferSize;
-                bufferSize <<= 1;
-                free(input);
-                input = next;
-            }
+            subprogram(input);
+            // free is redundant with program termination but makes valgrind happy
+            free(input);
         }
-        subprogram(input);
-        // free is redundant with program termination but makes valgrind happy
-        free(input);
     } else for (int i = optind; i < argc; i++) {
         int fd = open(argv[i], O_RDONLY);
         if (fd == -1) {
