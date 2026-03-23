@@ -78,7 +78,8 @@ tst/dio/out/%.json: tst/dio/%.json bin/dio | tst/dio/out
 .pass/tst/dio/%.json: tst/dio/out/%.json bin/evm | .pass/tst/dio
 	@printf "tst/dio/$*.json: "
 	@{ jq -e 'all(.[]; has("address") or has("initcode"))' $< >/dev/null \
-		&& bin/evm -w $<; } \
+		&& bin/evm -w $< \
+		&& [ ! -f tst/dio/expected/$*.json ] || perl make/diocmp.pl tst/dio/expected/$*.json $<; } \
 		&& echo -e "\033[0;32mpass\033[0m" && touch $@ \
 		|| { echo -e "\033[0;31mfail\033[0m"; exit 1; }
 $(MKDIRS):
