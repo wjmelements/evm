@@ -41,13 +41,17 @@
 
 typedef struct { char *buf; size_t len, cap; } strbuf_t;
 
-static void sbAppend(strbuf_t *sb, const char *s, size_t n) {
-    if (sb->len + n + 1 > sb->cap) {
+static void sbReserve(strbuf_t *sb, size_t extra) {
+    if (sb->len + extra + 1 > sb->cap) {
         size_t nc = sb->cap ? sb->cap * 2 : 4096;
-        while (nc < sb->len + n + 1) nc *= 2;
+        while (nc < sb->len + extra + 1) nc *= 2;
         sb->buf = realloc(sb->buf, nc);
         sb->cap = nc;
     }
+}
+
+static void sbAppend(strbuf_t *sb, const char *s, size_t n) {
+    sbReserve(sb, n);
     memcpy(sb->buf + sb->len, s, n);
     sb->len += n;
     sb->buf[sb->len] = '\0';
@@ -584,11 +588,14 @@ static void runJson(
 
 static char *readAll(FILE *f) {
     strbuf_t sb = {0};
-    char buf[4096];
     size_t n;
-    while ((n = fread(buf, 1, sizeof(buf), f)) > 0)
-        sbAppend(&sb, buf, n);
-    return sb.buf ? sb.buf : strdup("");
+    do {
+        sbReserve(&sb, 4096);
+        n = fread(sb.buf + sb.len, 1, sb.cap - sb.len - 1, f);
+        sb.len += n;
+    } while (n > 0);
+    sb.buf[sb.len] = '\0';
+    return sb.buf;
 }
 
 static const char usage[] =
