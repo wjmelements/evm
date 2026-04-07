@@ -230,21 +230,21 @@ stateChanges_t *getCurrentAccountStateChanges(result_t *result, context_t *conte
 }
 
 static void trackBalanceChange(stateChanges_t **stateChanges, account_t *account, const val_t before) {
-    balanceChanges_t *change = malloc(sizeof(balanceChanges_t));
-    BalanceCopy(change->before, before);
-    BalanceCopy(change->after, account->balance);
     stateChanges_t *entry = getAccountStateChanges(stateChanges, account);
-    change->prev = entry->balanceChanges;
-    entry->balanceChanges = change;
+    if (!entry->balance.changed) {
+        BalanceCopy(entry->balance.before, before);
+        entry->balance.changed = true;
+    }
+    BalanceCopy(entry->balance.after, account->balance);
 }
 
 static void trackNonceChange(stateChanges_t **stateChanges, account_t *account, uint64_t before) {
-    nonceChanges_t *change = malloc(sizeof(nonceChanges_t));
-    change->before = before;
-    change->after = account->nonce;
     stateChanges_t *entry = getAccountStateChanges(stateChanges, account);
-    change->prev = entry->nonceChanges;
-    entry->nonceChanges = change;
+    if (!entry->nonce.changed) {
+        entry->nonce.before = before;
+        entry->nonce.changed = true;
+    }
+    entry->nonce.after = account->nonce;
 }
 
 // for debugging
@@ -603,20 +603,21 @@ static void mergeStateChanges(stateChanges_t **dst, stateChanges_t *src) {
         if (AddressEqual(&src->account, &(*dst)->account)) {
             // merge!
 
-            // concatenate the linked lists
-            balanceChanges_t **balanceEnd = &src->balanceChanges;
-            while (*balanceEnd != NULL) {
-                balanceEnd = &(*balanceEnd)->prev;
+            if (src->balance.changed) {
+                if (!(*dst)->balance.changed) {
+                    (*dst)->balance.changed = true;
+                    BalanceCopy((*dst)->balance.before, src->balance.before);
+                }
+                BalanceCopy((*dst)->balance.after, src->balance.after);
             }
-            *balanceEnd = (*dst)->balanceChanges;
-            (*dst)->balanceChanges = src->balanceChanges;
 
-            nonceChanges_t **nonceEnd = &src->nonceChanges;
-            while (*nonceEnd != NULL) {
-                nonceEnd = &(*nonceEnd)->prev;
+            if (src->nonce.changed) {
+                if (!(*dst)->nonce.changed) {
+                    (*dst)->nonce.changed = true;
+                    (*dst)->nonce.before = src->nonce.before;
+                }
+                (*dst)->nonce.after = src->nonce.after;
             }
-            *nonceEnd = (*dst)->nonceChanges;
-            (*dst)->nonceChanges = src->nonceChanges;
 
             codeChanges_t **codeEnd = &src->codeChanges;
             while (*codeEnd != NULL) {
@@ -1803,20 +1804,16 @@ static result_t doCall(context_t *callContext) {
 #undef OUT_OF_GAS
 }
 
-static void evmRevertBalanceChanges(account_t *account, balanceChanges_t **changes) {
-    if (!*changes) return;
-    BalanceCopy(account->balance, (*changes)->before);
-    evmRevertBalanceChanges(account, &(*changes)->prev);
-    free(*changes);
-    *changes = NULL;
+static void evmRevertBalanceChange(account_t *account, balanceChange_t *change) {
+    if (!change->changed) return;
+    BalanceCopy(account->balance, change->before);
+    change->changed = false;
 }
 
-static void evmRevertNonceChanges(account_t *account, nonceChanges_t **changes) {
-    if (!*changes) return;
-    account->nonce = (*changes)->before;
-    evmRevertNonceChanges(account, &(*changes)->prev);
-    free(*changes);
-    *changes = NULL;
+static void evmRevertNonceChange(account_t *account, nonceChange_t *change) {
+    if (!change->changed) return;
+    account->nonce = change->before;
+    change->changed = false;
 }
 
 static void evmRevertCodeChanges(account_t *account, codeChanges_t **changes) {
@@ -1860,8 +1857,8 @@ static void evmRevert(stateChanges_t **changes) {
         return;
     }
     account_t *account = getAccount((*changes)->account);
-    evmRevertBalanceChanges(account, &(*changes)->balanceChanges);
-    evmRevertNonceChanges(account, &(*changes)->nonceChanges);
+    evmRevertBalanceChange(account, &(*changes)->balance);
+    evmRevertNonceChange(account, &(*changes)->nonce);
     evmRevertCodeChanges(account, &(*changes)->codeChanges);
     evmRevertStorageChanges(account, &(*changes)->storageChanges);
     evmRevertLogChanges(&(*changes)->logChanges);
