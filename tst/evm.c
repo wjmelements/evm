@@ -2461,6 +2461,73 @@ void test_jumpForwardScan(op_t PUSHx) {
     evmFinalize();
 }
 
+void test_memoryFreshOnRepeatedCall() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    address_t inner_addr = AddressFromHex42("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    address_t outer_addr = AddressFromHex42("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+
+    op_t innerCode[] = {
+        PUSH0, MLOAD,                         // TOS = initial mem[0]
+        PUSH1, 0x20, MSTORE,                  // mem[0x20] = initial mem[0]
+        PUSH32,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        PUSH0, MSTORE,                        // mem[0] = 0xff...ff
+        PUSH1, 0x20,                          // size
+        PUSH1, 0x20,                          // offset
+        RETURN,                               // return mem[0x20..0x3f]
+    };
+    data_t innerData;
+    innerData.content = innerCode;
+    innerData.size = sizeof(innerCode);
+    evmMockCode(inner_addr, innerData);
+
+#define INNER_ADDR \
+    0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, \
+    0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa
+
+    op_t outerCode[] = {
+        PUSH1, 0x20, PUSH1, 0x40,  // retSize, retOffset
+        PUSH0, PUSH0, PUSH0,        // argsSize, argsOffset, value
+        PUSH20, INNER_ADDR,
+        GAS, CALL,
+        PUSH1, 0x20, PUSH1, 0x60,  // retSize, retOffset
+        PUSH0, PUSH0, PUSH0,        // argsSize, argsOffset, value
+        PUSH20, INNER_ADDR,
+        GAS, CALL,
+        PUSH1, 0x40, PUSH1, 0x40,  // size, offset
+        RETURN,
+    };
+#undef INNER_ADDR
+
+    data_t outerData;
+    outerData.content = outerCode;
+    outerData.size = sizeof(outerCode);
+    evmMockCode(outer_addr, outerData);
+
+    data_t empty;
+    empty.content = NULL;
+    empty.size = 0;
+
+    result_t result = txCall(from, 200000, outer_addr, value, empty, NULL);
+
+    assert(LOWER(LOWER(result.status)) == 1);
+    assert(result.returnData.size == 64);
+    uint8_t expectedZero[64];
+    memset(expectedZero, 0, 64);
+    assert(memcmp(result.returnData.content, expectedZero, 64) == 0);
+
+    evmMockCode(inner_addr, empty);
+    evmMockCode(outer_addr, empty);
+    evmFinalize();
+}
+
 int main() {
     test_stop();
     test_mstoreReturn();
@@ -2502,6 +2569,7 @@ int main() {
     test_createOutOfGas();
     test_create2();
     test_create2InsufficientBalance();
+    test_memoryFreshOnRepeatedCall();
 
     for (op_t PUSHx = PUSH0; PUSHx <= PUSH32; PUSHx++) {
         test_jumpForwardScan(PUSHx);
