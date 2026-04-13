@@ -8,3 +8,4 @@ make/.precompiles.out
 .pass
 src/version.c
 tst/dio/out/
+cov/
