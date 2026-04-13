@@ -150,7 +150,7 @@ static void execute(const char *contents) {
         hexLen = strlen(contents);
         if (hexLen & 1 && contents[hexLen - 1] != '\n') {
             fputs("odd-lengthed input", stderr);
-            _exit(1);
+            exit(1);
         }
         if (hexLen > 2 && hexData[0] == '0' && hexData[1] == 'x') {
             hexLen -= 2;
@@ -307,8 +307,8 @@ int main(int argc, char *const argv[]) {
     } else if (runtime) {
         subprogram = execute;
     } else if (configFile) {
-        // tests should _exit(1) if they fail
-        _exit(0);
+        // tests should exit(1) if they fail
+        exit(0);
     } else {
         subprogram = assemble;
     }
@@ -367,14 +367,14 @@ int main(int argc, char *const argv[]) {
         int fd = open(argv[i], O_RDONLY);
         if (fd == -1) {
             perror(argv[i]);
-            _exit(1);
+            exit(1);
         }
 
         struct stat fstatus;
         int fstatSuccess = fstat(fd, &fstatus);
         if (fstatSuccess == -1) {
             perror(argv[i]);
-            _exit(1);
+            exit(1);
         }
         
         contents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
