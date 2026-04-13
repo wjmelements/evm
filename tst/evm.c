@@ -2312,6 +2312,34 @@ void test_returnDataCopyOOB() {
     evmFinalize();
 }
 
+void test_stackUnderflow() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    address_t to = AddressFromHex42("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+
+    // ADD on empty stack → underflow
+    op_t code[] = { ADD };
+    data_t codeData;
+    codeData.content = code;
+    codeData.size = sizeof(code);
+    evmMockCode(to, codeData);
+
+    data_t empty;
+    empty.content = NULL;
+    empty.size = 0;
+    assertStderr(
+        "Stack underflow at pc 0 op ADD stack depth 0\n",
+        result_t result = txCall(from, 0xffffff, to, value, empty, NULL)
+    );
+    assertFailedInvalid(result);
+
+    evmMockCode(to, empty);
+    evmFinalize();
+}
+
 // Each loop iteration nets +1 stack item; the temporary depth peaks at +4 per
 // iteration, hitting 1024 at DUP2 after ~1021 iterations.
 void test_stackOverflow() {
@@ -2528,6 +2556,60 @@ void test_memoryFreshOnRepeatedCall() {
     evmFinalize();
 }
 
+void test_tstore_tload() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    address_t to = AddressFromHex42("0xcccccccccccccccccccccccccccccccccccccccc");
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+
+    // First tx: TSTORE 42 at slot 0, then TLOAD and return it
+    op_t code[] = {
+        PUSH1, 42, PUSH0, TSTORE,   // transient[0] = 42
+        PUSH0, TLOAD,                // TOS = 42
+        PUSH0, MSTORE,               // mem[0] = 42
+        PUSH1, 0x20, PUSH0, RETURN, // return mem[0..31]
+    };
+    data_t codeData;
+    codeData.content = code;
+    codeData.size = sizeof(code);
+    evmMockCode(to, codeData);
+
+    data_t empty;
+    empty.content = NULL;
+    empty.size = 0;
+
+    result_t result = txCall(from, 100000, to, value, empty, NULL);
+    assert(LOWER(LOWER(result.status)) == 1);
+    assert(result.returnData.size == 32);
+    for (int i = 0; i < 31; i++) {
+        assert(result.returnData.content[i] == 0);
+    }
+    assert(result.returnData.content[31] == 42);
+
+    // Second tx: TLOAD same slot — must read zero (transient storage cleared between txs)
+    op_t code2[] = {
+        PUSH0, TLOAD,                // TOS = 0 (transient cleared)
+        PUSH0, MSTORE,               // mem[0] = 0
+        PUSH1, 0x20, PUSH0, RETURN, // return mem[0..31]
+    };
+    data_t codeData2;
+    codeData2.content = code2;
+    codeData2.size = sizeof(code2);
+    evmMockCode(to, codeData2);
+
+    result_t result2 = txCall(from, 100000, to, value, empty, NULL);
+    assert(LOWER(LOWER(result2.status)) == 1);
+    assert(result2.returnData.size == 32);
+    for (int i = 0; i < 32; i++) {
+        assert(result2.returnData.content[i] == 0);
+    }
+
+    evmMockCode(to, empty);
+    evmFinalize();
+}
+
 int main() {
     test_stop();
     test_mstoreReturn();
@@ -2561,6 +2643,7 @@ int main() {
     test_create();
     test_createRevertRollback();
     test_returnDataCopyOOB();
+    test_stackUnderflow();
     test_stackOverflow();
     test_jumpDestInsidePush();
     test_jumpiDestInsidePush();
@@ -2570,6 +2653,7 @@ int main() {
     test_create2();
     test_create2InsufficientBalance();
     test_memoryFreshOnRepeatedCall();
+    test_tstore_tload();
 
     for (op_t PUSHx = PUSH0; PUSHx <= PUSH32; PUSHx++) {
         test_jumpForwardScan(PUSHx);
