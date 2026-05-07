@@ -495,6 +495,36 @@ void test_sgtslt() {
     evmFinalize();
 }
 
+void test_div_zero() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    uint64_t gas = 0x16838;
+    val_t value = {0, 0, 0};
+    data_t input;
+
+    op_t program[] = {
+        PUSH0, PUSH1, 5, DIV,    MSIZE, MSTORE,
+        PUSH0, PUSH1, 5, SDIV,   MSIZE, MSTORE,
+        PUSH0, PUSH1, 5, MOD,    MSIZE, MSTORE,
+        PUSH0, PUSH1, 5, SMOD,   MSIZE, MSTORE,
+        PUSH0, PUSH1, 3, PUSH1, 5, ADDMOD, MSIZE, MSTORE,
+        PUSH0, PUSH1, 3, PUSH1, 5, MULMOD, MSIZE, MSTORE,
+        MSIZE, PUSH0, RETURN,
+    };
+    input.size = sizeof(program);
+    input.content = program;
+
+    result_t result = txCreate(from, gas, value, input);
+    assert(result.returnData.size == 192);
+    assert(result.gasRemaining == 0);
+    for (size_t i = 0; i < 192; i++) {
+        assert(result.returnData.content[i] == 0);
+    }
+
+    evmFinalize();
+}
+
 void test_sdiv() {
     evmInit();
 
@@ -2497,6 +2527,7 @@ int main() {
     test_clz();
     test_xorSwap();
     test_sgtslt();
+    test_div_zero();
     test_sdiv();
     test_smod();
     test_addmod();
