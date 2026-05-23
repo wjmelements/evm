@@ -994,10 +994,11 @@ static result_t doCall(context_t *callContext) {
                 mul256(callContext->top, callContext->top - 1, callContext->top - 1);
                 break;
             case DIV:
-                divmod256(callContext->top, callContext->top - 1, callContext->top - 1, callContext->top + 1);
+                if (!zero256(callContext->top - 1))
+                    divmod256(callContext->top, callContext->top - 1, callContext->top - 1, callContext->top + 1);
                 break;
             case SDIV:
-                {
+                if (!zero256(callContext->top - 1)) {
                     bool negative = false;
                     uint256_t zero;
                     clear256(&zero);
@@ -1016,10 +1017,11 @@ static result_t doCall(context_t *callContext) {
                 }
                 break;
             case MOD:
-                divmod256(callContext->top, callContext->top - 1, callContext->top + 1, callContext->top - 1);
+                if (!zero256(callContext->top - 1))
+                    divmod256(callContext->top, callContext->top - 1, callContext->top + 1, callContext->top - 1);
                 break;
             case SMOD:
-                {
+                if (!zero256(callContext->top - 1)) {
                     bool negative = false;
                     uint256_t zero;
                     clear256(&zero);
