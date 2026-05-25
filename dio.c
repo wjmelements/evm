@@ -692,6 +692,7 @@ int main(int argc, char *const argv[]) {
     }
     fclose(sub.fromChild);
 
+    if (ws) wsClose(ctx);
     writeConfig(accounts, creates, calls, outfile);
     return 0;
 }

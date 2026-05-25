@@ -223,3 +223,17 @@ char *wsPost(const char *payload, size_t len, void *ctx) {
     if (wsSendFrame(curl, payload, len) != 0) return NULL;
     return wsRecvMsg(curl);
 }
+
+void wsClose(CURL *curl) {
+    /* RFC 6455 §5.5.1: masked close frame, status 1000 (normal closure) */
+    uint32_t m = wsMask();
+    uint8_t frame[8] = {
+        0x88,                          /* FIN | opcode=close */
+        0x82,                          /* MASK | payload len=2 */
+        (uint8_t)m,  (uint8_t)(m>>8), (uint8_t)(m>>16), (uint8_t)(m>>24),
+        (uint8_t)(0x03 ^ (uint8_t)m),
+        (uint8_t)(0xe8 ^ (uint8_t)(m>>8)),
+    };
+    wsSendAll(curl, frame, sizeof(frame));
+    curl_easy_cleanup(curl);
+}

@@ -90,6 +90,8 @@ bin/%: %.c
 	$(CC) $(CFLAGS) $(INCLUDE) $^ -o $@
 bin/dio: dio.c | bin
 	$(CC) $(CFLAGS) $(INCLUDE) $^ $(CURL_LDFLAGS) -o $@
+tst/bin/ws: tst/ws.c | tst/bin
+	$(CC) $(CFLAGS) $(INCLUDE) $^ $(CURL_LDFLAGS) -o $@
 lib/%.o: src/%.m include/%.h | lib
 	$(CC) -c $(OCFLAGS) $(INCLUDE) $< -o $@
 lib/%.o: src/%.cpp include/%.h | lib

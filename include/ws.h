@@ -1,4 +1,3 @@
-#pragma once
 #include <curl/curl.h>
 
 /*
@@ -14,3 +13,8 @@ CURL *wsConnect(const char *url);
  * ctx must be the CURL * returned by wsConnect.  Caller must free().
  */
 char *wsPost(const char *payload, size_t len, void *ctx);
+
+/*
+ * Send a close frame (status 1000) and clean up the curl handle.
+ */
+void wsClose(CURL *curl);
