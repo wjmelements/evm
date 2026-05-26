@@ -3,7 +3,7 @@
 
 const char *opnames = ""
 #define OP(opcode,opname,argCount,retCount,gas) #opname " "
-OPS
+                      OPS
 #undef OP
 ;
 

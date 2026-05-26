@@ -8,11 +8,11 @@
 void test_applyConfig_code() {
     evmInit();
     const char config[] = "["
-        "{"
-            "\"address\":\"0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3\","
-            "\"code\":\"0x383d3d39383df3\""
-        "}"
-    "]";
+                          "{"
+                          "\"address\":\"0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3\","
+                          "\"code\":\"0x383d3d39383df3\""
+                          "}"
+                          "]";
     applyConfig(config);
 
     uint64_t gas = 21019;
@@ -27,8 +27,8 @@ void test_applyConfig_code() {
 
     result_t result = txCall(from, gas, to, val, input, NULL);
     op_t expected[] = {
-         CODESIZE, RETURNDATASIZE, RETURNDATASIZE, CODECOPY,
-         CODESIZE, RETURNDATASIZE, RETURN
+        CODESIZE, RETURNDATASIZE, RETURNDATASIZE, CODECOPY,
+        CODESIZE, RETURNDATASIZE, RETURN
     };
     assert(result.returnData.size == sizeof(expected));
     assert(memcmp(expected, result.returnData.content, result.returnData.size) == 0);
@@ -41,14 +41,14 @@ void test_applyConfig_storage() {
     evmInit();
 
     const char config[] = "["
-        "{"
-            "\"address\":\"0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3\","
-            "\"code\":\"0x5f545f52595ff3\","
-            "\"storage\":{"
-                "\"0x00\": \"0x12340000567800009abc0000def0\""
-            "}"
-        "}"
-    "]";
+                          "{"
+                          "\"address\":\"0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3\","
+                          "\"code\":\"0x5f545f52595ff3\","
+                          "\"storage\":{"
+                          "\"0x00\": \"0x12340000567800009abc0000def0\""
+                          "}"
+                          "}"
+                          "]";
     applyConfig(config);
 
     uint64_t gas = 23114;
@@ -80,12 +80,12 @@ void test_applyConfig_balance() {
     evmInit();
 
     const char config[] = "["
-        "{"
-            "\"address\":\"0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3\","
-            "\"code\":\"0x475f52595ff3\","
-            "\"balance\":\"0x1234005678009abc00def0\""
-        "}"
-    "]";
+                          "{"
+                          "\"address\":\"0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3\","
+                          "\"code\":\"0x475f52595ff3\","
+                          "\"balance\":\"0x1234005678009abc00def0\""
+                          "}"
+                          "]";
     applyConfig(config);
 
     uint64_t gas = 21017;
@@ -116,12 +116,12 @@ void test_applyConfig_construct() {
     evmInit();
 
     const char config[] = "["
-        "{"
-            "\"address\":\"0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3\","
-            "\"construct\":\"tst/in/quine.evm\","
-            "\"code\":\"0x383d3d39383df3\""
-        "}"
-    "]";
+                          "{"
+                          "\"address\":\"0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3\","
+                          "\"construct\":\"tst/in/quine.evm\","
+                          "\"code\":\"0x383d3d39383df3\""
+                          "}"
+                          "]";
     applyConfig(config);
 
     uint64_t gas = 0x521b;
@@ -150,13 +150,13 @@ void test_applyConfig_constructTest() {
     evmInit();
 
     const char config[] = "["
-        "{"
-            "\"address\":\"0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3\","
-            "\"construct\":\"tst/in/quine.evm\","
-            "\"code\":\"0x383d3d39383df3\","
-            "\"constructTest\":{}"
-        "}"
-    "]";
+                          "{"
+                          "\"address\":\"0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3\","
+                          "\"construct\":\"tst/in/quine.evm\","
+                          "\"code\":\"0x383d3d39383df3\","
+                          "\"constructTest\":{}"
+                          "}"
+                          "]";
     applyConfig(config);
 
     uint64_t gas = 0x521b;
@@ -184,29 +184,29 @@ void test_applyConfig_tests() {
     evmInit();
 
     const char config[] = "["
-        "{"
-            "\"address\":\"0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3\","
-            "\"code\":\"0x60213610600e576020355f3555005b5f35545f52595ff3\","
-            "\"tests\":"
-                "["
-                    "{"
-                        "\"op\": \"STATICCALL\","
-                        "\"input\": \"0x0000000000000000000000000000000000000000000000000000000000000000\","
-                        "\"output\": \"0x0000000000000000000000000000000000000000000000000000000000000000\""
-                    "},"
-                    "{"
-                        "\"op\": \"CALL\","
-                        "\"input\": \"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001\","
-                        "\"output\": \"0x\""
-                    "},"
-                    "{"
-                        "\"op\": \"STATICCALL\","
-                        "\"input\": \"0x0000000000000000000000000000000000000000000000000000000000000000\","
-                        "\"output\": \"0x0000000000000000000000000000000000000000000000000000000000000001\""
-                    "}"
-                "]"
-        "}"
-    "]";
+                          "{"
+                          "\"address\":\"0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3\","
+                          "\"code\":\"0x60213610600e576020355f3555005b5f35545f52595ff3\","
+                          "\"tests\":"
+                          "["
+                          "{"
+                          "\"op\": \"STATICCALL\","
+                          "\"input\": \"0x0000000000000000000000000000000000000000000000000000000000000000\","
+                          "\"output\": \"0x0000000000000000000000000000000000000000000000000000000000000000\""
+                          "},"
+                          "{"
+                          "\"op\": \"CALL\","
+                          "\"input\": \"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001\","
+                          "\"output\": \"0x\""
+                          "},"
+                          "{"
+                          "\"op\": \"STATICCALL\","
+                          "\"input\": \"0x0000000000000000000000000000000000000000000000000000000000000000\","
+                          "\"output\": \"0x0000000000000000000000000000000000000000000000000000000000000001\""
+                          "}"
+                          "]"
+                          "}"
+                          "]";
     applyConfig(config);
 
     uint64_t gas = 0x5a63;

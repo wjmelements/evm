@@ -75,57 +75,57 @@ static inline void AddressToUint256(uint256_t *dst, address_t *src) {
     UPPER(UPPER_P(dst)) = 0;
     LOWER(UPPER_P(dst)) =
         ( ((uint64_t)src->address[0] << 24ull)
-        | ((uint64_t)src->address[1] << 16ull)
-        | ((uint64_t)src->address[2] << 8ull)
-        | ((uint64_t)src->address[3])
+          | ((uint64_t)src->address[1] << 16ull)
+          | ((uint64_t)src->address[2] << 8ull)
+          | ((uint64_t)src->address[3])
     );
     UPPER(LOWER_P(dst)) =
         ( ((uint64_t)src->address[4] << 56ull)
-        | ((uint64_t)src->address[5] << 48ull)
-        | ((uint64_t)src->address[6] << 40ull)
-        | ((uint64_t)src->address[7] << 32ull)
-        | ((uint64_t)src->address[8] << 24ull)
-        | ((uint64_t)src->address[9] << 16ull)
-        | ((uint64_t)src->address[10] << 8ull)
-        | ((uint64_t)src->address[11])
+          | ((uint64_t)src->address[5] << 48ull)
+          | ((uint64_t)src->address[6] << 40ull)
+          | ((uint64_t)src->address[7] << 32ull)
+          | ((uint64_t)src->address[8] << 24ull)
+          | ((uint64_t)src->address[9] << 16ull)
+          | ((uint64_t)src->address[10] << 8ull)
+          | ((uint64_t)src->address[11])
     );
     LOWER(LOWER_P(dst)) =
         ( ((uint64_t)src->address[12] << 56ull)
-        | ((uint64_t)src->address[13] << 48ull)
-        | ((uint64_t)src->address[14] << 40ull)
-        | ((uint64_t)src->address[15] << 32ull)
-        | ((uint64_t)src->address[16] << 24ull)
-        | ((uint64_t)src->address[17] << 16ull)
-        | ((uint64_t)src->address[18] << 8ull)
-        | ((uint64_t)src->address[19])
+          | ((uint64_t)src->address[13] << 48ull)
+          | ((uint64_t)src->address[14] << 40ull)
+          | ((uint64_t)src->address[15] << 32ull)
+          | ((uint64_t)src->address[16] << 24ull)
+          | ((uint64_t)src->address[17] << 16ull)
+          | ((uint64_t)src->address[18] << 8ull)
+          | ((uint64_t)src->address[19])
     );
 }
 
 #define fprintAddress(file, addr) fprintf(file, "0x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", \
-        addr.address[0], addr.address[1], addr.address[2], addr.address[3], addr.address[4], addr.address[5], addr.address[6], addr.address[7], addr.address[8], addr.address[9], addr.address[10],\
-        addr.address[11], addr.address[12], addr.address[13], addr.address[14], addr.address[15], addr.address[16], addr.address[17], addr.address[18], addr.address[19]\
+                                          addr.address[0], addr.address[1], addr.address[2], addr.address[3], addr.address[4], addr.address[5], addr.address[6], addr.address[7], addr.address[8], addr.address[9], addr.address[10], \
+                                          addr.address[11], addr.address[12], addr.address[13], addr.address[14], addr.address[15], addr.address[16], addr.address[17], addr.address[18], addr.address[19] \
 )
 
 
 static inline int AddressIsPrecompile(const address_t address) {
     return !address.address[0] &&
-        !address.address[1] &&
-        !address.address[2] &&
-        !address.address[3] &&
-        !address.address[4] &&
-        !address.address[5] &&
-        !address.address[6] &&
-        !address.address[7] &&
-        !address.address[8] &&
-        !address.address[9] &&
-        !address.address[10] &&
-        !address.address[11] &&
-        !address.address[12] &&
-        !address.address[13] &&
-        !address.address[14] &&
-        !address.address[15] &&
-        !address.address[16] &&
-        !address.address[17];
+           !address.address[1] &&
+           !address.address[2] &&
+           !address.address[3] &&
+           !address.address[4] &&
+           !address.address[5] &&
+           !address.address[6] &&
+           !address.address[7] &&
+           !address.address[8] &&
+           !address.address[9] &&
+           !address.address[10] &&
+           !address.address[11] &&
+           !address.address[12] &&
+           !address.address[13] &&
+           !address.address[14] &&
+           !address.address[15] &&
+           !address.address[16] &&
+           !address.address[17];
 }
 
 // assumes AddressIsPrecompile

@@ -91,7 +91,9 @@ static void assemble(const char *contents) {
         programLength += 11;
     }
 
-    for (; programLength--;) printf("%02x", *programStart++);
+    for (; programLength--;) {
+        printf("%02x", *programStart++);
+    }
     putchar('\n');
 }
 
@@ -162,7 +164,9 @@ static void execute(const char *contents) {
         }
         fputs("returnData\":\"0x", stdout);
     }
-    for (;result.returnData.size--;) printf("%02x", *result.returnData.content++);
+    for (; result.returnData.size--;) {
+        printf("%02x", *result.returnData.content++);
+    }
     if (outputJson) {
         fputs("\"}", stdout);
     }
@@ -182,53 +186,54 @@ int main(int argc, char *const argv[]) {
 
     int option;
     char *contents = NULL;
-    while ((option = getopt_long(argc, argv, "cCdgjlo:suvw:x", long_options, NULL)) != -1)
+    while ((option = getopt_long(argc, argv, "cCdgjlo:suvw:x", long_options, NULL)) != -1) {
         switch (option) {
-            case 'c':
-                wrapMinConstructor = 1;
-                break;
-            case 'C':
-                wrapUniversalConstructor = 1;
-                break;
-            case 'd':
-                inverse = 1;
-                break;
-            case 'j':
-                labelJumpdests = 1;
-                break;
-            case 'o':
-                contents = optarg;
-                break;
-            case 'x':
-                runtime = 1;
-                break;
-            case 'g':
-                includeGas = 1;
-                break;
-            case 's':
-                includeStatus = 1;
-                break;
-            case 'l':
-                includeLogs = 1;
-                break;
-            case 'u':
-                updateConfigFile = 1;
-                break;
-            case 'v':
-                puts(evm_build_version);
-                return 0;
-            case 'w':
-                if (configFile == NULL) {
-                    evmInit();
-                }
-                configFile = optarg;
-                loadConfig(configFile, updateConfigFile);
-                break;
-            case '?':
-            default:
-                USAGE;
-                return 1;
+        case 'c':
+            wrapMinConstructor = 1;
+            break;
+        case 'C':
+            wrapUniversalConstructor = 1;
+            break;
+        case 'd':
+            inverse = 1;
+            break;
+        case 'j':
+            labelJumpdests = 1;
+            break;
+        case 'o':
+            contents = optarg;
+            break;
+        case 'x':
+            runtime = 1;
+            break;
+        case 'g':
+            includeGas = 1;
+            break;
+        case 's':
+            includeStatus = 1;
+            break;
+        case 'l':
+            includeLogs = 1;
+            break;
+        case 'u':
+            updateConfigFile = 1;
+            break;
+        case 'v':
+            puts(evm_build_version);
+            return 0;
+        case 'w':
+            if (configFile == NULL) {
+                evmInit();
+            }
+            configFile = optarg;
+            loadConfig(configFile, updateConfigFile);
+            break;
+        case '?':
+        default:
+            USAGE;
+            return 1;
         }
+    }
     if (inverse && wrapMinConstructor) {
         fputs("-c cannot be used with -d\n", stderr);
         USAGE;
@@ -315,27 +320,29 @@ int main(int argc, char *const argv[]) {
         subprogram(input);
         // free is redundant with program termination but makes valgrind happy
         free(input);
-    } else for (int i = optind; i < argc; i++) {
-        int fd = open(argv[i], O_RDONLY);
-        if (fd == -1) {
-            perror(argv[i]);
-            _exit(1);
-        }
+    } else {
+        for (int i = optind; i < argc; i++) {
+            int fd = open(argv[i], O_RDONLY);
+            if (fd == -1) {
+                perror(argv[i]);
+                _exit(1);
+            }
 
-        struct stat fstatus;
-        int fstatSuccess = fstat(fd, &fstatus);
-        if (fstatSuccess == -1) {
-            perror(argv[i]);
-            _exit(1);
+            struct stat fstatus;
+            int fstatSuccess = fstat(fd, &fstatus);
+            if (fstatSuccess == -1) {
+                perror(argv[i]);
+                _exit(1);
+            }
+
+            contents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
+            if (contents == NULL) {
+                perror(argv[i]);
+            }
+            subprogram(contents);
+            munmap(contents, fstatus.st_size);
+            close(fd);
         }
-        
-        contents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
-        if (contents == NULL) {
-            perror(argv[i]);
-        }
-        subprogram(contents);
-        munmap(contents, fstatus.st_size);
-        close(fd);
     }
     return 0;
 }

@@ -18,7 +18,7 @@ static inline void scanstackPush(op_t op) {
 
 static inline void scanstackPushData(const data_t *data) {
     size_t pos = data->size;
-    while (pos --> 0) {
+    while (pos--> 0) {
         scanstack[scanstackIndex++] = data->content[pos];
     }
 }

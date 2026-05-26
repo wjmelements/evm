@@ -3,7 +3,7 @@
 
 const char *precompiles = ""
 #define PRECOMPILE(name,address,supported) "| `" #name "` | `" #address "` | " #supported " |\n"
-PRECOMPILES
+                          PRECOMPILES
 #undef PRECOMPILE
 ;
 

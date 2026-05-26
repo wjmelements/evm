@@ -1,19 +1,19 @@
 /*******************************************************************************
-*   Ledger Ethereum App
-*   (c) 2016-2019 Ledger
-*
-*  Licensed under the Apache License, Version 2.0 (the "License");
-*  you may not use this file except in compliance with the License.
-*  You may obtain a copy of the License at
-*
-*      http://www.apache.org/licenses/LICENSE-2.0
-*
-*  Unless required by applicable law or agreed to in writing, software
-*  distributed under the License is distributed on an "AS IS" BASIS,
-*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-*  See the License for the specific language governing permissions and
-*  limitations under the License.
-********************************************************************************/
+ *   Ledger Ethereum App
+ *   (c) 2016-2019 Ledger
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ ********************************************************************************/
 
 // Adapted from https://github.com/calccrypto/uint256_t
 
@@ -259,8 +259,12 @@ void shiftr512(const uint512_t *number, uint32_t value, uint512_t *target) {
 void shiftar256(const uint256_t *number, uint32_t value, uint256_t *target) {
     bool positive = (UPPER(UPPER_P(number)) < 0x8000000000000000);
     shiftr256(number, value, target);
-    if (positive) return;
-    if (!value) return;
+    if (positive) {
+        return;
+    }
+    if (!value) {
+        return;
+    }
     if (value >= 64) {
         UPPER(UPPER_P(target)) = 0xffffffffffffffffllu;
         if (value >= 128) {
@@ -320,12 +324,29 @@ uint32_t bits512(const uint512_t *number) {
 static uint64_t clz64(uint64_t number) {
     // binary search
     uint64_t zeros = 0;
-    if (!(number & 0xFFFFFFFF00000000)) { zeros += 32; number <<= 32; }
-    if (!(number & 0xFFFF000000000000)) { zeros += 16; number <<= 16; }
-    if (!(number & 0xFF00000000000000)) { zeros +=  8; number <<=  8; }
-    if (!(number & 0xF000000000000000)) { zeros +=  4; number <<=  4; }
-    if (!(number & 0xC000000000000000)) { zeros +=  2; number <<=  2; }
-    if (!(number & 0x8000000000000000)) { zeros +=  1; }
+    if (!(number & 0xFFFFFFFF00000000)) {
+        zeros += 32;
+        number <<= 32;
+    }
+    if (!(number & 0xFFFF000000000000)) {
+        zeros += 16;
+        number <<= 16;
+    }
+    if (!(number & 0xFF00000000000000)) {
+        zeros +=  8;
+        number <<=  8;
+    }
+    if (!(number & 0xF000000000000000)) {
+        zeros +=  4;
+        number <<=  4;
+    }
+    if (!(number & 0xC000000000000000)) {
+        zeros +=  2;
+        number <<=  2;
+    }
+    if (!(number & 0x8000000000000000)) {
+        zeros +=  1;
+    }
     return zeros;
 }
 
@@ -514,16 +535,20 @@ void not256(const uint256_t *number, uint256_t *target) {
 }
 
 void mul128(const uint128_t *number1, const uint128_t *number2, uint128_t *target) {
-    uint64_t top[4] = {UPPER_P(number1) >> 32, UPPER_P(number1) & 0xffffffff,
-                       LOWER_P(number1) >> 32, LOWER_P(number1) & 0xffffffff};
-    uint64_t bottom[4] = {UPPER_P(number2) >> 32, UPPER_P(number2) & 0xffffffff,
-                          LOWER_P(number2) >> 32,
-                          LOWER_P(number2) & 0xffffffff};
+    uint64_t top[4] = {
+        UPPER_P(number1) >> 32, UPPER_P(number1) & 0xffffffff,
+        LOWER_P(number1) >> 32, LOWER_P(number1) & 0xffffffff
+    };
+    uint64_t bottom[4] = {
+        UPPER_P(number2) >> 32, UPPER_P(number2) & 0xffffffff,
+        LOWER_P(number2) >> 32,
+        LOWER_P(number2) & 0xffffffff
+    };
     uint64_t products[4][4];
     uint128_t tmp, tmp2;
 
-    for (uint8_t y = 4; y --> 0;) {
-        for (uint8_t x = 4; x --> 0;) {
+    for (uint8_t y = 4; y--> 0;) {
+        for (uint8_t x = 4; x--> 0;) {
             products[3 - x][y] = top[x] * bottom[y];
         }
     }
@@ -576,8 +601,8 @@ void mul256(const uint256_t *number1, const uint256_t *number2, uint256_t *targe
     LOWER(bottom[3]) = LOWER(LOWER_P(number2));
 
     uint128_t products[4][4];
-    for (uint8_t y = 4; y --> 0;) {
-        for (uint8_t x = 4; x --> 0;) {
+    for (uint8_t y = 4; y--> 0;) {
+        for (uint8_t x = 4; x--> 0;) {
             mul128(&top[x], &bottom[y], &products[x][y]);
         }
     }
@@ -667,8 +692,8 @@ void mul512(const uint512_t *number1, const uint512_t *number2, uint512_t *targe
     copy128(&LOWER(bottom[3]), &LOWER(LOWER_P(number2)));
 
     uint256_t products[4][4];
-    for (uint8_t y = 4; y --> 0;) {
-        for (uint8_t x = 4; x --> 0;) {
+    for (uint8_t y = 4; y--> 0;) {
+        for (uint8_t x = 4; x--> 0;) {
             mul256(&top[x], &bottom[y], &products[x][y]);
         }
     }
