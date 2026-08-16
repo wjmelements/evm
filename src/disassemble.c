@@ -88,15 +88,16 @@ statement_t labelForPc(pc_t pc) {
     char *str = calloc(bufLen, 1);
     size_t strLen = (size_t) snprintf(str, bufLen, "%u:", pc);
     /*  TODO label
-       for (uint8_t i = 0; i < strLen - 1; i++) {
+    for (uint8_t i = 0; i < strLen - 1; i++) {
         str[i] += 'a' - '0';
-       }
-     */
-    return (statement_t) {
-               strLen,
-               str,
-               bufLen,
+    }
+    */
+    statement_t label = {
+        strLen,
+        str,
+        bufLen,
     };
+    return label;
 }
 
 static void disassemblePush(op_t op, const char **iter) {

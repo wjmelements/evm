@@ -1,9 +1,10 @@
 #include "precompiles.h"
 #include <stdio.h>
 
-const char *precompiles = ""
+const char *precompiles =
+    ""
 #define PRECOMPILE(name,address,supported) "| `" #name "` | `" #address "` | " #supported " |\n"
-                          PRECOMPILES
+    PRECOMPILES
 #undef PRECOMPILE
 ;
 

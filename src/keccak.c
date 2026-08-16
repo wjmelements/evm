@@ -63,11 +63,11 @@ static inline void keccakf(void* state) {
              b[x] = 0;
              FOR5(y, 5,
                   b[x] ^= a[x + y];
-                                ))
+                  ))
         FOR5(x, 1,
              FOR5(y, 5,
                   a[y + x] ^= b[(x + 4) % 5] ^ rol(b[(x + 1) % 5], 1);
-                                                                   ))
+                  ))
         // Rho and pi
         t = a[1];
         x = 0;
@@ -75,16 +75,16 @@ static inline void keccakf(void* state) {
                  a[pi[x]] = rol(t, rho[x]);
                  t = b[0];
                  x++;
-                  )
+                 )
         // Chi
         FOR5(y,
              5,
              FOR5(x, 1,
                   b[x] = a[y + x];
-                            )
+                  )
              FOR5(x, 1,
                   a[y + x] = b[x] ^ ((~b[(x + 1) % 5]) & b[(x + 2) % 5]);
-                                                                    ))
+                  ))
         // Iota
         a[0] ^= RC[i];
     }
