@@ -7,35 +7,7 @@
 #include "ops.h"
 #include "evm.h"
 
-#define assertStderr(expectedErr, statement) \
-        int rw[2]; \
-        pipe(rw); \
-        int savedStderr = dup(2); \
-        close(2); \
-        dup2(rw[1], 2); \
-        close(rw[1]); \
-        statement; \
-        close(2); \
-        dup2(savedStderr, 2); \
-        clearerr(stderr); \
-        close(savedStderr); \
-        size_t strSize = strlen(expectedErr) + 1; \
-        char *actualErr = malloc(strSize); \
-        ssize_t red = read(rw[0], actualErr, strSize); \
-        if (red == -1) { \
-            perror("read"); \
-            exit(1); \
-        } \
-        actualErr[red] = 0; \
-        if (red != strSize - 1) { \
-            fprintf(stderr, "stderr length mismatch\nexpected[%zu]: \"%s\"\nactual[%zd]: \"%s\"\n", strSize, expectedErr, red, actualErr); \
-            exit(1); \
-        } \
-        close(rw[0]); \
-        if (memcmp(expectedErr, actualErr, strSize) != 0) { \
-            fprintf(stderr, "stderr mismatch\nexpected[%zu]: \"%s\"\nactual[%zd]: \"%s\"\n", strSize, expectedErr, red, actualErr); \
-            exit(1); \
-        }
+#include "tst.h"
 
 #define assertFailedInvalid(result) \
         assert(UPPER(UPPER(result.status)) == 0); \
@@ -2313,7 +2285,7 @@ void test_create2InsufficientBalance() {
     evmMockCode(to, code_data);
 
     assertStderr(
-        "Insufficient balance [0x000000000000000000000000] for create2 (need [0x000000000000000000000001])\n",
+        "Insufficient balance [0x000000000000000000000000] for create (need [0x000000000000000000000001])\n",
         result_t result = txCall(from, gas, to, value, input, NULL)
     );
 
@@ -2371,6 +2343,34 @@ void test_returnDataCopyOOB() {
     evmMockCode(inner_addr, empty);
     evmMockCode(outer_addr, empty);
 
+    evmFinalize();
+}
+
+void test_stackUnderflow() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    address_t to = AddressFromHex42("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+
+    // ADD on empty stack → underflow
+    op_t code[] = { ADD };
+    data_t codeData;
+    codeData.content = code;
+    codeData.size = sizeof(code);
+    evmMockCode(to, codeData);
+
+    data_t empty;
+    empty.content = NULL;
+    empty.size = 0;
+    assertStderr(
+        "Stack underflow at pc 0 op ADD stack depth 0\n",
+        result_t result = txCall(from, 0xffffff, to, value, empty, NULL)
+    );
+    assertFailedInvalid(result);
+
+    evmMockCode(to, empty);
     evmFinalize();
 }
 
@@ -2523,6 +2523,127 @@ void test_jumpForwardScan(op_t PUSHx) {
     evmFinalize();
 }
 
+void test_memoryFreshOnRepeatedCall() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    address_t inner_addr = AddressFromHex42("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    address_t outer_addr = AddressFromHex42("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+
+    op_t innerCode[] = {
+        PUSH0, MLOAD,                         // TOS = initial mem[0]
+        PUSH1, 0x20, MSTORE,                  // mem[0x20] = initial mem[0]
+        PUSH32,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        PUSH0, MSTORE,                        // mem[0] = 0xff...ff
+        PUSH1, 0x20,                          // size
+        PUSH1, 0x20,                          // offset
+        RETURN,                               // return mem[0x20..0x3f]
+    };
+    data_t innerData;
+    innerData.content = innerCode;
+    innerData.size = sizeof(innerCode);
+    evmMockCode(inner_addr, innerData);
+
+#define INNER_ADDR \
+        0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, \
+        0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa
+
+    op_t outerCode[] = {
+        PUSH1, 0x20, PUSH1, 0x40,  // retSize, retOffset
+        PUSH0, PUSH0, PUSH0,        // argsSize, argsOffset, value
+        PUSH20, INNER_ADDR,
+        GAS, CALL,
+        PUSH1, 0x20, PUSH1, 0x60,  // retSize, retOffset
+        PUSH0, PUSH0, PUSH0,        // argsSize, argsOffset, value
+        PUSH20, INNER_ADDR,
+        GAS, CALL,
+        PUSH1, 0x40, PUSH1, 0x40,  // size, offset
+        RETURN,
+    };
+#undef INNER_ADDR
+
+    data_t outerData;
+    outerData.content = outerCode;
+    outerData.size = sizeof(outerCode);
+    evmMockCode(outer_addr, outerData);
+
+    data_t empty;
+    empty.content = NULL;
+    empty.size = 0;
+
+    result_t result = txCall(from, 200000, outer_addr, value, empty, NULL);
+
+    assert(LOWER(LOWER(result.status)) == 1);
+    assert(result.returnData.size == 64);
+    uint8_t expectedZero[64];
+    memset(expectedZero, 0, 64);
+    assert(memcmp(result.returnData.content, expectedZero, 64) == 0);
+
+    evmMockCode(inner_addr, empty);
+    evmMockCode(outer_addr, empty);
+    evmFinalize();
+}
+
+void test_tstore_tload() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    address_t to = AddressFromHex42("0xcccccccccccccccccccccccccccccccccccccccc");
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+
+    // First tx: TSTORE 42 at slot 0, then TLOAD and return it
+    op_t code[] = {
+        PUSH1, 42, PUSH0, TSTORE,   // transient[0] = 42
+        PUSH0, TLOAD,                // TOS = 42
+        PUSH0, MSTORE,               // mem[0] = 42
+        PUSH1, 0x20, PUSH0, RETURN, // return mem[0..31]
+    };
+    data_t codeData;
+    codeData.content = code;
+    codeData.size = sizeof(code);
+    evmMockCode(to, codeData);
+
+    data_t empty;
+    empty.content = NULL;
+    empty.size = 0;
+
+    result_t result = txCall(from, 100000, to, value, empty, NULL);
+    assert(LOWER(LOWER(result.status)) == 1);
+    assert(result.returnData.size == 32);
+    for (int i = 0; i < 31; i++) {
+        assert(result.returnData.content[i] == 0);
+    }
+    assert(result.returnData.content[31] == 42);
+
+    // Second tx: TLOAD same slot — must read zero (transient storage cleared between txs)
+    op_t code2[] = {
+        PUSH0, TLOAD,                // TOS = 0 (transient cleared)
+        PUSH0, MSTORE,               // mem[0] = 0
+        PUSH1, 0x20, PUSH0, RETURN, // return mem[0..31]
+    };
+    data_t codeData2;
+    codeData2.content = code2;
+    codeData2.size = sizeof(code2);
+    evmMockCode(to, codeData2);
+
+    result_t result2 = txCall(from, 100000, to, value, empty, NULL);
+    assert(LOWER(LOWER(result2.status)) == 1);
+    assert(result2.returnData.size == 32);
+    for (int i = 0; i < 32; i++) {
+        assert(result2.returnData.content[i] == 0);
+    }
+
+    evmMockCode(to, empty);
+    evmFinalize();
+}
+
 int main() {
     test_stop();
     test_mstoreReturn();
@@ -2557,6 +2678,7 @@ int main() {
     test_create();
     test_createRevertRollback();
     test_returnDataCopyOOB();
+    test_stackUnderflow();
     test_stackOverflow();
     test_jumpDestInsidePush();
     test_jumpiDestInsidePush();
@@ -2565,6 +2687,8 @@ int main() {
     test_createOutOfGas();
     test_create2();
     test_create2InsufficientBalance();
+    test_memoryFreshOnRepeatedCall();
+    test_tstore_tload();
 
     for (op_t PUSHx = PUSH0; PUSHx <= PUSH32; PUSHx++) {
         test_jumpForwardScan(PUSHx);

@@ -3,11 +3,18 @@ EVM
 Fast assembler, disassembler, execution, and testing for the Ethereum Virtual Machine (EVM) supporting expressive syntax.
 
 ## Installation
+### Dependencies
+`libcurl` is required to build `dio`.
+  * macOS: already installed by default
+  * Arch Linux: `sudo pacman -S curl`
+  * Debian/Ubuntu: `sudo apt-get install libcurl4-openssl-dev`
+  * RHEL/CentOS/Fedora: `sudo dnf install libcurl-devel`
+
+### Build from source
 ```sh
-# Build from source
 git clone https://github.com/wjmelements/evm.git
 cd evm
-make bin/evm
+make bin/evm bin/dio
 # Append bin/ to your $PATH
 export PATH=$PATH:$pwd/bin
 # Install
@@ -295,7 +302,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | BLOBHASH | ✅ | ❌ |
 | BLOBBASEFEE | ✅ | ❌ |
 | POP | ✅ |❓ |
-| MLOAD | ✅ |❓ |
+| MLOAD | ✅ |✅ |
 | MSTORE | ✅ |✅ |
 | MSTORE8 | ✅ |✅ |
 | SLOAD | ✅ |✅ |
@@ -306,8 +313,8 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | MSIZE | ✅ |✅ |
 | GAS | ✅ |✅ |
 | JUMPDEST | ✅ |✅ |
-| TLOAD | ✅ |❓ |
-| TSTORE | ✅ |❓ |
+| TLOAD | ✅ |✅ |
+| TSTORE | ✅ |✅ |
 | MCOPY | ✅ |❓ |
 | PUSH0 | ✅ |✅ |
 | PUSH1 | ✅ |✅ |

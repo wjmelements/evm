@@ -27,12 +27,9 @@ uint16_t fprintLog(FILE *file, const logChanges_t *log, int showLogIndex) {
     }
     fputs("\",\"topics\":[", file);
     for (uint8_t i = log->topicCount; i-->0;) {
-        fprintf(file, "\"0x%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "\"",
-                UPPER(UPPER(log->topics[i])),
-                LOWER(UPPER(log->topics[i])),
-                UPPER(LOWER(log->topics[i])),
-                LOWER(LOWER(log->topics[i]))
-        );
+        fputc('"', file);
+        fprintCompact256(file, &log->topics[i]);
+        fputc('"', file);
         if (i) {
             fputc(',', file);
         }
@@ -94,12 +91,9 @@ uint16_t fprintLogDiff(FILE *file, const logChanges_t *log, const logChanges_t *
         }
     } else {
         for (uint8_t i = log->topicCount; i-->0;) {
-            fprintf(file, "\"0x%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "\"",
-                    UPPER(UPPER(log->topics[i])),
-                    LOWER(UPPER(log->topics[i])),
-                    UPPER(LOWER(log->topics[i])),
-                    LOWER(LOWER(log->topics[i]))
-            );
+            fputc('"', file);
+            fprintCompact256(file, &log->topics[i]);
+            fputc('"', file);
             if (i) {
                 fputc(',', file);
             }
@@ -198,6 +192,7 @@ typedef struct account {
     data_t code;
     uint64_t nonce;
     uint64_t warm;
+    bool local;
     storage_t *storage;
     tstorage_t *tstorage;
 } account_t;
@@ -219,21 +214,42 @@ typedef struct {
     data_t callData;
     uint64_t gas;
     bool readonly;
+    stateChanges_t *stateChanges;
 } context_t;
 
 
-stateChanges_t *getCurrentAccountStateChanges(result_t *result, context_t *context) {
-    stateChanges_t **stateChanges = &result->stateChanges;
+static stateChanges_t *getAccountStateChanges(stateChanges_t **stateChanges, const account_t *account) {
     while (*stateChanges != NULL) {
-        if (AddressEqual(&(*stateChanges)->account, &context->account->address)) {
+        if (AddressEqual(&(*stateChanges)->account, &account->address)) {
             return *stateChanges;
         }
         stateChanges = &(*stateChanges)->next;
     }
-    // DNF
     *stateChanges = calloc(1, sizeof(stateChanges_t));
-    AddressCopy(&(*stateChanges)->account, &context->account->address);
+    AddressCopy(&(*stateChanges)->account, &account->address);
     return *stateChanges;
+}
+
+stateChanges_t *getCurrentAccountStateChanges(result_t *result, context_t *context) {
+    return getAccountStateChanges(&result->stateChanges, context->account);
+}
+
+static void trackBalanceChange(stateChanges_t **stateChanges, account_t *account, const val_t before) {
+    stateChanges_t *entry = getAccountStateChanges(stateChanges, account);
+    if (!entry->balance.changed) {
+        BalanceCopy(entry->balance.before, before);
+        entry->balance.changed = true;
+    }
+    BalanceCopy(entry->balance.after, account->balance);
+}
+
+static void trackNonceChange(stateChanges_t **stateChanges, account_t *account, uint64_t before) {
+    stateChanges_t *entry = getAccountStateChanges(stateChanges, account);
+    if (!entry->nonce.changed) {
+        entry->nonce.before = before;
+        entry->nonce.changed = true;
+    }
+    entry->nonce.after = account->nonce;
 }
 
 // for debugging
@@ -323,10 +339,13 @@ static uint64_t evmIteration = 0;
 static uint16_t logIndex = 0;
 static uint64_t refundCounter = 0;
 static uint64_t blockNumber = 20587048;
+static bool blockNumberSet = false;
 static uint64_t timestamp = 0x65712600;
 static address_t coinbase;
 static uint64_t debugFlags = 0;
 static account_t knownPrecompiles[KNOWN_PRECOMPILES];
+static account_fetch_t accountFetch = NULL;
+static storage_fetch_t storageFetch = NULL;
 
 uint16_t depthOf(context_t *context) {
     return context - callstack.bottom;
@@ -344,6 +363,20 @@ void fRepeat(FILE *file, const char *str, uint16_t times) {
 
 void evmSetBlockNumber(uint64_t _blockNumber) {
     blockNumber = _blockNumber;
+    blockNumberSet = true;
+}
+
+bool evmBlockNumberIsSet(void) {
+    return blockNumberSet;
+}
+
+uint64_t evmGetBlockNumber(void) {
+    return blockNumber;
+}
+
+void evmSetFetch(account_fetch_t af, storage_fetch_t sf) {
+    accountFetch = af;
+    storageFetch = sf;
 }
 
 void evmSetTimestamp(uint64_t _timestamp) {
@@ -361,6 +394,21 @@ void evmSetDebug(uint64_t flags) {
 #define SHOW_PC (debugFlags & EVM_DEBUG_PC)
 #define SHOW_CALLS (debugFlags & EVM_DEBUG_CALLS)
 #define SHOW_LOGS (debugFlags & EVM_DEBUG_LOGS)
+
+static account_t *createLocalAccount(const address_t address) {
+    account_t *result = emptyAccount++;
+    AddressCopy(result->address, address);
+    result->code.size = 0;
+    result->nonce = 0;
+    result->balance[0] = 0;
+    result->balance[1] = 0;
+    result->balance[2] = 0;
+    result->local = true;
+    result->storage = NULL;
+    result->tstorage = NULL;
+    result->warm = 0;
+    return result;
+}
 
 static account_t *getAccount(const address_t address) {
     if (AddressIsPrecompile(address)) {
@@ -387,6 +435,10 @@ static account_t *getAccount(const address_t address) {
         result->balance[0] = 0;
         result->balance[1] = 0;
         result->balance[2] = 0;
+        result->local = false;
+        if (accountFetch) {
+            accountFetch(address);
+        }
     }
     return result;
 }
@@ -409,6 +461,7 @@ void evmInit() {
         emptyAccount->storage = NULL;
         emptyAccount->tstorage = NULL;
         emptyAccount->warm = 0;
+        emptyAccount->local = false;
         bzero(emptyAccount->address.address, 20);
         op_t *code = emptyAccount->code.content;
         if (code != NULL) {
@@ -495,10 +548,7 @@ static account_t *createNewAccount(account_t *from) {
     memcpy(inputBuffer + 2, from->address.address, 20);
     addressHashResult_t hashResult;
     keccak_256((uint8_t *)&hashResult, sizeof(hashResult), inputBuffer, inputBuffer[0] - 0xbf);
-    account_t *result = getAccount(hashResult.bottom160);
-    result->nonce = 1;
-    result->warm = evmIteration;
-    return result;
+    return createLocalAccount(hashResult.bottom160);
 }
 
 // EIP-1014: keccak256(0xff ++ sender ++ salt ++ keccak256(initcode))[12:]
@@ -510,10 +560,7 @@ static account_t *createNewAccount2(account_t *from, const uint256_t *salt, cons
     keccak_256(inputBuffer + 53, 32, initcode->content, initcode->size);
     addressHashResult_t hashResult;
     keccak_256((uint8_t *)&hashResult, sizeof(hashResult), inputBuffer, 85);
-    account_t *result = getAccount(hashResult.bottom160);
-    result->nonce = 1;
-    result->warm = evmIteration;
-    return result;
+    return createLocalAccount(hashResult.bottom160);
 }
 
 static account_t *warmAccount(context_t *callContext, const address_t address) {
@@ -539,6 +586,9 @@ static storage_t *getAccountStorage(account_t *account, const uint256_t *key) {
     }
     *storage = calloc(1, sizeof(storage_t));
     copy256(&(*storage)->key, key);
+    if (storageFetch && !account->local) {
+        storageFetch(account->address, key, &(*storage)->value);
+    }
     return *storage;
 }
 
@@ -566,7 +616,22 @@ static void mergeStateChanges(stateChanges_t **dst, stateChanges_t *src) {
         if (AddressEqual(&src->account, &(*dst)->account)) {
             // merge!
 
-            // concatenate the linked lists
+            if (src->balance.changed) {
+                if (!(*dst)->balance.changed) {
+                    (*dst)->balance.changed = true;
+                    BalanceCopy((*dst)->balance.before, src->balance.before);
+                }
+                BalanceCopy((*dst)->balance.after, src->balance.after);
+            }
+
+            if (src->nonce.changed) {
+                if (!(*dst)->nonce.changed) {
+                    (*dst)->nonce.changed = true;
+                    (*dst)->nonce.before = src->nonce.before;
+                }
+                (*dst)->nonce.after = src->nonce.after;
+            }
+
             codeChanges_t **codeEnd = &src->codeChanges;
             while (*codeEnd != NULL) {
                 codeEnd = &(*codeEnd)->prev;
@@ -621,7 +686,8 @@ static storage_t *warmStorage(context_t *callContext, uint256_t *key, uint64_t w
 static result_t doSupportedPrecompile(precompile_t precompile, context_t *callContext) {
     uint64_t gasCost;
     result_t result;
-    result.stateChanges = NULL;
+    result.stateChanges = callContext->stateChanges;
+    callContext->stateChanges = NULL;
     LOWER(LOWER(result.status)) = 1;
     UPPER(LOWER(result.status)) = 0;
     LOWER(UPPER(result.status)) = 0;
@@ -704,25 +770,25 @@ static result_t evmCreate2(account_t *fromAccount, uint64_t gas, val_t value, da
 static result_t doCall(context_t *callContext) {
     if (SHOW_CALLS) {
         INDENT;
-        fprintf(stderr, "from: ");
+        fputs("from: ", stderr);
         fprintAddress(stderr, callContext->caller);
-        fprintf(stderr, "\n");
+        fputc('\n', stderr);
 
         if (callContext->account) {
             INDENT;
-            fprintf(stderr, "to: ");
+            fputs("to: ", stderr);
             fprintAddress(stderr, callContext->account->address);
-            fprintf(stderr, "\n");
+            fputc('\n', stderr);
         }
         if (!ValueIsZero(callContext->callValue)) {
             INDENT;
-            fprintf(stderr, "value: ");
+            fputs("value: ", stderr);
             fprintVal(stderr, callContext->callValue);
-            fprintf(stderr, "\n");
+            fputc('\n', stderr);
         }
 
         INDENT;
-        fprintf(stderr, "input: ");
+        fputs("input: ", stderr);
 
         dumpCallData(callContext);
     }
@@ -739,7 +805,8 @@ static result_t doCall(context_t *callContext) {
         }
     }
     result_t result;
-    result.stateChanges = NULL;
+    result.stateChanges = callContext->stateChanges;
+    callContext->stateChanges = NULL;
     clear256(&result.status);
     uint64_t pc = 0;
     uint8_t buffer[32];
@@ -1298,9 +1365,9 @@ static result_t doCall(context_t *callContext) {
 
             stateChanges_t *stateChanges = getCurrentAccountStateChanges(&result, callContext);
             if (SHOW_LOGS) {
-                fprintf(stderr, "\033[94m");
+                fputs("\033[94m", stderr);
                 fprintLog(stderr, log, true);
-                fprintf(stderr, "\033[0m\n");
+                fputs("\033[0m\n", stderr);
             }
             log->prev = stateChanges->logChanges;
             stateChanges->logChanges = log;
@@ -1739,19 +1806,35 @@ static result_t doCall(context_t *callContext) {
             if (SHOW_CALLS) {
                 INDENT;
                 if (zero256(&result.status)) {
-                    fprintf(stderr, "\033[0;31m");
+                    fputs("\033[0;31m", stderr);
                 }
-                fprintf(stderr, "output: ");
+                fputs("output: ", stderr);
                 fprintData(stderr, result.returnData);
-                fprintf(stderr, "\n");
+                fputc('\n', stderr);
                 if (zero256(&result.status)) {
-                    fprintf(stderr, "\033[0m");
+                    fputs("\033[0m", stderr);
                 }
             }
             return result;
         }
     }
 #undef OUT_OF_GAS
+}
+
+static void evmRevertBalanceChange(account_t *account, balanceChange_t *change) {
+    if (!change->changed) {
+        return;
+    }
+    BalanceCopy(account->balance, change->before);
+    change->changed = false;
+}
+
+static void evmRevertNonceChange(account_t *account, nonceChange_t *change) {
+    if (!change->changed) {
+        return;
+    }
+    account->nonce = change->before;
+    change->changed = false;
 }
 
 static void evmRevertCodeChanges(account_t *account, codeChanges_t **changes) {
@@ -1795,6 +1878,8 @@ static void evmRevert(stateChanges_t **changes) {
         return;
     }
     account_t *account = getAccount((*changes)->account);
+    evmRevertBalanceChange(account, &(*changes)->balance);
+    evmRevertNonceChange(account, &(*changes)->nonce);
     evmRevertCodeChanges(account, &(*changes)->codeChanges);
     evmRevertStorageChanges(account, &(*changes)->storageChanges);
     evmRevertLogChanges(&(*changes)->logChanges);
@@ -1863,39 +1948,44 @@ static result_t evmStaticCall(address_t from, uint64_t gas, address_t to, data_t
 
 static result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input) {
     account_t *fromAccount = getAccount(from);
-    if (!BalanceSub(fromAccount->balance, value)) {
-        fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for call (need [0x%08x%08x%08x])\n",
-                fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
-                value[0], value[1], value[2]
-        );
-
-        result_t result;
-        result.gasRemaining = 0;
-        result.stateChanges = NULL;
-        clear256(&result.status);
-        result.returnData.size = 0;
-        return result;
-    }
-
+    account_t *toAccount = getAccount(to);
     context_t *callContext = callstack.next;
+    if (!ValueIsZero(value)) {
+        val_t fromBefore;
+        BalanceCopy(fromBefore, fromAccount->balance);
+        if (!BalanceSub(fromAccount->balance, value)) {
+            fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for call (need [0x%08x%08x%08x])\n",
+                    fromBefore[0], fromBefore[1], fromBefore[2],
+                    value[0], value[1], value[2]
+            );
+            result_t result;
+            result.gasRemaining = 0;
+            result.stateChanges = NULL;
+            clear256(&result.status);
+            result.returnData.size = 0;
+            return result;
+        }
+        val_t toBefore;
+        BalanceCopy(toBefore, toAccount->balance);
+        BalanceAdd(toAccount->balance, value);
+        trackBalanceChange(&callContext->stateChanges, fromAccount, fromBefore);
+        trackBalanceChange(&callContext->stateChanges, toAccount, toBefore);
+    }
     callContext->gas = gas;
     if (callstack.next == callstack.bottom) {
         callContext->readonly = false;
     } else {
         callContext->readonly = callContext[-1].readonly;
     }
-
     BalanceCopy(callContext->callValue, value);
     AddressCopy(callContext->caller, from);
-    callContext->account = getAccount(to);
-    BalanceAdd(callContext->account->balance, value);
-    callContext->code = callContext->account->code;
+    callContext->account = toAccount;
+    callContext->code = toAccount->code;
     callContext->callData = input;
-
     return _evmCall(callContext);
 }
 
-static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t value, data_t input) {
+static result_t _evmConstruct(account_t *fromAccount, account_t *to, uint64_t gas, val_t value, data_t input) {
     context_t *callContext = callstack.next;
     callContext->gas = gas;
     if (callstack.next == callstack.bottom) {
@@ -1905,8 +1995,10 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
         if (gas < callContext->gas) {
             // underflow indicates insufficient initial gas
             fprintf(stderr, "Out of gas while initializing initcode (have %" PRIu64 " need %" PRIu64 ")\n", gas, gas - callContext->gas);
+            evmRevert(&callContext->stateChanges);
             result_t result;
             result.gasRemaining = 0;
+            result.stateChanges = NULL;
             clear256(&result.status);
             result.returnData.size = 0;
             return result;
@@ -1915,12 +2007,36 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
     callContext->readonly = false;
 
     BalanceCopy(callContext->callValue, value);
-    AddressCopy(callContext->caller, from);
+    AddressCopy(callContext->caller, fromAccount->address);
     callContext->account = to;
+    callContext->account->nonce = 1;
     callContext->account->warm = evmIteration;
-    BalanceAdd(callContext->account->balance, value);
     callContext->code = input;
     callContext->callData.size = 0;
+
+    if (!ValueIsZero(value)) {
+        val_t fromBefore;
+        BalanceCopy(fromBefore, fromAccount->balance);
+        if (!BalanceSub(fromAccount->balance, value)) {
+            fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for create (need [0x%08x%08x%08x])\n",
+                    fromBefore[0], fromBefore[1], fromBefore[2],
+                    value[0], value[1], value[2]
+            );
+            evmRevert(&callContext->stateChanges);
+            result_t result;
+            result.gasRemaining = gas;
+            result.stateChanges = NULL;
+            clear256(&result.status);
+            result.returnData.size = 0;
+            return result;
+        }
+        trackBalanceChange(&callContext->stateChanges, fromAccount, fromBefore);
+        val_t toBefore;
+        BalanceCopy(toBefore, callContext->account->balance);
+        BalanceAdd(callContext->account->balance, value);
+        trackBalanceChange(&callContext->stateChanges, callContext->account, toBefore);
+    }
+    trackNonceChange(&callContext->stateChanges, callContext->account, 0);
 
     result_t result = _evmCall(callContext);
 
@@ -1962,9 +2078,7 @@ static result_t _evmConstruct(address_t from, account_t *to, uint64_t gas, val_t
 }
 
 result_t evmConstruct(address_t from, address_t to, uint64_t gas, val_t value, data_t input) {
-    account_t *created = getAccount(to);
-    created->nonce = 1;
-    return _evmConstruct(from, created, gas, value, input);
+    return _evmConstruct(getAccount(from), getAccount(to), gas, value, input);
 }
 
 result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input, const accessList_t *accessList) {
@@ -2015,37 +2129,11 @@ result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t 
 }
 
 result_t evmCreate(account_t *fromAccount, uint64_t gas, val_t value, data_t input) {
-    if (!BalanceSub(fromAccount->balance, value)) {
-        fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for create (need [0x%08x%08x%08x])\n",
-                fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
-                value[0], value[1], value[2]
-        );
-
-        result_t result;
-        result.gasRemaining = gas;
-        result.stateChanges = NULL;
-        clear256(&result.status);
-        result.returnData.size = 0;
-        return result;
-    }
-
-    return _evmConstruct(fromAccount->address, createNewAccount(fromAccount), gas, value, input);
+    return _evmConstruct(fromAccount, createNewAccount(fromAccount), gas, value, input);
 }
 
 static result_t evmCreate2(account_t *fromAccount, uint64_t gas, val_t value, data_t input, const uint256_t *salt) {
-    if (!BalanceSub(fromAccount->balance, value)) {
-        fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for create2 (need [0x%08x%08x%08x])\n",
-                fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
-                value[0], value[1], value[2]
-        );
-        result_t result;
-        result.gasRemaining = gas;
-        result.stateChanges = NULL;
-        clear256(&result.status);
-        result.returnData.size = 0;
-        return result;
-    }
-    return _evmConstruct(fromAccount->address, createNewAccount2(fromAccount, salt, &input), gas, value, input);
+    return _evmConstruct(fromAccount, createNewAccount2(fromAccount, salt, &input), gas, value, input);
 }
 
 result_t txCreate(address_t from, uint64_t gas, val_t value, data_t input) {

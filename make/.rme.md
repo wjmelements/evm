@@ -3,11 +3,18 @@ EVM
 Fast assembler, disassembler, execution, and testing for the Ethereum Virtual Machine (EVM) supporting expressive syntax.
 
 ## Installation
+### Dependencies
+`libcurl` is required to build `dio`.
+  * macOS: already installed by default
+  * Arch Linux: `sudo pacman -S curl`
+  * Debian/Ubuntu: `sudo apt-get install libcurl4-openssl-dev`
+  * RHEL/CentOS/Fedora: `sudo dnf install libcurl-devel`
+
+### Build from source
 ```sh
-# Build from source
 git clone https://github.com/wjmelements/evm.git
 cd evm
-make bin/evm
+make bin/evm bin/dio
 # Append bin/ to your $PATH
 export PATH=$PATH:$pwd/bin
 # Install

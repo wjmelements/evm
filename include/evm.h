@@ -52,6 +52,9 @@ typedef struct logChanges {
 
 static int LogsEqual(const logChanges_t *expectedLog, const logChanges_t *actualLog) {
     while (expectedLog && actualLog) {
+        if (expectedLog->logIndex && expectedLog->logIndex != actualLog->logIndex) {
+            return false;
+        }
         if (!DataEqual(&expectedLog->data, &actualLog->data)) {
             return false;
         }
@@ -69,13 +72,25 @@ static int LogsEqual(const logChanges_t *expectedLog, const logChanges_t *actual
     return expectedLog == NULL && actualLog == NULL;
 }
 
+typedef struct {
+    val_t before;
+    val_t after;
+    bool changed;
+} balanceChange_t;
+
+typedef struct {
+    uint64_t before;
+    uint64_t after;
+    bool changed;
+} nonceChange_t;
+
 // state changes are reverted on failure and returned on success
 typedef struct stateChanges {
     address_t account;
-    // TODO balance change
+    balanceChange_t balance;
     codeChanges_t *codeChanges; // LIFO
+    nonceChange_t nonce;
     // TODO selfdestruct
-    // TODO nonce
     logChanges_t *logChanges; // LIFO
     // TODO warm
     storageChanges_t *storageChanges; // LIFO
@@ -100,6 +115,12 @@ typedef struct callResult {
 
 void evmInit();
 void evmFinalize();
+
+typedef void (*account_fetch_t)(address_t address);
+typedef void (*storage_fetch_t)(address_t address, const uint256_t *key, uint256_t *value_out);
+void evmSetFetch(account_fetch_t, storage_fetch_t);
+bool evmBlockNumberIsSet(void);
+uint64_t evmGetBlockNumber(void);
 
 #define EVM_DEBUG_STACK 1
 #define EVM_DEBUG_MEMORY 2
