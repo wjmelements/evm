@@ -97,9 +97,12 @@ void test_jArrayNext() {
     assert(e2 != NULL);
     assert(e3 == NULL);
 
-    jStr(e0, buf, sizeof(buf)); assert(strcmp(buf, "a") == 0);
-    jStr(e1, buf, sizeof(buf)); assert(strcmp(buf, "b") == 0);
-    jStr(e2, buf, sizeof(buf)); assert(strcmp(buf, "c") == 0);
+    jStr(e0, buf, sizeof(buf));
+    assert(strcmp(buf, "a") == 0);
+    jStr(e1, buf, sizeof(buf));
+    assert(strcmp(buf, "b") == 0);
+    jStr(e2, buf, sizeof(buf));
+    assert(strcmp(buf, "c") == 0);
 
     // single-element array
     const char *single = "[42]";

@@ -9,12 +9,12 @@
 
 #include "tst.h"
 
-#define assertFailedInvalid(result)\
-    assert(UPPER(UPPER(result.status)) == 0);\
-    assert(LOWER(UPPER(result.status)) == 0);\
-    assert(UPPER(LOWER(result.status)) == 0);\
-    assert(LOWER(LOWER(result.status)) == 0);\
-    assert(result.gasRemaining == 0)
+#define assertFailedInvalid(result) \
+        assert(UPPER(UPPER(result.status)) == 0); \
+        assert(LOWER(UPPER(result.status)) == 0); \
+        assert(UPPER(LOWER(result.status)) == 0); \
+        assert(LOWER(LOWER(result.status)) == 0); \
+        assert(result.gasRemaining == 0)
 
 void test_stop() {
     evmInit();
@@ -1274,10 +1274,10 @@ void test_extcodecopy() {
     gas = 57035;
     // 385952385f59395f353b5f595f353c595ff3
 #define PROGRAM_EXTCODECOPY \
-    CODESIZE, MSIZE, MSTORE, \
-    CODESIZE, PUSH0, MSIZE, CODECOPY, \
-    PUSH0, CALLDATALOAD, EXTCODESIZE, PUSH0, MSIZE, PUSH0, CALLDATALOAD, EXTCODECOPY, \
-    MSIZE, PUSH0, RETURN
+        CODESIZE, MSIZE, MSTORE, \
+        CODESIZE, PUSH0, MSIZE, CODECOPY, \
+        PUSH0, CALLDATALOAD, EXTCODESIZE, PUSH0, MSIZE, PUSH0, CALLDATALOAD, EXTCODECOPY, \
+        MSIZE, PUSH0, RETURN
     op_t extcodecopy[] = {
         PROGRAM_EXTCODECOPY
     };
@@ -1359,20 +1359,20 @@ void test_deepCall() {
     evmInit();
     // 3d3580600757005b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01805952590259595f34305af1603c57595ffd5b595ff3
 #define PROGRAM_DIVE \
-    RETURNDATASIZE, CALLDATALOAD, \
-    DUP1, PUSH1, 0x07, JUMPI, STOP, JUMPDEST, \
-    PUSH32, \
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, \
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, \
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, \
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, \
-    ADD, \
-    DUP1, MSIZE, MSTORE, \
-    MSIZE, MUL, MSIZE, MSIZE, PUSH0, CALLVALUE, ADDRESS, GAS, CALL, \
-    PUSH1, 60, JUMPI, \
-    MSIZE, PUSH0, REVERT, \
-    JUMPDEST, \
-    MSIZE, PUSH0, RETURN
+        RETURNDATASIZE, CALLDATALOAD, \
+        DUP1, PUSH1, 0x07, JUMPI, STOP, JUMPDEST, \
+        PUSH32, \
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, \
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, \
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, \
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, \
+        ADD, \
+        DUP1, MSIZE, MSTORE, \
+        MSIZE, MUL, MSIZE, MSIZE, PUSH0, CALLVALUE, ADDRESS, GAS, CALL, \
+        PUSH1, 60, JUMPI, \
+        MSIZE, PUSH0, REVERT, \
+        JUMPDEST, \
+        MSIZE, PUSH0, RETURN
 
     op_t dive[] = {
         PROGRAM_DIVE
@@ -2059,18 +2059,18 @@ void test_create() {
 
     // 345ff3
 #define STOP_CALLVALUE_CONSTRUCTOR \
-    CALLVALUE, PUSH0, RETURN
+        CALLVALUE, PUSH0, RETURN
 
     // 62345ff359526003601d6001f08059523b595234595247595230315952595ffd
 #define CREATE_REVERT \
-    PUSH3, STOP_CALLVALUE_CONSTRUCTOR, MSIZE, MSTORE, \
-    PUSH1, 0x03, PUSH1, 0x1d, PUSH1, 0x01, CREATE, \
-    DUP1, MSIZE, MSTORE, \
-    EXTCODESIZE, MSIZE, MSTORE, \
-    CALLVALUE, MSIZE, MSTORE, \
-    SELFBALANCE, MSIZE, MSTORE, \
-    ADDRESS, BALANCE, MSIZE, MSTORE, \
-    MSIZE, PUSH0, REVERT
+        PUSH3, STOP_CALLVALUE_CONSTRUCTOR, MSIZE, MSTORE, \
+        PUSH1, 0x03, PUSH1, 0x1d, PUSH1, 0x01, CREATE, \
+        DUP1, MSIZE, MSTORE, \
+        EXTCODESIZE, MSIZE, MSTORE, \
+        CALLVALUE, MSIZE, MSTORE, \
+        SELFBALANCE, MSIZE, MSTORE, \
+        ADDRESS, BALANCE, MSIZE, MSTORE, \
+        MSIZE, PUSH0, REVERT
 
     op_t createRevert[] = {
         CREATE_REVERT
@@ -2187,9 +2187,9 @@ void test_createOutOfGas() {
 
     // 385f5f39385f5ff0385ff3
 #define PROGRAM_CREATE_OUT_OF_GAS \
-    CODESIZE, PUSH0, PUSH0, CODECOPY, \
-    CODESIZE, PUSH0, PUSH0, CREATE, \
-    CODESIZE, PUSH0, RETURN
+        CODESIZE, PUSH0, PUSH0, CODECOPY, \
+        CODESIZE, PUSH0, PUSH0, CREATE, \
+        CODESIZE, PUSH0, RETURN
 
     op_t recursiveOOG[] = {
         PROGRAM_CREATE_OUT_OF_GAS
@@ -2235,7 +2235,9 @@ void test_create2() {
     uint64_t gas = 1000000;
     val_t value;
     data_t empty = {0, NULL};
-    value[0] = 0; value[1] = 0; value[2] = 0;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     empty.size = 0;
 
     op_t code[] = {
@@ -2269,7 +2271,9 @@ void test_create2InsufficientBalance() {
     uint64_t gas = 1000000;
     val_t value;
     data_t input = {0, NULL};
-    value[0] = 0; value[1] = 0; value[2] = 0;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
     input.size = 0;
 
     op_t code[] = {
@@ -2315,8 +2319,8 @@ void test_returnDataCopyOOB() {
     evmMockCode(inner_addr, inner_data);
 
 #define INNER_ADDR \
-    0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, \
-    0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc
+        0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, \
+        0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc
     op_t outer[] = {
         PUSH0, PUSH0, PUSH0, PUSH0, PUSH0, PUSH20, INNER_ADDR, GAS, CALL,
         PUSH1, 5, PUSH1, 6, PUSH0, RETURNDATACOPY,
@@ -2547,8 +2551,8 @@ void test_memoryFreshOnRepeatedCall() {
     evmMockCode(inner_addr, innerData);
 
 #define INNER_ADDR \
-    0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, \
-    0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa
+        0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, \
+        0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa
 
     op_t outerCode[] = {
         PUSH1, 0x20, PUSH1, 0x40,  // retSize, retOffset

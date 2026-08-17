@@ -19,7 +19,7 @@ LIBS=$(patsubst src/%.cpp, lib/%.o, $(wildcard src/*.cpp)) $(patsubst src/%.m, l
 INTEGRATIONS=$(addprefix tst/in/,$(shell ls tst/in)) $(addprefix tst/dio,$(shell ls tst/*.json))
 
 
-.PHONY: default all clean again check distcheck dist-check force-version
+.PHONY: default all clean again check distcheck dist-check force-version fmt
 .SECONDARY:
 default: all
 all: $(EXECS) $(TESTS) README.md
@@ -28,6 +28,8 @@ clean:
 	make -C secp256k1 clean
 again: clean all
 check: $(addprefix .pass/,$(TESTS) $(INTEGRATIONS) $(DIOTESTS))
+fmt:
+	find . -path ./.git -prune -o -path ./secp256k1 -prune -o \( -name '*.c' -o -name '*.h' \) -print | xargs uncrustify -c .uncrustify.cfg --replace --no-backup
 
 FNM=\([-+a-z_A-Z0-9/]*\)
 .make/%.d: %.m

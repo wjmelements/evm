@@ -16,15 +16,25 @@ static char networkBlockHex[20];
 // Advances *p to the same position; caller scans to '"' for the end.
 static const char *nextResultHex(const char **p) {
     *p = strstr(*p, "\"result\"");
-    if (!*p) return NULL;
+    if (!*p) {
+        return NULL;
+    }
     *p += 8;
     *p = strchr(*p, ':');
-    if (!*p) return NULL;
+    if (!*p) {
+        return NULL;
+    }
     (*p)++;
-    while (**p == ' ') (*p)++;
-    if (**p != '"') return NULL;
+    while (**p == ' ') {
+        (*p)++;
+    }
+    if (**p != '"') {
+        return NULL;
+    }
     (*p)++;
-    if ((*p)[0] == '0' && (*p)[1] == 'x') (*p) += 2;
+    if ((*p)[0] == '0' && (*p)[1] == 'x') {
+        (*p) += 2;
+    }
     return *p;
 }
 
@@ -46,14 +56,17 @@ static void ensureNetworkBlock(void) {
         _exit(1);
     }
     uint64_t block = 0;
-    while (*p != '"' && *p) block = (block << 4) | hexString8ToUint8(*p++);
+    while (*p != '"' && *p) {
+        block = (block << 4) | hexString8ToUint8(*p++);
+    }
     snprintf(networkBlockHex, sizeof(networkBlockHex), "0x%" PRIx64, block);
     evmSetBlockNumber(block);
 }
 
 static void networkFetchAccount(address_t address) {
     ensureNetworkBlock();
-    uint32_t base = ++rpcId; rpcId += 2;
+    uint32_t base = ++rpcId;
+    rpcId += 2;
     putchar('[');
     printf("{\"jsonrpc\":\"2.0\",\"id\":%u,\"method\":\"eth_getCode\",\"params\":[\"", base);
     fprintAddress(stdout, address);
@@ -75,28 +88,46 @@ static void networkFetchAccount(address_t address) {
 
     // code
     const char *hex = nextResultHex(&p);
-    if (!hex) { fputs("evm: network: bad eth_getCode response\n", stderr); _exit(1); }
+    if (!hex) {
+        fputs("evm: network: bad eth_getCode response\n", stderr);
+        _exit(1);
+    }
     const char *codeStart = p;
-    while (*p != '"' && *p) p++;
+    while (*p != '"' && *p) {
+        p++;
+    }
     data_t code;
     code.size = (p - codeStart) / 2;
     code.content = code.size ? malloc(code.size) : NULL;
-    for (size_t i = 0; i < code.size; i++)
+    for (size_t i = 0; i < code.size; i++) {
         code.content[i] = hexString16ToUint8(codeStart + i * 2);
+    }
     evmMockCode(address, code);
-    if (*p == '"') p++;
+    if (*p == '"') {
+        p++;
+    }
 
     // nonce
     hex = nextResultHex(&p);
-    if (!hex) { fputs("evm: network: bad eth_getTransactionCount response\n", stderr); _exit(1); }
+    if (!hex) {
+        fputs("evm: network: bad eth_getTransactionCount response\n", stderr);
+        _exit(1);
+    }
     uint64_t nonce = 0;
-    while (*p != '"' && *p) nonce = (nonce << 4) | hexString8ToUint8(*p++);
+    while (*p != '"' && *p) {
+        nonce = (nonce << 4) | hexString8ToUint8(*p++);
+    }
     evmMockNonce(address, nonce);
-    if (*p == '"') p++;
+    if (*p == '"') {
+        p++;
+    }
 
     // balance
     hex = nextResultHex(&p);
-    if (!hex) { fputs("evm: network: bad eth_getBalance response\n", stderr); _exit(1); }
+    if (!hex) {
+        fputs("evm: network: bad eth_getBalance response\n", stderr);
+        _exit(1);
+    }
     val_t balance = {0, 0, 0};
     while (*p != '"' && *p) {
         balance[0] = (balance[0] << 4) | (balance[1] >> 28);
@@ -121,7 +152,10 @@ static void networkFetchStorage(address_t address, const uint256_t *key, uint256
     }
     const char *p = rpcBuf;
     nextResultHex(&p);
-    if (!p) { fputs("evm: network: bad eth_getStorageAt response\n", stderr); _exit(1); }
+    if (!p) {
+        fputs("evm: network: bad eth_getStorageAt response\n", stderr);
+        _exit(1);
+    }
     clear256(value_out);
     while (*p != '"' && *p) {
         shiftl256(value_out, 4, value_out);

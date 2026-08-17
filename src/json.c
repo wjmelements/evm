@@ -3,8 +3,9 @@
 #include <string.h>
 
 static void skipWs(const char **p) {
-    while (**p == ' ' || **p == '\t' || **p == '\r' || **p == '\n')
+    while (**p == ' ' || **p == '\t' || **p == '\r' || **p == '\n') {
         (*p)++;
+    }
 }
 
 /*
@@ -16,10 +17,14 @@ static void jSkip(const char **p) {
     if (**p == '"') {
         (*p)++;
         while (**p && **p != '"') {
-            if (**p == '\\' && (*p)[1]) (*p)++;
+            if (**p == '\\' && (*p)[1]) {
+                (*p)++;
+            }
             (*p)++;
         }
-        if (**p == '"') (*p)++;
+        if (**p == '"') {
+            (*p)++;
+        }
         return;
     }
     if (**p == '{' || **p == '[') {
@@ -30,14 +35,20 @@ static void jSkip(const char **p) {
             if (**p == '"') {
                 (*p)++;
                 while (**p && **p != '"') {
-                    if (**p == '\\' && (*p)[1]) (*p)++;
+                    if (**p == '\\' && (*p)[1]) {
+                        (*p)++;
+                    }
                     (*p)++;
                 }
-                if (**p == '"') (*p)++;
+                if (**p == '"') {
+                    (*p)++;
+                }
             } else if (**p == open) {
-                depth++; (*p)++;
+                depth++;
+                (*p)++;
             } else if (**p == close) {
-                depth--; (*p)++;
+                depth--;
+                (*p)++;
             } else {
                 (*p)++;
             }
@@ -46,22 +57,37 @@ static void jSkip(const char **p) {
     }
     /* number, true, false, null */
     while (**p && **p != ',' && **p != '}' && **p != ']' &&
-           **p != ' ' && **p != '\t' && **p != '\r' && **p != '\n')
+           **p != ' ' && **p != '\t' && **p != '\r' && **p != '\n') {
         (*p)++;
+    }
 }
 
 const char *jNextKeyVal(const char *p, const char **keyp, size_t *keylen, const char **valp) {
-    while (*p && *p != '"' && *p != '}') p++;
-    if (!*p || *p == '}') return NULL;
+    while (*p && *p != '"' && *p != '}') {
+        p++;
+    }
+    if (!*p || *p == '}') {
+        return NULL;
+    }
     p++;
     *keyp = p;
-    while (*p && *p != '"') p++;
-    if (!*p) return NULL;
+    while (*p && *p != '"') {
+        p++;
+    }
+    if (!*p) {
+        return NULL;
+    }
     *keylen = p - *keyp;
     p++;
-    while (*p == ' ' || *p == '\t') p++;
-    if (*p++ != ':') return NULL;
-    while (*p == ' ' || *p == '\t') p++;
+    while (*p == ' ' || *p == '\t') {
+        p++;
+    }
+    if (*p++ != ':') {
+        return NULL;
+    }
+    while (*p == ' ' || *p == '\t') {
+        p++;
+    }
     *valp = p;
     jSkip(&p);
     return p;
@@ -72,9 +98,15 @@ const char *jFind(const char *p, const char *key) {
     while (*p) {
         if (*p++ == '"' && strncmp(p, key, klen) == 0 && p[klen] == '"') {
             p += klen + 1;
-            while (*p == ' ' || *p == '\t') p++;
-            if (*p++ != ':') continue;
-            while (*p == ' ' || *p == '\t') p++;
+            while (*p == ' ' || *p == '\t') {
+                p++;
+            }
+            if (*p++ != ':') {
+                continue;
+            }
+            while (*p == ' ' || *p == '\t') {
+                p++;
+            }
             return p;
         }
     }
@@ -82,54 +114,86 @@ const char *jFind(const char *p, const char *key) {
 }
 
 int jStr(const char *p, char *buf, size_t buflen) {
-    if (!p || *p != '"') return -1;
+    if (!p || *p != '"') {
+        return -1;
+    }
     p++;
     size_t i = 0;
     while (*p && *p != '"') {
-        if (*p == '\\' && p[1]) p++;
-        if (i + 1 < buflen) buf[i++] = *p;
-        if (*p) p++;
+        if (*p == '\\' && p[1]) {
+            p++;
+        }
+        if (i + 1 < buflen) {
+            buf[i++] = *p;
+        }
+        if (*p) {
+            p++;
+        }
     }
     buf[i] = '\0';
     return (int)i;
 }
 
 uint64_t jUint(const char *p) {
-    if (!p) return 0;
-    if (*p == '"') p++;
+    if (!p) {
+        return 0;
+    }
+    if (*p == '"') {
+        p++;
+    }
     if (p[0] == '0' && p[1] == 'x') {
         p += 2;
         uint64_t v = 0;
         for (unsigned c; (c = (unsigned char)*p); p++) {
-            if      (c >= '0' && c <= '9') v = (v << 4) | (c - '0');
-            else if (c >= 'a' && c <= 'f') v = (v << 4) | (c - 'a' + 10);
-            else if (c >= 'A' && c <= 'F') v = (v << 4) | (c - 'A' + 10);
-            else break;
+            if      (c >= '0' && c <= '9') {
+                v = (v << 4) | (c - '0');
+            }
+            else if (c >= 'a' && c <= 'f') {
+                v = (v << 4) | (c - 'a' + 10);
+            }
+            else if (c >= 'A' && c <= 'F') {
+                v = (v << 4) | (c - 'A' + 10);
+            }
+            else {
+                break;
+            }
         }
         return v;
     }
     uint64_t v = 0;
-    while (*p >= '0' && *p <= '9') v = v * 10 + (*p++ - '0');
+    while (*p >= '0' && *p <= '9') {
+        v = v * 10 + (*p++ - '0');
+    }
     return v;
 }
 
 const char *jArrayGet(const char *p, int n) {
-    if (!p || *p != '[') return NULL;
+    if (!p || *p != '[') {
+        return NULL;
+    }
     p++;
     while (*p) {
         skipWs(&p);
-        if (*p == ']') return NULL;
-        if (n == 0) return p;
+        if (*p == ']') {
+            return NULL;
+        }
+        if (n == 0) {
+            return p;
+        }
         jSkip(&p);
         n--;
         skipWs(&p);
-        if (*p == ',') p++;
+        if (*p == ',') {
+            p++;
+        }
     }
     return NULL;
 }
 
 char *jValDup(const char *p) {
-    if (!p) return NULL;
+    if (!p) {
+        return NULL;
+    }
     const char *start = p;
     jSkip(&p);
     size_t len = p - start;
@@ -140,10 +204,14 @@ char *jValDup(const char *p) {
 }
 
 char *jStrDup(const char *p) {
-    if (!p || *p != '"') return strdup("0x");
+    if (!p || *p != '"') {
+        return strdup("0x");
+    }
     p++;
     const char *end = p;
-    while (*end && *end != '"') end++;
+    while (*end && *end != '"') {
+        end++;
+    }
     size_t len = end - p;
     char *s = malloc(len + 1);
     memcpy(s, p, len);
@@ -154,9 +222,13 @@ char *jStrDup(const char *p) {
 const char *jArrayNext(const char *p) {
     jSkip(&p);
     skipWs(&p);
-    if (*p == ',') p++;
+    if (*p == ',') {
+        p++;
+    }
     skipWs(&p);
-    if (!*p || *p == ']') return NULL;
+    if (!*p || *p == ']') {
+        return NULL;
+    }
     return p;
 }
 

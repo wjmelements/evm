@@ -1,0 +1,22 @@
+name: fmt
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+
+jobs:
+  uncrustify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uncrustify
+        run: sudo apt-get install -y uncrustify
+
+      - name: Check brace style
+        run: >
+          find . -path ./.git -prune -o -path ./secp256k1 -prune -o \( -name '*.c' -o -name '*.h' \) -print
+          | xargs uncrustify -c .uncrustify.cfg --check

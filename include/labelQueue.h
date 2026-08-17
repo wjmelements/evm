@@ -75,7 +75,7 @@ static void registerLabel(jump_t jump) {
 
 static uint32_t firstLabelAfter(uint32_t pc) {
     // inclusive
-    uint32_t begin = 0; 
+    uint32_t begin = 0;
     // exclusive
     uint32_t end = labelCount;
     while (begin < end) {
@@ -95,7 +95,7 @@ static void incrementLabelLocations(uint32_t after, uint32_t by) {
         labelLocations[i] += by;
         int after = labelLocations[i] >= 256;
         if (before && after) {
-            // TODO shift label positions 
+            // TODO shift label positions
         }
     }
 }

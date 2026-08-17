@@ -40,10 +40,10 @@ static void with_mock_rpc(void (*child)(void), void (*parent)(FILE *req, FILE *r
 
 static void batch_response(FILE *rsp, const char *code_hex, const char *balance_hex) {
     fprintf(rsp,
-        "[{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"%s\"},"
-         "{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":\"0x0\"},"
-         "{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":\"%s\"}]\n",
-        code_hex, balance_hex);
+            "[{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"%s\"},"
+            "{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":\"0x0\"},"
+            "{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":\"%s\"}]\n",
+            code_hex, balance_hex);
     fflush(rsp);
 }
 
@@ -57,13 +57,19 @@ static void child_storage(void) {
 
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     address_t addr = AddressFromHex42("0x1111000000000000000000000000000000000001");
-    val_t val; val[0] = 0; val[1] = 0; val[2] = 0;
-    data_t input; input.size = 0;
+    val_t val;
+    val[0] = 0;
+    val[1] = 0;
+    val[2] = 0;
+    data_t input;
+    input.size = 0;
     result_t result = txCall(from, 0x5a4a, addr, val, input, NULL);
 
     assert(result.returnData.size == 32);
     assert(result.gasRemaining == 0);
-    for (int i = 0; i < 28; i++) assert(result.returnData.content[i] == 0);
+    for (int i = 0; i < 28; i++) {
+        assert(result.returnData.content[i] == 0);
+    }
     assert(result.returnData.content[28] == 0x12);
     assert(result.returnData.content[29] == 0x34);
     assert(result.returnData.content[30] == 0x56);
@@ -102,13 +108,19 @@ static void child_account(void) {
 
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     address_t addr = AddressFromHex42("0x1111000000000000000000000000000000000001");
-    val_t val; val[0] = 0; val[1] = 0; val[2] = 0;
-    data_t input; input.size = 0;
+    val_t val;
+    val[0] = 0;
+    val[1] = 0;
+    val[2] = 0;
+    data_t input;
+    input.size = 0;
     result_t result = txCall(from, 0x5c3f, addr, val, input, NULL);
 
     assert(result.returnData.size == 32);
     assert(result.gasRemaining == 0);
-    for (int i = 0; i < 28; i++) assert(result.returnData.content[i] == 0);
+    for (int i = 0; i < 28; i++) {
+        assert(result.returnData.content[i] == 0);
+    }
     assert(result.returnData.content[28] == 0xde);
     assert(result.returnData.content[29] == 0xad);
     assert(result.returnData.content[30] == 0xbe);

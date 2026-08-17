@@ -13,9 +13,9 @@ typedef struct storage_kv {
 typedef struct call_result call_result_t;
 
 typedef struct account {
-    char  address[ADDR_LEN];
-    char  balance[HEX256_LEN];
-    char  nonce[NONCE_LEN];
+    char address[ADDR_LEN];
+    char balance[HEX256_LEN];
+    char nonce[NONCE_LEN];
     char *code;
     storage_kv_t  *storage;
     call_result_t *tests;
@@ -24,10 +24,10 @@ typedef struct account {
 } account_t;
 
 struct call_result {
-    char  to[ADDR_LEN];
-    char  from[ADDR_LEN];
-    char  block[32];
-    char  value[HEX256_LEN];
+    char to[ADDR_LEN];
+    char from[ADDR_LEN];
+    char block[32];
+    char value[HEX256_LEN];
     char *input;
     char *output;
     char *logs;

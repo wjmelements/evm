@@ -93,7 +93,9 @@ static void assemble(const char *contents) {
         programLength += 11;
     }
 
-    for (; programLength--;) printf("%02x", *programStart++);
+    for (; programLength--;) {
+        printf("%02x", *programStart++);
+    }
     putchar('\n');
 }
 
@@ -113,15 +115,25 @@ static const char *jsonStrVal(const char *json, const char *key, size_t *len) {
     const char *p = json;
     for (;;) {
         p = strchr(p, '"');
-        if (!p) return NULL;
+        if (!p) {
+            return NULL;
+        }
         if (strncmp(p + 1, key, klen) == 0 && p[1 + klen] == '"') {
             p += 1 + klen + 1;
-            while (*p == ' ' || *p == ':') p++;
-            if (*p != '"') return NULL;
+            while (*p == ' ' || *p == ':') {
+                p++;
+            }
+            if (*p != '"') {
+                return NULL;
+            }
             p++;
-            if (p[0] == '0' && p[1] == 'x') p += 2;
+            if (p[0] == '0' && p[1] == 'x') {
+                p += 2;
+            }
             const char *start = p;
-            while (*p && *p != '"') p++;
+            while (*p && *p != '"') {
+                p++;
+            }
             *len = (size_t)(p - start);
             return start;
         }
@@ -139,11 +151,18 @@ static void execute(const char *contents) {
     if (contents[0] == '{') {
         size_t flen;
         const char *p = jsonStrVal(contents, "to", &flen);
-        if (p && flen == 40) { hasTo = 1; to = AddressFromHex40(p); }
+        if (p && flen == 40) {
+            hasTo = 1;
+            to = AddressFromHex40(p);
+        }
         p = jsonStrVal(contents, "from", &flen);
-        if (p && flen == 40) from = AddressFromHex40(p);
+        if (p && flen == 40) {
+            from = AddressFromHex40(p);
+        }
         p = jsonStrVal(contents, "data", &flen);
-        if (!p) p = jsonStrVal(contents, "input", &flen);
+        if (!p) {
+            p = jsonStrVal(contents, "input", &flen);
+        }
         hexData = p ? p : "";
         hexLen = p ? flen : 0;
     } else {
@@ -189,13 +208,14 @@ static void execute(const char *contents) {
             fputs("\",\"", stdout);
         }
         fputs("returnData\":\"0x", stdout);
-        for (;result.returnData.size--;) printf("%02x", *result.returnData.content++);
-        fputs("\"}", stdout);
-        putchar('\n');
-    } else {
-        for (;result.returnData.size--;) printf("%02x", *result.returnData.content++);
-        putchar('\n');
     }
+    for (; result.returnData.size--;) {
+        printf("%02x", *result.returnData.content++);
+    }
+    if (outputJson) {
+        fputs("\"}", stdout);
+    }
+    putchar('\n');
     fflush(stdout);
 }
 
@@ -211,56 +231,57 @@ int main(int argc, char *const argv[]) {
 
     int option;
     char *contents = NULL;
-    while ((option = getopt_long(argc, argv, "cCdgjlo:nsuvw:x", long_options, NULL)) != -1)
+    while ((option = getopt_long(argc, argv, "cCdgjlo:nsuvw:x", long_options, NULL)) != -1) {
         switch (option) {
-            case 'c':
-                wrapMinConstructor = 1;
-                break;
-            case 'C':
-                wrapUniversalConstructor = 1;
-                break;
-            case 'd':
-                inverse = 1;
-                break;
-            case 'j':
-                labelJumpdests = 1;
-                break;
-            case 'o':
-                contents = optarg;
-                break;
-            case 'x':
-                runtime = 1;
-                break;
-            case 'g':
-                includeGas = 1;
-                break;
-            case 'n':
-                networkMode = 1;
-                break;
-            case 's':
-                includeStatus = 1;
-                break;
-            case 'l':
-                includeLogs = 1;
-                break;
-            case 'u':
-                updateConfigFile = 1;
-                break;
-            case 'v':
-                puts(evm_build_version);
-                return 0;
-            case 'w':
-                if (configFile == NULL) {
-                    evmInit();
-                }
-                configFile = optarg;
-                loadConfig(configFile, updateConfigFile);
-                break;
-            case '?':
-            default:
-                USAGE;
-                return 1;
+        case 'c':
+            wrapMinConstructor = 1;
+            break;
+        case 'C':
+            wrapUniversalConstructor = 1;
+            break;
+        case 'd':
+            inverse = 1;
+            break;
+        case 'j':
+            labelJumpdests = 1;
+            break;
+        case 'o':
+            contents = optarg;
+            break;
+        case 'x':
+            runtime = 1;
+            break;
+        case 'g':
+            includeGas = 1;
+            break;
+        case 'n':
+            networkMode = 1;
+            break;
+        case 's':
+            includeStatus = 1;
+            break;
+        case 'l':
+            includeLogs = 1;
+            break;
+        case 'u':
+            updateConfigFile = 1;
+            break;
+        case 'v':
+            puts(evm_build_version);
+            return 0;
+        case 'w':
+            if (configFile == NULL) {
+                evmInit();
+            }
+            configFile = optarg;
+            loadConfig(configFile, updateConfigFile);
+            break;
+        case '?':
+        default:
+            USAGE;
+            return 1;
         }
+    }
     if (inverse && wrapMinConstructor) {
         fputs("-c cannot be used with -d\n", stderr);
         USAGE;
@@ -314,7 +335,9 @@ int main(int argc, char *const argv[]) {
     }
     if (runtime && configFile == NULL) {
         evmInit();
-        if (networkMode) evmSetNetworkFetch();
+        if (networkMode) {
+            evmSetNetworkFetch();
+        }
     }
     if (contents != NULL) {
         // input is from the command line
@@ -326,8 +349,12 @@ int main(int argc, char *const argv[]) {
             size_t cap = 0;
             ssize_t len;
             while ((len = getline(&line, &cap, stdin)) != -1) {
-                if (len > 0 && line[len - 1] == '\n') line[--len] = '\0';
-                if (len > 0) subprogram(line);
+                if (len > 0 && line[len - 1] == '\n') {
+                    line[--len] = '\0';
+                }
+                if (len > 0) {
+                    subprogram(line);
+                }
             }
             free(line);
         } else {
@@ -363,27 +390,29 @@ int main(int argc, char *const argv[]) {
             // free is redundant with program termination but makes valgrind happy
             free(input);
         }
-    } else for (int i = optind; i < argc; i++) {
-        int fd = open(argv[i], O_RDONLY);
-        if (fd == -1) {
-            perror(argv[i]);
-            exit(1);
-        }
+    } else {
+        for (int i = optind; i < argc; i++) {
+            int fd = open(argv[i], O_RDONLY);
+            if (fd == -1) {
+                perror(argv[i]);
+                exit(1);
+            }
 
-        struct stat fstatus;
-        int fstatSuccess = fstat(fd, &fstatus);
-        if (fstatSuccess == -1) {
-            perror(argv[i]);
-            exit(1);
+            struct stat fstatus;
+            int fstatSuccess = fstat(fd, &fstatus);
+            if (fstatSuccess == -1) {
+                perror(argv[i]);
+                exit(1);
+            }
+
+            contents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
+            if (contents == NULL) {
+                perror(argv[i]);
+            }
+            subprogram(contents);
+            munmap(contents, fstatus.st_size);
+            close(fd);
         }
-        
-        contents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
-        if (contents == NULL) {
-            perror(argv[i]);
-        }
-        subprogram(contents);
-        munmap(contents, fstatus.st_size);
-        close(fd);
     }
     return 0;
 }

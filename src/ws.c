@@ -13,8 +13,12 @@
 /* xorshift32 PRNG for masking keys, seeded lazily from stack address + pid */
 static uint32_t wsMask(void) {
     static uint32_t x = 0;
-    if (!x) x = (uint32_t)(uintptr_t)&x ^ (uint32_t)getpid();
-    x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+    if (!x) {
+        x = (uint32_t)(uintptr_t)&x ^ (uint32_t)getpid();
+    }
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
     return x;
 }
 
@@ -23,7 +27,9 @@ static int wsSendAll(CURL *curl, const void *buf, size_t n) {
     while (sent < n) {
         size_t chunk;
         CURLcode rc;
-        do { rc = curl_easy_send(curl, (const char *)buf + sent, n - sent, &chunk); }
+        do {
+            rc = curl_easy_send(curl, (const char *)buf + sent, n - sent, &chunk);
+        }
         while (rc == CURLE_AGAIN);
         if (rc != CURLE_OK) {
             fprintf(stderr, "dio: ws send: %s\n", curl_easy_strerror(rc));
@@ -39,7 +45,9 @@ static int wsRecvExact(CURL *curl, void *buf, size_t n) {
     while (got < n) {
         size_t chunk;
         CURLcode rc;
-        do { rc = curl_easy_recv(curl, (char *)buf + got, n - got, &chunk); }
+        do {
+            rc = curl_easy_recv(curl, (char *)buf + got, n - got, &chunk);
+        }
         while (rc == CURLE_AGAIN);
         if (rc != CURLE_OK) {
             fprintf(stderr, "dio: ws recv: %s\n", curl_easy_strerror(rc));
@@ -54,7 +62,9 @@ static int wsRecvExact(CURL *curl, void *buf, size_t n) {
 static void wsAppend(char **buf, size_t *len, size_t *cap, const void *data, size_t n) {
     if (*len + n + 1 > *cap) {
         size_t nc = *cap ? *cap * 2 : 4096;
-        while (nc < *len + n + 1) nc *= 2;
+        while (nc < *len + n + 1) {
+            nc *= 2;
+        }
         *buf = realloc(*buf, nc);
         *cap = nc;
     }
@@ -74,16 +84,18 @@ static void wsAppend(char **buf, size_t *len, size_t *cap, const void *data, siz
 static int wsHandshake(CURL *curl, const char *host, const char *path) {
     char req[4096];
     int n = snprintf(req, sizeof(req),
-        "GET %s HTTP/1.1\r\n"
-        "Host: %s\r\n"
-        "Upgrade: websocket\r\n"
-        "Connection: Upgrade\r\n"
-        "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
-        "Sec-WebSocket-Version: 13\r\n"
-        "Origin: null\r\n"
-        "\r\n",
-        path, host);
-    if (wsSendAll(curl, req, (size_t)n) != 0) return -1;
+                     "GET %s HTTP/1.1\r\n"
+                     "Host: %s\r\n"
+                     "Upgrade: websocket\r\n"
+                     "Connection: Upgrade\r\n"
+                     "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+                     "Sec-WebSocket-Version: 13\r\n"
+                     "Origin: null\r\n"
+                     "\r\n",
+                     path, host);
+    if (wsSendAll(curl, req, (size_t)n) != 0) {
+        return -1;
+    }
 
     /* Read response until \r\n\r\n */
     char *rbuf = NULL;
@@ -92,7 +104,9 @@ static int wsHandshake(CURL *curl, const char *host, const char *path) {
     while (!rbuf || !strstr(rbuf, "\r\n\r\n")) {
         size_t chunk;
         CURLcode rc;
-        do { rc = curl_easy_recv(curl, tmp, sizeof(tmp), &chunk); }
+        do {
+            rc = curl_easy_recv(curl, tmp, sizeof(tmp), &chunk);
+        }
         while (rc == CURLE_AGAIN);
         if (rc != CURLE_OK) {
             fprintf(stderr, "dio: ws handshake: %s\n", curl_easy_strerror(rc));
@@ -125,7 +139,8 @@ CURL *wsConnect(const char *url) {
         snprintf(path, sizeof(path), "%s", slash);
     } else {
         snprintf(host, sizeof(host), "%s", s);
-        path[0] = '/'; path[1] = '\0';
+        path[0] = '/';
+        path[1] = '\0';
     }
     snprintf(httpUrl, sizeof(httpUrl), "%s://%s%s",
              secure ? "https" : "http", host, path);
@@ -160,21 +175,30 @@ static int wsSendFrame(CURL *curl, const char *msg, size_t len) {
         hdr[hlen++] = (uint8_t)len;
     } else {
         hdr[hlen++] = 0x80 | 127;
-        for (int i = 7; i >= 0; i--) hdr[hlen++] = (uint8_t)(len >> (i * 8));
+        for (int i = 7; i >= 0; i--) {
+            hdr[hlen++] = (uint8_t)(len >> (i * 8));
+        }
     }
     uint32_t m = wsMask();
     uint8_t mask[4] = {(uint8_t)m, (uint8_t)(m>>8), (uint8_t)(m>>16), (uint8_t)(m>>24)};
-    hdr[hlen++] = mask[0]; hdr[hlen++] = mask[1];
-    hdr[hlen++] = mask[2]; hdr[hlen++] = mask[3];
-    if (wsSendAll(curl, hdr, hlen) != 0) return -1;
+    hdr[hlen++] = mask[0];
+    hdr[hlen++] = mask[1];
+    hdr[hlen++] = mask[2];
+    hdr[hlen++] = mask[3];
+    if (wsSendAll(curl, hdr, hlen) != 0) {
+        return -1;
+    }
 
     char chunk[4096];
     size_t off = 0;
     while (off < len) {
         size_t n = len - off < sizeof(chunk) ? len - off : sizeof(chunk);
-        for (size_t i = 0; i < n; i++)
+        for (size_t i = 0; i < n; i++) {
             chunk[i] = (char)((uint8_t)msg[off + i] ^ mask[(off + i) & 3]);
-        if (wsSendAll(curl, chunk, n) != 0) return -1;
+        }
+        if (wsSendAll(curl, chunk, n) != 0) {
+            return -1;
+        }
         off += n;
     }
     return 0;
@@ -186,41 +210,63 @@ static char *wsRecvMsg(CURL *curl) {
     size_t mlen = 0, mcap = 0;
     for (;;) {
         uint8_t hdr[2];
-        if (wsRecvExact(curl, hdr, 2) != 0) { free(msg); return NULL; }
+        if (wsRecvExact(curl, hdr, 2) != 0) {
+            free(msg);
+            return NULL;
+        }
         int fin    = hdr[0] & 0x80;
         int opcode = hdr[0] & 0x0f;
         uint64_t plen = hdr[1] & 0x7f;
         if (plen == 126) {
             uint8_t ext[2];
-            if (wsRecvExact(curl, ext, 2) != 0) { free(msg); return NULL; }
+            if (wsRecvExact(curl, ext, 2) != 0) {
+                free(msg);
+                return NULL;
+            }
             plen = ((uint64_t)ext[0] << 8) | ext[1];
         } else if (plen == 127) {
             uint8_t ext[8];
-            if (wsRecvExact(curl, ext, 8) != 0) { free(msg); return NULL; }
+            if (wsRecvExact(curl, ext, 8) != 0) {
+                free(msg);
+                return NULL;
+            }
             plen = 0;
-            for (int i = 0; i < 8; i++) plen = (plen << 8) | ext[i];
+            for (int i = 0; i < 8; i++) {
+                plen = (plen << 8) | ext[i];
+            }
         }
         char *payload = malloc(plen + 1);
         if (wsRecvExact(curl, payload, plen) != 0) {
-            free(payload); free(msg); return NULL;
+            free(payload);
+            free(msg);
+            return NULL;
         }
         payload[plen] = '\0';
-        if (opcode == 0x08) { free(payload); free(msg); return NULL; } /* Close */
+        if (opcode == 0x08) {
+            free(payload);
+            free(msg);
+            return NULL;
+        }                                                              /* Close */
         if (opcode == 0x09) {                                           /* Ping → Pong */
             uint8_t pong[2] = {0x8a, 0x00};
             wsSendAll(curl, pong, 2);
-            free(payload); continue;
+            free(payload);
+            continue;
         }
         wsAppend(&msg, &mlen, &mcap, payload, (size_t)plen);
         free(payload);
-        if (fin) break;
+        if (fin) {
+            break;
+        }
     }
     return msg ? msg : strdup("");
 }
 
 char *wsPost(const char *payload, size_t len, void *ctx) {
     CURL *curl = ctx;
-    if (wsSendFrame(curl, payload, len) != 0) return NULL;
+    if (wsSendFrame(curl, payload, len) != 0) {
+        return NULL;
+    }
     return wsRecvMsg(curl);
 }
 
