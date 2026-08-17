@@ -12,18 +12,18 @@
 
 static inline int shouldIgnore(char ch) {
     return ch != '('
-        && ch != ')'
-        && ch != ','
-        && ch != ':'
-        && ch != '/'
-        && ch != '"'
-        && ch != '-'
-        && ch != '{'
-        && ch != '}'
-        && ch != '#'
-        && (ch < '0' || ch > '9')
-        && (ch < 'A' || ch > 'Z')
-        && (ch < 'a' || ch > 'z')
+           && ch != ')'
+           && ch != ','
+           && ch != ':'
+           && ch != '/'
+           && ch != '"'
+           && ch != '-'
+           && ch != '{'
+           && ch != '}'
+           && ch != '#'
+           && (ch < '0' || ch > '9')
+           && (ch < 'A' || ch > 'Z')
+           && (ch < 'a' || ch > 'z')
     ;
 }
 
@@ -60,7 +60,9 @@ static int isAssemble(const char *iter) {
 
 static op_t parseHex(const char **iter) {
     const char *start = *iter;
-    while (isHex(**iter)) ++(*iter);
+    while (isHex(**iter)) {
+        ++(*iter);
+    }
     uint8_t words = 0;
     const char *end = *iter;
     while (end > start) {
@@ -89,7 +91,7 @@ op_t parseDecimal(const char **iter, int negative) {
     uint64_t words[4] = {0,0,0,0};
     while (isDecimal(**iter)) {
         // multiply number by 10
-        for (uint8_t i = 4; i --> 0;) {
+        for (uint8_t i = 4; i--> 0;) {
             // long multiplication
             uint64_t s0, s1, s2, s3;
 
@@ -114,7 +116,9 @@ op_t parseDecimal(const char **iter, int negative) {
                 words[j] += carry;
                 if (carry > words[j]) {
                     carry = 1;
-                } else break;
+                } else {
+                    break;
+                }
             }
         }
         uint8_t digit = *((*iter)++) - '0';
@@ -123,16 +127,20 @@ op_t parseDecimal(const char **iter, int negative) {
             words[i] += digit;
             if (digit > words[i]) {
                 digit = 1;
-            } else break;
+            } else {
+                break;
+            }
         }
     }
     if (negative) {
         // negate via -x = ~x + 1
-        for (uint8_t i = 4; i --> 0;) {
+        for (uint8_t i = 4; i--> 0;) {
             words[i] = ~words[i];
         }
         // add 1 with carry
-        for (uint8_t i = 0; !++words[i++];);
+        for (uint8_t i = 0; !++words[i++];) {
+            ;
+        }
     }
     uint64_t isNonzero = words[0] | words[1] | words[2] | words[3];
     if (!isNonzero) {
@@ -140,8 +148,8 @@ op_t parseDecimal(const char **iter, int negative) {
     }
     uint8_t start = 0;
     // determine start
-    for (uint8_t i = 4; i --> 0;) {
-        for (uint8_t j = 8; j --> 0;) {
+    for (uint8_t i = 4; i--> 0;) {
+        for (uint8_t j = 8; j--> 0;) {
             uint64_t shift = j * 8;
             uint8_t byte = (words[i] & (0xffllu << shift)) >> shift;
             if (byte) {
@@ -204,22 +212,26 @@ static void scanChar(const char **iter, char expected) {
 
 static inline int isPathChar(char ch) {
     return ch == '/'
-        || ch == '-'
-        || ch == '_'
-        || ch == '.'
-        || (ch >= '0' && ch <= '9')
-        || (ch >= 'A' && ch <= 'Z')
-        || (ch >= 'a' && ch <= 'z')
+           || ch == '-'
+           || ch == '_'
+           || ch == '.'
+           || (ch >= '0' && ch <= '9')
+           || (ch >= 'A' && ch <= 'Z')
+           || (ch >= 'a' && ch <= 'z')
     ;
 }
 
 static void scanPath(const char **iter) {
     // TODO: Support unsafe characters with escape (\)
-    while (isPathChar(**iter)) (*iter)++;
+    while (isPathChar(**iter)) {
+        (*iter)++;
+    }
 }
 
 static void scanComment(const char **iter) {
-    for (char ch; (ch = **iter) != '\n'; (*iter)++);
+    for (char ch; (ch = **iter) != '\n'; (*iter)++) {
+        ;
+    }
     lineNumber++;
     (*iter)++;
 }
@@ -254,7 +266,9 @@ static inline char scanWaste(const char **iter) {
 
 static void scanLabel(const char **iter) {
     const char *start = *iter;
-    for (char ch; isLowerCase(**iter); (*iter)++);
+    for (char ch; isLowerCase(**iter); (*iter)++) {
+        ;
+    }
     const char *end = *iter;
     char next = scanWaste(iter);
     if (next == ':') {
@@ -277,7 +291,9 @@ static void scanDataSection(const char **iter) {
         fprintf(stderr, "Data section keys should be lowercase; instead found unexpected character %c at line %u\n", *start, lineNumber);
         exit(1);
     }
-    for (char ch; isLowerCase(**iter); (*iter)++);
+    for (char ch; isLowerCase(**iter); (*iter)++) {
+        ;
+    }
     const char *end = *iter;
     char next = scanWaste(iter);
     if (next != ':') {
@@ -353,7 +369,9 @@ static void scanDataLen(const char **iter) {
     if (!isLowerCase(*start)) {
         fprintf(stderr, "Data section #keys should be lowercase; instead found unexpected character %c at line %u\n", *start, lineNumber);
     }
-    for (char ch; isLowerCase(**iter); (*iter)++);
+    for (char ch; isLowerCase(**iter); (*iter)++) {
+        ;
+    }
     const char *end = *iter;
 
     scanstackPushLabel(start, end - start, CODESIZE);
@@ -364,11 +382,11 @@ static void scanDataLen(const char **iter) {
 
 static int tryParsePrecompile(const char **iter, uint8_t *addr) {
     #define PRECOMPILE(name, address, supported) \
-        if (strncmp(*iter, #name, sizeof(#name) - 1) == 0) { \
-            *addr = address; \
-            *iter += sizeof(#name) - 1; \
-            return 1; \
-        }
+            if (strncmp(*iter, #name, sizeof(#name) - 1) == 0) { \
+                *addr = address; \
+                *iter += sizeof(#name) - 1; \
+                return 1; \
+            }
     PRECOMPILES
     #undef PRECOMPILE
     return 0;
@@ -476,7 +494,9 @@ op_t scanNextOp(const char **iter) {
             labelQueuePush(jump, type);
             return type;
         }
-    } else return scanstackPop();
+    } else {
+        return scanstackPop();
+    }
 }
 
 static void shiftProgram(op_t* begin, uint32_t *programLength, uint32_t offset, uint32_t amount) {

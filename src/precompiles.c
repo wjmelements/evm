@@ -9,9 +9,9 @@ const char *precompileName[KNOWN_PRECOMPILES] = {
 int PrecompileIsSupported(precompile_t precompile) {
     switch (precompile) {
 #define PRECOMPILE(name,address,supported) case name: return supported;
-        PRECOMPILES
+    PRECOMPILES
 #undef PRECOMPILE
-        default:
-            return 0;
+    default:
+        return 0;
     }
 }

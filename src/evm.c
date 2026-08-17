@@ -28,10 +28,10 @@ uint16_t fprintLog(FILE *file, const logChanges_t *log, int showLogIndex) {
     fputs("\",\"topics\":[", file);
     for (uint8_t i = log->topicCount; i-->0;) {
         fprintf(file, "\"0x%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "\"",
-            UPPER(UPPER(log->topics[i])),
-            LOWER(UPPER(log->topics[i])),
-            UPPER(LOWER(log->topics[i])),
-            LOWER(LOWER(log->topics[i]))
+                UPPER(UPPER(log->topics[i])),
+                LOWER(UPPER(log->topics[i])),
+                UPPER(LOWER(log->topics[i])),
+                LOWER(LOWER(log->topics[i]))
         );
         if (i) {
             fputc(',', file);
@@ -95,10 +95,10 @@ uint16_t fprintLogDiff(FILE *file, const logChanges_t *log, const logChanges_t *
     } else {
         for (uint8_t i = log->topicCount; i-->0;) {
             fprintf(file, "\"0x%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "%016" PRIx64 "\"",
-                UPPER(UPPER(log->topics[i])),
-                LOWER(UPPER(log->topics[i])),
-                UPPER(LOWER(log->topics[i])),
-                LOWER(LOWER(log->topics[i]))
+                    UPPER(UPPER(log->topics[i])),
+                    LOWER(UPPER(log->topics[i])),
+                    UPPER(LOWER(log->topics[i])),
+                    LOWER(LOWER(log->topics[i]))
             );
             if (i) {
                 fputc(',', file);
@@ -143,7 +143,7 @@ static inline void DataCopy(data_t *dst, const data_t *src) {
 static inline void BalanceAdd(val_t to, val_t amount) {
     uint32_t carry = 0;
     uint8_t i = 3;
-    while (i --> 0) {
+    while (i--> 0) {
         uint32_t result = carry + to[i] + amount[i];
         if (result < amount[i]) {
             carry = 1;
@@ -158,7 +158,7 @@ static inline bool BalanceSub(val_t from, val_t amount) {
     uint32_t borrow = 0;
     uint8_t i = 3;
     val_t result;
-    while (i --> 0) {
+    while (i--> 0) {
         result[i] = from[i] - amount[i] - borrow;
         if (result[i] > from[i]) {
             borrow = 1;
@@ -263,7 +263,7 @@ static inline void dumpMemory(memory_t *memory) {
     if (memory->num_uint8s % 32 == 0) {
         return;
     }
-    for (uint32_t i = 32 - memory->num_uint8s % 32; i --> 0;) {
+    for (uint32_t i = 32 - memory->num_uint8s % 32; i--> 0;) {
         fputs("00", stderr);
     }
     fputc('\n', stderr);
@@ -333,7 +333,9 @@ uint16_t depthOf(context_t *context) {
 }
 
 void fRepeat(FILE *file, const char *str, uint16_t times) {
-    if (!times) return;
+    if (!times) {
+        return;
+    }
     fputs(str, file);
     fRepeat(file, str, times - 1);
 }
@@ -374,7 +376,9 @@ static account_t *getAccount(const address_t address) {
         }
     }
     account_t *result = accounts;
-    while (result < emptyAccount && !AddressEqual(&result->address, &address)) result++;
+    while (result < emptyAccount && !AddressEqual(&result->address, &address)) {
+        result++;
+    }
     if (result == emptyAccount) {
         emptyAccount++;
         AddressCopy(result->address, address);
@@ -389,7 +393,7 @@ static account_t *getAccount(const address_t address) {
 
 void evmInit() {
     callstack.next = callstack.bottom;
-    while (emptyAccount --> accounts) {
+    while (emptyAccount--> accounts) {
         storage_t *storage = emptyAccount->storage;
         while (storage != NULL) {
             void *toFree = storage;
@@ -629,63 +633,63 @@ static result_t doSupportedPrecompile(precompile_t precompile, context_t *callCo
             result.returnData.size = 0; \
             return result
     #define APPLY_GAS_COST(required) \
-        gasCost = required; \
-        if (callContext->gas < gasCost) { \
-            OUT_OF_GAS; \
-        } \
-        callContext->gas -= gasCost
+            gasCost = required; \
+            if (callContext->gas < gasCost) { \
+                OUT_OF_GAS; \
+            } \
+            callContext->gas -= gasCost
 
     switch (precompile) {
-        case HOLE:
-            result.returnData.size = 0;
-            return result;
-        case ECRECOVER:
-            {
-                APPLY_GAS_COST(3000);
-                uint8_t input[128];
-                memset(input, 0, 128);
-                size_t copyLen = callContext->callData.size < 128 ? callContext->callData.size : 128;
-                memcpy(input, callContext->callData.content, copyLen);
-                // v is at bytes [32..63]: upper 31 bytes must be 0, last byte must be 27 or 28
-                for (int i = 32; i < 63; i++) {
-                    if (input[i] != 0) {
-                        result.returnData.size = 0;
-                        return result;
-                    }
-                }
-                int v = input[63];
-                if (v != 27 && v != 28) {
-                    result.returnData.size = 0;
-                    return result;
-                }
-                int recid = v - 27;
-                secp256k1_ecdsa_recoverable_signature sig;
-                if (!secp256k1_ecdsa_recoverable_signature_parse_compact(secp256k1_context_static, &sig, input + 64, recid)) {
-                    result.returnData.size = 0;
-                    return result;
-                }
-                secp256k1_pubkey pubkey;
-                if (!secp256k1_ecdsa_recover(secp256k1_context_static, &pubkey, &sig, input)) {
-                    result.returnData.size = 0;
-                    return result;
-                }
-                uint8_t pubkeyBytes[65];
-                size_t pubkeyLen = 65;
-                secp256k1_ec_pubkey_serialize(secp256k1_context_static, pubkeyBytes, &pubkeyLen, &pubkey, SECP256K1_EC_UNCOMPRESSED);
-                result.returnData.size = 32;
-                result.returnData.content = malloc(32);
-                keccak_256(result.returnData.content, 32, pubkeyBytes + 1, 64);
-                memset(result.returnData.content, 0, 12);
+    case HOLE:
+        result.returnData.size = 0;
+        return result;
+    case ECRECOVER:
+    {
+        APPLY_GAS_COST(3000);
+        uint8_t input[128];
+        memset(input, 0, 128);
+        size_t copyLen = callContext->callData.size < 128 ? callContext->callData.size : 128;
+        memcpy(input, callContext->callData.content, copyLen);
+        // v is at bytes [32..63]: upper 31 bytes must be 0, last byte must be 27 or 28
+        for (int i = 32; i < 63; i++) {
+            if (input[i] != 0) {
+                result.returnData.size = 0;
                 return result;
             }
-        case IDENTITY:
-            APPLY_GAS_COST(15 + 3 * ((callContext->callData.size + 31) / 32));
-            result.returnData.size = callContext->callData.size;
-            result.returnData.content = malloc(callContext->callData.size);
-            memcpy(result.returnData.content, callContext->callData.content, callContext->callData.size);
+        }
+        int v = input[63];
+        if (v != 27 && v != 28) {
+            result.returnData.size = 0;
             return result;
-        default:
-            assert(0);
+        }
+        int recid = v - 27;
+        secp256k1_ecdsa_recoverable_signature sig;
+        if (!secp256k1_ecdsa_recoverable_signature_parse_compact(secp256k1_context_static, &sig, input + 64, recid)) {
+            result.returnData.size = 0;
+            return result;
+        }
+        secp256k1_pubkey pubkey;
+        if (!secp256k1_ecdsa_recover(secp256k1_context_static, &pubkey, &sig, input)) {
+            result.returnData.size = 0;
+            return result;
+        }
+        uint8_t pubkeyBytes[65];
+        size_t pubkeyLen = 65;
+        secp256k1_ec_pubkey_serialize(secp256k1_context_static, pubkeyBytes, &pubkeyLen, &pubkey, SECP256K1_EC_UNCOMPRESSED);
+        result.returnData.size = 32;
+        result.returnData.content = malloc(32);
+        keccak_256(result.returnData.content, 32, pubkeyBytes + 1, 64);
+        memset(result.returnData.content, 0, 12);
+        return result;
+    }
+    case IDENTITY:
+        APPLY_GAS_COST(15 + 3 * ((callContext->callData.size + 31) / 32));
+        result.returnData.size = callContext->callData.size;
+        result.returnData.content = malloc(callContext->callData.size);
+        memcpy(result.returnData.content, callContext->callData.content, callContext->callData.size);
+        return result;
+    default:
+        assert(0);
     }
     #undef APPLY_GAS_COST
     #undef OUT_OF_GAS
@@ -763,12 +767,12 @@ static result_t doCall(context_t *callContext) {
             fprintf(stderr, "op %s\n", opString[op]);
         }
         #define FAIL_INVALID \
-            callContext->gas = 0; \
-            result.returnData.size = 0; \
-            return result
+                callContext->gas = 0; \
+                result.returnData.size = 0; \
+                return result
         #define OUT_OF_GAS \
-            fprintf(stderr, "Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]);\
-            FAIL_INVALID
+                fprintf(stderr, "Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]); \
+                FAIL_INVALID
         if (
             (callContext->top < callContext->bottom + argCount[op])
             || (op >= DUP1 && op <= DUP16 && callContext->top - (op - PUSH32) < callContext->bottom)
@@ -785,7 +789,7 @@ static result_t doCall(context_t *callContext) {
                 // CALL is permitted without CALLVALUE
                 break;
             }
-            // intentional fallthrough
+        // intentional fallthrough
         case LOG0:
         case LOG1:
         case LOG2:
@@ -813,936 +817,938 @@ static result_t doCall(context_t *callContext) {
             FAIL_INVALID;
         }
         switch (op) {
-            case PUSH0:
-            case PUSH1:
-            case PUSH2:
-            case PUSH3:
-            case PUSH4:
-            case PUSH5:
-            case PUSH6:
-            case PUSH7:
-            case PUSH8:
-            case PUSH9:
-            case PUSH10:
-            case PUSH11:
-            case PUSH12:
-            case PUSH13:
-            case PUSH14:
-            case PUSH15:
-            case PUSH16:
-            case PUSH17:
-            case PUSH18:
-            case PUSH19:
-            case PUSH20:
-            case PUSH21:
-            case PUSH22:
-            case PUSH23:
-            case PUSH24:
-            case PUSH25:
-            case PUSH26:
-            case PUSH27:
-            case PUSH28:
-            case PUSH29:
-            case PUSH30:
-            case PUSH31:
-            case PUSH32:
-                ;
-                uint8_t pushSize = op - PUSH0;
-                bzero(buffer, 32 - pushSize);
-                memcpy(buffer + 32 - pushSize, callContext->code.content + pc, pushSize);
-                readu256BE(buffer, callContext->top - 1);
-                pc += pushSize;
-                break;
-            case DUP1:
-            case DUP2:
-            case DUP3:
-            case DUP4:
-            case DUP5:
-            case DUP6:
-            case DUP7:
-            case DUP8:
-            case DUP9:
-            case DUP10:
-            case DUP11:
-            case DUP12:
-            case DUP13:
-            case DUP14:
-            case DUP15:
-            case DUP16:
-                copy256(callContext->top - 1, callContext->top - (op - PUSH31));
-                break;
-            case SWAP1:
-            case SWAP2:
-            case SWAP3:
-            case SWAP4:
-            case SWAP5:
-            case SWAP6:
-            case SWAP7:
-            case SWAP8:
-            case SWAP9:
-            case SWAP10:
-            case SWAP11:
-            case SWAP12:
-            case SWAP13:
-            case SWAP14:
-            case SWAP15:
-            case SWAP16:
-                memcpy(buffer, callContext->top - 1, 32);
-                memcpy(callContext->top - 1, callContext->top - (op - DUP15), 32);
-                memcpy(callContext->top - (op - DUP15), buffer, 32);
-                break;
-            case SHA3:
-                {
-                    uint64_t src = LOWER(LOWER_P(callContext->top));
-                    uint64_t size = LOWER(LOWER_P(callContext->top - 1));
-                    if (
-                        UPPER(UPPER_P(callContext->top)) || LOWER(UPPER_P(callContext->top)) || UPPER(LOWER_P(callContext->top))
-                        || UPPER(UPPER_P(callContext->top - 1)) || LOWER(UPPER_P(callContext->top - 1)) || UPPER(LOWER_P(callContext->top - 1))
-                        || size > src + size
-                        || !ensureMemory(callContext, src + size)
+        case PUSH0:
+        case PUSH1:
+        case PUSH2:
+        case PUSH3:
+        case PUSH4:
+        case PUSH5:
+        case PUSH6:
+        case PUSH7:
+        case PUSH8:
+        case PUSH9:
+        case PUSH10:
+        case PUSH11:
+        case PUSH12:
+        case PUSH13:
+        case PUSH14:
+        case PUSH15:
+        case PUSH16:
+        case PUSH17:
+        case PUSH18:
+        case PUSH19:
+        case PUSH20:
+        case PUSH21:
+        case PUSH22:
+        case PUSH23:
+        case PUSH24:
+        case PUSH25:
+        case PUSH26:
+        case PUSH27:
+        case PUSH28:
+        case PUSH29:
+        case PUSH30:
+        case PUSH31:
+        case PUSH32:
+            ;
+            uint8_t pushSize = op - PUSH0;
+            bzero(buffer, 32 - pushSize);
+            memcpy(buffer + 32 - pushSize, callContext->code.content + pc, pushSize);
+            readu256BE(buffer, callContext->top - 1);
+            pc += pushSize;
+            break;
+        case DUP1:
+        case DUP2:
+        case DUP3:
+        case DUP4:
+        case DUP5:
+        case DUP6:
+        case DUP7:
+        case DUP8:
+        case DUP9:
+        case DUP10:
+        case DUP11:
+        case DUP12:
+        case DUP13:
+        case DUP14:
+        case DUP15:
+        case DUP16:
+            copy256(callContext->top - 1, callContext->top - (op - PUSH31));
+            break;
+        case SWAP1:
+        case SWAP2:
+        case SWAP3:
+        case SWAP4:
+        case SWAP5:
+        case SWAP6:
+        case SWAP7:
+        case SWAP8:
+        case SWAP9:
+        case SWAP10:
+        case SWAP11:
+        case SWAP12:
+        case SWAP13:
+        case SWAP14:
+        case SWAP15:
+        case SWAP16:
+            memcpy(buffer, callContext->top - 1, 32);
+            memcpy(callContext->top - 1, callContext->top - (op - DUP15), 32);
+            memcpy(callContext->top - (op - DUP15), buffer, 32);
+            break;
+        case SHA3:
+        {
+            uint64_t src = LOWER(LOWER_P(callContext->top));
+            uint64_t size = LOWER(LOWER_P(callContext->top - 1));
+            if (
+                UPPER(UPPER_P(callContext->top)) || LOWER(UPPER_P(callContext->top)) || UPPER(LOWER_P(callContext->top))
+                || UPPER(UPPER_P(callContext->top - 1)) || LOWER(UPPER_P(callContext->top - 1)) || UPPER(LOWER_P(callContext->top - 1))
+                || size > src + size
+                || !ensureMemory(callContext, src + size)
                     ) {
-                        OUT_OF_GAS;
-                    }
-                    uint64_t gasCost = G_KECCAK_WORD * ((size + 31) / 32);
-                    if (gasCost > callContext->gas) {
-                        OUT_OF_GAS;
-                    }
-                    callContext->gas -= gasCost;
-                    uint8_t result[32];
-                    keccak_256(result, 32, callContext->memory.uint8s + src, size);
-                    readu256BE(result, callContext->top - 1);
+                OUT_OF_GAS;
+            }
+            uint64_t gasCost = G_KECCAK_WORD * ((size + 31) / 32);
+            if (gasCost > callContext->gas) {
+                OUT_OF_GAS;
+            }
+            callContext->gas -= gasCost;
+            uint8_t result[32];
+            keccak_256(result, 32, callContext->memory.uint8s + src, size);
+            readu256BE(result, callContext->top - 1);
+        }
+        break;
+        case ADDRESS:
+            AddressToUint256(callContext->top - 1, &callContext->account->address);
+            break;
+        case CALLER:
+            AddressToUint256(callContext->top - 1, &callContext->caller);
+            break;
+        case ORIGIN:
+            AddressToUint256(callContext->top - 1, &callstack.bottom[0].caller);
+            break;
+        case POP:
+        // intentional fallthrough
+        case JUMPDEST:
+            break;
+        case ADD:
+            add256(callContext->top, callContext->top - 1, callContext->top - 1);
+            break;
+        case SUB:
+            minus256(callContext->top, callContext->top - 1, callContext->top - 1);
+            break;
+        case MUL:
+            mul256(callContext->top, callContext->top - 1, callContext->top - 1);
+            break;
+        case DIV:
+            if (!zero256(callContext->top - 1)) {
+                divmod256(callContext->top, callContext->top - 1, callContext->top - 1, callContext->top + 1);
+            }
+            break;
+        case SDIV:
+            if (!zero256(callContext->top - 1)) {
+                bool negative = false;
+                uint256_t zero;
+                clear256(&zero);
+                if (UPPER(UPPER_P(callContext->top)) >= 0x8000000000000000) {
+                    negative = !negative;
+                    minus256(&zero, callContext->top, callContext->top);
                 }
-                break;
-            case ADDRESS:
-                AddressToUint256(callContext->top - 1, &callContext->account->address);
-                break;
-            case CALLER:
-                AddressToUint256(callContext->top - 1, &callContext->caller);
-                break;
-            case ORIGIN:
-                AddressToUint256(callContext->top - 1, &callstack.bottom[0].caller);
-                break;
-            case POP:
-                // intentional fallthrough
-            case JUMPDEST:
-                break;
-            case ADD:
-                add256(callContext->top, callContext->top - 1, callContext->top - 1);
-                break;
-            case SUB:
-                minus256(callContext->top, callContext->top - 1, callContext->top - 1);
-                break;
-            case MUL:
-                mul256(callContext->top, callContext->top - 1, callContext->top - 1);
-                break;
-            case DIV:
-                if (!zero256(callContext->top - 1))
-                    divmod256(callContext->top, callContext->top - 1, callContext->top - 1, callContext->top + 1);
-                break;
-            case SDIV:
-                if (!zero256(callContext->top - 1)) {
-                    bool negative = false;
-                    uint256_t zero;
-                    clear256(&zero);
-                    if (UPPER(UPPER_P(callContext->top)) >= 0x8000000000000000) {
-                        negative = !negative;
-                        minus256(&zero, callContext->top, callContext->top);
-                    }
-                    if (UPPER(UPPER_P(callContext->top - 1)) >= 0x8000000000000000) {
-                        negative = !negative;
-                        minus256(&zero, callContext->top - 1, callContext->top - 1);
-                    }
-                    divmod256(callContext->top, callContext->top - 1, callContext->top - 1, callContext->top + 1);
-                    if (negative) {
-                        minus256(&zero, callContext->top - 1, callContext->top - 1);
-                    }
+                if (UPPER(UPPER_P(callContext->top - 1)) >= 0x8000000000000000) {
+                    negative = !negative;
+                    minus256(&zero, callContext->top - 1, callContext->top - 1);
                 }
-                break;
-            case MOD:
-                if (!zero256(callContext->top - 1))
-                    divmod256(callContext->top, callContext->top - 1, callContext->top + 1, callContext->top - 1);
-                break;
-            case SMOD:
-                if (!zero256(callContext->top - 1)) {
-                    bool negative = false;
-                    uint256_t zero;
-                    clear256(&zero);
-                    if (UPPER(UPPER_P(callContext->top)) >= 0x8000000000000000) {
-                        negative = true;
-                        minus256(&zero, callContext->top, callContext->top);
-                    }
-                    if (UPPER(UPPER_P(callContext->top - 1)) >= 0x8000000000000000) {
-                        minus256(&zero, callContext->top - 1, callContext->top - 1);
-                    }
-                    divmod256(callContext->top, callContext->top - 1, callContext->top + 1, callContext->top - 1);
-                    if (negative) {
-                        minus256(&zero, callContext->top - 1, callContext->top - 1);
-                    }
+                divmod256(callContext->top, callContext->top - 1, callContext->top - 1, callContext->top + 1);
+                if (negative) {
+                    minus256(&zero, callContext->top - 1, callContext->top - 1);
                 }
-                break;
-            case XOR:
-                xor256(callContext->top, callContext->top - 1, callContext->top - 1);
-                break;
-            case OR:
-                or256(callContext->top, callContext->top - 1, callContext->top - 1);
-                break;
-            case AND:
-                and256(callContext->top, callContext->top - 1, callContext->top - 1);
-                break;
-            case NOT:
-                not256(callContext->top - 1, callContext->top - 1);
-                break;
-            case BYTE:
-                {
-                    uint64_t index = LOWER(LOWER_P(callContext->top));
-                    uint256_t *target = callContext->top - 1;
-                    if (UPPER(UPPER_P(callContext->top)) || LOWER(UPPER_P(callContext->top)) || UPPER(LOWER_P(callContext->top)) || index >= 32) {
-                        clear256(target);
-                    } else {
-                        shiftr256(target, 248 - index * 8, target);
-                        UPPER(UPPER_P(target)) = 0;
-                        LOWER(UPPER_P(target)) = 0;
-                        UPPER(LOWER_P(target)) = 0;
-                        LOWER(LOWER_P(target)) &= 0xff;
-                    }
+            }
+            break;
+        case MOD:
+            if (!zero256(callContext->top - 1)) {
+                divmod256(callContext->top, callContext->top - 1, callContext->top + 1, callContext->top - 1);
+            }
+            break;
+        case SMOD:
+            if (!zero256(callContext->top - 1)) {
+                bool negative = false;
+                uint256_t zero;
+                clear256(&zero);
+                if (UPPER(UPPER_P(callContext->top)) >= 0x8000000000000000) {
+                    negative = true;
+                    minus256(&zero, callContext->top, callContext->top);
                 }
-                break;
-            case SHL:
-                {
-                    uint256_t *shiftAmount = callContext->top;
-                    if (UPPER(UPPER_P(shiftAmount)) || LOWER(UPPER_P(shiftAmount)) || UPPER(LOWER_P(shiftAmount)) || LOWER(LOWER_P(shiftAmount)) > 256) {
-                        clear256(callContext->top - 1);
-                    } else {
-                        shiftl256(callContext->top - 1, LOWER(LOWER_P(shiftAmount)), callContext->top - 1);
-                    }
+                if (UPPER(UPPER_P(callContext->top - 1)) >= 0x8000000000000000) {
+                    minus256(&zero, callContext->top - 1, callContext->top - 1);
                 }
-                break;
-            case SHR:
-                {
-                    uint256_t *shiftAmount = callContext->top;
-                    if (UPPER(UPPER_P(shiftAmount)) || LOWER(UPPER_P(shiftAmount)) || UPPER(LOWER_P(shiftAmount)) || LOWER(LOWER_P(shiftAmount)) > 256) {
-                        clear256(callContext->top - 1);
-                    } else {
-                        shiftr256(callContext->top - 1, LOWER(LOWER_P(shiftAmount)), callContext->top - 1);
-                    }
+                divmod256(callContext->top, callContext->top - 1, callContext->top + 1, callContext->top - 1);
+                if (negative) {
+                    minus256(&zero, callContext->top - 1, callContext->top - 1);
                 }
-                break;
-            case SAR:
-                {
-                    uint256_t *shiftAmount = callContext->top;
-                    if (UPPER(UPPER_P(shiftAmount)) || LOWER(UPPER_P(shiftAmount)) || UPPER(LOWER_P(shiftAmount)) || LOWER(LOWER_P(shiftAmount)) > 256) {
-                        if (UPPER(UPPER_P(callContext->top - 1)) < 0x8000000000000000) {
-                            clear256(callContext->top - 1);
-                        } else {
-                            UPPER(UPPER_P(callContext->top - 1)) = 0xffffffffffffffff;
-                            LOWER(UPPER_P(callContext->top - 1)) = 0xffffffffffffffff;
-                            UPPER(LOWER_P(callContext->top - 1)) = 0xffffffffffffffff;
-                            LOWER(LOWER_P(callContext->top - 1)) = 0xffffffffffffffff;
-                        }
-                    } else {
-                        shiftar256(callContext->top - 1, LOWER(LOWER_P(shiftAmount)), callContext->top - 1);
-                    }
-                }
-                break;
-            case CLZ:
-                {
-                    uint64_t zeros = clz256(callContext->top - 1);
-                    UPPER(UPPER_P(callContext->top - 1)) = 0;
-                    LOWER(UPPER_P(callContext->top - 1)) = 0;
-                    UPPER(LOWER_P(callContext->top - 1)) = 0;
-                    LOWER(LOWER_P(callContext->top - 1)) = zeros;
-                }
-                break;
-            case ADDMOD:
-                if (zero256(callContext->top - 1)) {
-                    clear256(callContext->top - 1);
-                } else {
-                    addmod256(callContext->top + 1, callContext->top, callContext->top - 1, callContext->top - 1);
-                }
-                break;
-            case MULMOD:
-                if (zero256(callContext->top - 1)) {
-                    clear256(callContext->top - 1);
-                } else {
-                    mulmod256(callContext->top + 1, callContext->top, callContext->top - 1, callContext->top - 1);
-                }
-                break;
-            case EXP:
-                {
-                    uint32_t bitLen = bits256(callContext->top - 1);
-                    uint32_t bytes = (bitLen + 7) / 8;
-                    uint64_t gasCost = bytes * G_EXPBYTE;
-                    if (gasCost > callContext->gas) {
-                        OUT_OF_GAS;
-                    }
-                    callContext->gas -= gasCost;
-                    exp256(callContext->top, callContext->top - 1, callContext->top - 1);
-                }
-                break;
-            case SIGNEXTEND:
-                {
-                    if (UPPER(UPPER_P(callContext->top)) || LOWER(UPPER_P(callContext->top)) || UPPER(LOWER_P(callContext->top)) || LOWER(LOWER_P(callContext->top)) > 30) {
-                        break;
-                    }
-                    uint8_t signBit = 8 * LOWER(LOWER_P(callContext->top)) + 8;
-                    signextend256(callContext->top - 1, signBit, callContext->top - 1);
-                }
-                break;
-            case LT:
-                LOWER(LOWER_P(callContext->top - 1)) = gt256(callContext->top - 1, callContext->top);
-                bzero(callContext->top - 1, 24);
-                break;
-            case GT:
-                LOWER(LOWER_P(callContext->top - 1)) = gt256(callContext->top, callContext->top - 1);
-                bzero(callContext->top - 1, 24);
-                break;
-            case SLT:
-                LOWER(LOWER_P(callContext->top - 1)) = sgt256(callContext->top - 1, callContext->top);
-                bzero(callContext->top - 1, 24);
-                break;
-            case SGT:
-                LOWER(LOWER_P(callContext->top - 1)) = sgt256(callContext->top, callContext->top - 1);
-                bzero(callContext->top - 1, 24);
-                break;
-            case EQ:
-                LOWER(LOWER_P(callContext->top - 1)) = equal256(callContext->top, callContext->top - 1);
-                bzero(callContext->top - 1, 24);
-                break;
-            case ISZERO:
-                LOWER(LOWER_P(callContext->top - 1)) = zero256(callContext->top - 1);
-                bzero(callContext->top - 1, 24);
-                break;
-            case PC:
-                bzero(callContext->top - 1, 24);
-                LOWER(LOWER_P(callContext->top - 1)) = pc - 1;
-                break;
-            case JUMPI:
-                if (zero256(callContext->top)) {
-                    break;
-                }
-                // intentional fallthorugh
-            case JUMP:
-                {
-                    uint256_t *dst = callContext->top + (op - JUMP);
-                    if (UPPER(UPPER_P(dst)) || UPPER(LOWER_P(dst)) || LOWER(UPPER_P(dst))) {
-                        fprintf(stderr, "%s destination has upper bits set\n", opString[op]);
-                        FAIL_INVALID;
-                    }
-                    pc = LOWER(LOWER_P(dst));
-                }
-                if (pc >= callContext->code.size) {
-                    fprintf(stderr, "%s out of bounds %" PRIu64 " >= %lu\n", opString[op], pc, callContext->code.size);
-                    FAIL_INVALID;
-                }
-                if (callContext->code.content[pc] != JUMPDEST) {
-                    fprintf(stderr, "%s to invalid destination %" PRIu64 " (%s)\n", opString[op], pc, opString[callContext->code.content[pc]]);
-                    FAIL_INVALID;
-                }
-                // Verify the JUMPDEST byte is a real instruction, not PUSH data.
-                // Backward scan: PUSH_n covers at most n <= 32 data bytes ahead.
-                // If no candidate found, skip the more expensive forward scan.
-                {
-                    uint64_t lookback = pc < 32 ? pc : 32;
-                    bool needForwardScan = false;
-                    for (uint64_t i = 1; i <= lookback; i++) {
-                        uint8_t cb = callContext->code.content[pc - i];
-                        if (cb >= PUSH1 && cb <= PUSH32 && cb - PUSH0 >= i) {
-                            needForwardScan = true;
-                            break;
-                        }
-                    }
-                    if (needForwardScan) {
-                        uint64_t fpc = 0;
-                        while (fpc < pc) {
-                            uint8_t cb = callContext->code.content[fpc];
-                            if (cb >= PUSH1 && cb <= PUSH32) {
-                                uint8_t n = cb - PUSH0;
-                                if (fpc + n >= pc) {
-                                    fprintf(stderr, "%s to JUMPDEST inside PUSH%u data at %" PRIu64 "\n", opString[op], n, pc);
-                                    FAIL_INVALID;
-                                }
-                                fpc += 1 + n;
-                            } else {
-                                fpc++;
-                            }
-                        }
-                    }
-                }
-                break;
-            default:
-                fprintf(stderr, "Unsupported opcode %u (%s)\n", op, opString[op]);
-                FAIL_INVALID;
-            case STOP:
-                LOWER(LOWER(result.status)) = 1;
-                result.returnData.size = 0;
-                return result;
-            case GAS:
-                bzero(callContext->top - 1, 24);
-                LOWER(LOWER_P(callContext->top - 1)) = callContext->gas;
-                break;
-            case RETURNDATASIZE:
-                bzero(callContext->top - 1, 24);
-                LOWER(LOWER_P(callContext->top - 1)) = callContext->returnData.size;
-                break;
-            case CALLDATASIZE:
-                bzero(callContext->top - 1, 24);
-                LOWER(LOWER_P(callContext->top - 1)) = callContext->callData.size;
-                break;
-            case EXTCODESIZE:
-                {
-                    account_t *account = warmAccount(callContext, AddressFromUint256(callContext->top - 1));
-                    if (account == NULL) {
-                        OUT_OF_GAS;
-                    }
-                    bzero(callContext->top - 1, 24);
-                    LOWER(LOWER_P(callContext->top - 1)) = account->code.size;
-                }
-                break;
-            case CODESIZE:
-                bzero(callContext->top - 1, 24);
-                LOWER(LOWER_P(callContext->top - 1)) = callContext->code.size;
-                break;
-            case MSIZE:
+            }
+            break;
+        case XOR:
+            xor256(callContext->top, callContext->top - 1, callContext->top - 1);
+            break;
+        case OR:
+            or256(callContext->top, callContext->top - 1, callContext->top - 1);
+            break;
+        case AND:
+            and256(callContext->top, callContext->top - 1, callContext->top - 1);
+            break;
+        case NOT:
+            not256(callContext->top - 1, callContext->top - 1);
+            break;
+        case BYTE:
+        {
+            uint64_t index = LOWER(LOWER_P(callContext->top));
+            uint256_t *target = callContext->top - 1;
+            if (UPPER(UPPER_P(callContext->top)) || LOWER(UPPER_P(callContext->top)) || UPPER(LOWER_P(callContext->top)) || index >= 32) {
+                clear256(target);
+            } else {
+                shiftr256(target, 248 - index * 8, target);
+                UPPER(UPPER_P(target)) = 0;
+                LOWER(UPPER_P(target)) = 0;
+                UPPER(LOWER_P(target)) = 0;
+                LOWER(LOWER_P(target)) &= 0xff;
+            }
+        }
+        break;
+        case SHL:
+        {
+            uint256_t *shiftAmount = callContext->top;
+            if (UPPER(UPPER_P(shiftAmount)) || LOWER(UPPER_P(shiftAmount)) || UPPER(LOWER_P(shiftAmount)) || LOWER(LOWER_P(shiftAmount)) > 256) {
                 clear256(callContext->top - 1);
-                uint64_t scratch = callContext->memory.num_uint8s;
-                if (scratch % 32) {
-                    scratch += 32 - scratch % 32;
-                }
-                LOWER(LOWER_P(callContext->top - 1)) = scratch;
-                break;
-            case MSTORE:
-                {
-                    if (!ensureMemory(callContext, 32 + LOWER(LOWER_P(callContext->top + 1)))) {
-                        OUT_OF_GAS;
-                    }
-                    uint8_t *loc = (callContext->memory.uint8s + LOWER(LOWER_P(callContext->top + 1)));
-                    dumpu256BE(callContext->top, loc);
-                }
-                break;
-            case MSTORE8:
-                {
-                    if (!ensureMemory(callContext, 1 + LOWER(LOWER_P(callContext->top + 1)))) {
-                        OUT_OF_GAS;
-                    }
-                    uint8_t *loc = (callContext->memory.uint8s + LOWER(LOWER_P(callContext->top + 1)));
-                    *loc = LOWER(LOWER_P(callContext->top));
-                }
-                break;
-            case MLOAD:
-                if (UPPER(LOWER_P(callContext->top - 1)) || LOWER(UPPER_P(callContext->top - 1)) || UPPER(UPPER_P(callContext->top - 1))) {
-                    OUT_OF_GAS;
-                }
-                if (!ensureMemory(callContext, 32 + LOWER(LOWER_P(callContext->top - 1)))) {
-                    OUT_OF_GAS;
-                }
-                readu256BE(callContext->memory.uint8s + LOWER(LOWER_P(callContext->top - 1)), callContext->top - 1);
-                break;
-            case CALLDATALOAD:
-                if (UPPER(LOWER_P(callContext->top - 1)) || LOWER(UPPER_P(callContext->top - 1)) || UPPER(UPPER_P(callContext->top - 1)) || LOWER(LOWER_P(callContext->top - 1)) >= callContext->callData.size) {
+            } else {
+                shiftl256(callContext->top - 1, LOWER(LOWER_P(shiftAmount)), callContext->top - 1);
+            }
+        }
+        break;
+        case SHR:
+        {
+            uint256_t *shiftAmount = callContext->top;
+            if (UPPER(UPPER_P(shiftAmount)) || LOWER(UPPER_P(shiftAmount)) || UPPER(LOWER_P(shiftAmount)) || LOWER(LOWER_P(shiftAmount)) > 256) {
+                clear256(callContext->top - 1);
+            } else {
+                shiftr256(callContext->top - 1, LOWER(LOWER_P(shiftAmount)), callContext->top - 1);
+            }
+        }
+        break;
+        case SAR:
+        {
+            uint256_t *shiftAmount = callContext->top;
+            if (UPPER(UPPER_P(shiftAmount)) || LOWER(UPPER_P(shiftAmount)) || UPPER(LOWER_P(shiftAmount)) || LOWER(LOWER_P(shiftAmount)) > 256) {
+                if (UPPER(UPPER_P(callContext->top - 1)) < 0x8000000000000000) {
                     clear256(callContext->top - 1);
-                } else if (LOWER(LOWER_P(callContext->top - 1)) + 32 > callContext->callData.size) {
-                    uint8_t partial[32];
-                    bzero(partial, 32);
-                    memcpy(partial, callContext->callData.content + LOWER(LOWER_P(callContext->top - 1)), callContext->callData.size - LOWER(LOWER_P(callContext->top - 1)));
-                    readu256BE(partial, callContext->top - 1);
                 } else {
-                    readu256BE(callContext->callData.content + LOWER(LOWER_P(callContext->top - 1)), callContext->top - 1);
+                    UPPER(UPPER_P(callContext->top - 1)) = 0xffffffffffffffff;
+                    LOWER(UPPER_P(callContext->top - 1)) = 0xffffffffffffffff;
+                    UPPER(LOWER_P(callContext->top - 1)) = 0xffffffffffffffff;
+                    LOWER(LOWER_P(callContext->top - 1)) = 0xffffffffffffffff;
                 }
+            } else {
+                shiftar256(callContext->top - 1, LOWER(LOWER_P(shiftAmount)), callContext->top - 1);
+            }
+        }
+        break;
+        case CLZ:
+        {
+            uint64_t zeros = clz256(callContext->top - 1);
+            UPPER(UPPER_P(callContext->top - 1)) = 0;
+            LOWER(UPPER_P(callContext->top - 1)) = 0;
+            UPPER(LOWER_P(callContext->top - 1)) = 0;
+            LOWER(LOWER_P(callContext->top - 1)) = zeros;
+        }
+        break;
+        case ADDMOD:
+            if (zero256(callContext->top - 1)) {
+                clear256(callContext->top - 1);
+            } else {
+                addmod256(callContext->top + 1, callContext->top, callContext->top - 1, callContext->top - 1);
+            }
+            break;
+        case MULMOD:
+            if (zero256(callContext->top - 1)) {
+                clear256(callContext->top - 1);
+            } else {
+                mulmod256(callContext->top + 1, callContext->top, callContext->top - 1, callContext->top - 1);
+            }
+            break;
+        case EXP:
+        {
+            uint32_t bitLen = bits256(callContext->top - 1);
+            uint32_t bytes = (bitLen + 7) / 8;
+            uint64_t gasCost = bytes * G_EXPBYTE;
+            if (gasCost > callContext->gas) {
+                OUT_OF_GAS;
+            }
+            callContext->gas -= gasCost;
+            exp256(callContext->top, callContext->top - 1, callContext->top - 1);
+        }
+        break;
+        case SIGNEXTEND:
+        {
+            if (UPPER(UPPER_P(callContext->top)) || LOWER(UPPER_P(callContext->top)) || UPPER(LOWER_P(callContext->top)) || LOWER(LOWER_P(callContext->top)) > 30) {
                 break;
-            case LOG0:
-            case LOG1:
-            case LOG2:
-            case LOG3:
-            case LOG4:
-                {
-                    uint8_t topicCount = op - LOG0;
-                    uint64_t src = LOWER(LOWER_P(callContext->top + topicCount + 1));
-                    uint64_t size = LOWER(LOWER_P(callContext->top + topicCount));
-                    if (
-                        src + size < size
-                        || UPPER(UPPER_P(callContext->top + topicCount)) || LOWER(UPPER_P(callContext->top + topicCount)) || UPPER(LOWER_P(callContext->top + topicCount))
-                        || UPPER(UPPER_P(callContext->top + topicCount + 1)) || LOWER(UPPER_P(callContext->top + topicCount + 1)) || UPPER(LOWER_P(callContext->top + topicCount + 1))
-                        || !ensureMemory(callContext, src + size)
-                    ) {
-                        OUT_OF_GAS;
-                    }
-                    uint64_t gasCost = /*topicCount * G_LOGTOPIC +*/ G_LOGDATA * size;
-                    if (gasCost > callContext->gas) {
-                        OUT_OF_GAS;
-                    }
-                    callContext->gas -= gasCost;
-                    logChanges_t *log = malloc(sizeof(logChanges_t));
-                    log->logIndex = logIndex++;
-                    log->topicCount = topicCount;
-                    if (topicCount) {
-                        size_t topicSize = topicCount * sizeof(uint256_t);
-                        log->topics = malloc(topicSize);
-                        memcpy(log->topics, callContext->top, topicSize);
-                    } else {
-                        log->topics = NULL;
-                    }
-                    if (size) {
-                        log->data.size = size;
-                        log->data.content = malloc(size);
-                        memcpy(log->data.content, callContext->memory.uint8s + src, log->data.size);
-                    } else {
-                        log->data.size = 0;
-                        log->data.content = NULL;
-                    }
-
-                    stateChanges_t *stateChanges = getCurrentAccountStateChanges(&result, callContext);
-                    if (SHOW_LOGS) {
-                        fprintf(stderr, "\033[94m");
-                        fprintLog(stderr, log, true);
-                        fprintf(stderr, "\033[0m\n");
-                    }
-                    log->prev = stateChanges->logChanges;
-                    stateChanges->logChanges = log;
-                }
+            }
+            uint8_t signBit = 8 * LOWER(LOWER_P(callContext->top)) + 8;
+            signextend256(callContext->top - 1, signBit, callContext->top - 1);
+        }
+        break;
+        case LT:
+            LOWER(LOWER_P(callContext->top - 1)) = gt256(callContext->top - 1, callContext->top);
+            bzero(callContext->top - 1, 24);
+            break;
+        case GT:
+            LOWER(LOWER_P(callContext->top - 1)) = gt256(callContext->top, callContext->top - 1);
+            bzero(callContext->top - 1, 24);
+            break;
+        case SLT:
+            LOWER(LOWER_P(callContext->top - 1)) = sgt256(callContext->top - 1, callContext->top);
+            bzero(callContext->top - 1, 24);
+            break;
+        case SGT:
+            LOWER(LOWER_P(callContext->top - 1)) = sgt256(callContext->top, callContext->top - 1);
+            bzero(callContext->top - 1, 24);
+            break;
+        case EQ:
+            LOWER(LOWER_P(callContext->top - 1)) = equal256(callContext->top, callContext->top - 1);
+            bzero(callContext->top - 1, 24);
+            break;
+        case ISZERO:
+            LOWER(LOWER_P(callContext->top - 1)) = zero256(callContext->top - 1);
+            bzero(callContext->top - 1, 24);
+            break;
+        case PC:
+            bzero(callContext->top - 1, 24);
+            LOWER(LOWER_P(callContext->top - 1)) = pc - 1;
+            break;
+        case JUMPI:
+            if (zero256(callContext->top)) {
                 break;
-            case CALLDATACOPY:
-            case EXTCODECOPY:
-            case RETURNDATACOPY:
-            case MCOPY:
-            case CODECOPY:
-                {
-                    const data_t *code;
-                    uint64_t start = LOWER(LOWER_P(callContext->top + 1));
-                    uint64_t size = LOWER(LOWER_P(callContext->top));
-                    switch (op) {
-                    case EXTCODECOPY:
-                        {
-                            account_t *account = warmAccount(callContext, AddressFromUint256(callContext->top + 3));
-                            if (account == NULL) {
-                                OUT_OF_GAS;
-                            }
-                            code = &account->code;
-                        }
+            }
+        // intentional fallthorugh
+        case JUMP:
+        {
+            uint256_t *dst = callContext->top + (op - JUMP);
+            if (UPPER(UPPER_P(dst)) || UPPER(LOWER_P(dst)) || LOWER(UPPER_P(dst))) {
+                fprintf(stderr, "%s destination has upper bits set\n", opString[op]);
+                FAIL_INVALID;
+            }
+            pc = LOWER(LOWER_P(dst));
+        }
+            if (pc >= callContext->code.size) {
+                fprintf(stderr, "%s out of bounds %" PRIu64 " >= %lu\n", opString[op], pc, callContext->code.size);
+                FAIL_INVALID;
+            }
+            if (callContext->code.content[pc] != JUMPDEST) {
+                fprintf(stderr, "%s to invalid destination %" PRIu64 " (%s)\n", opString[op], pc, opString[callContext->code.content[pc]]);
+                FAIL_INVALID;
+            }
+            // Verify the JUMPDEST byte is a real instruction, not PUSH data.
+            // Backward scan: PUSH_n covers at most n <= 32 data bytes ahead.
+            // If no candidate found, skip the more expensive forward scan.
+            {
+                uint64_t lookback = pc < 32 ? pc : 32;
+                bool needForwardScan = false;
+                for (uint64_t i = 1; i <= lookback; i++) {
+                    uint8_t cb = callContext->code.content[pc - i];
+                    if (cb >= PUSH1 && cb <= PUSH32 && cb - PUSH0 >= i) {
+                        needForwardScan = true;
                         break;
-                    case CALLDATACOPY:
-                        code = &callContext->callData;
-                        break;
-                    case RETURNDATACOPY:
-                        code = &callContext->returnData;
-                        if (
-                            UPPER(LOWER_P(callContext->top + 1)) || LOWER(UPPER_P(callContext->top + 1)) || UPPER(UPPER_P(callContext->top + 1))
-                            || start + size > code->size) {
-                            FAIL_INVALID;
-                        }
-                        break;
-                    case MCOPY:
-                        if (
-                                UPPER(LOWER_P(callContext->top + 1))
-                                || LOWER(UPPER_P(callContext->top + 1))
-                                || UPPER(UPPER_P(callContext->top + 1))
-                                || !ensureMemory(callContext, start + size)) {
-                            OUT_OF_GAS;
-                        }
-                        code = (data_t *)(&callContext->memory);
-                        break;
-                    case CODECOPY:
-                        code = &callContext->code;
-                    }
-                    uint64_t dst = LOWER(LOWER_P(callContext->top + 2));
-                    if (
-                        UPPER(LOWER_P(callContext->top + 2)) || LOWER(UPPER_P(callContext->top + 2)) || UPPER(UPPER_P(callContext->top + 2))
-                        || (UPPER(LOWER_P(callContext->top)) || LOWER(UPPER_P(callContext->top)) || UPPER(UPPER_P(callContext->top)))
-                        || dst + size < dst
-                        || !ensureMemory(callContext, dst + size)
-                    ) {
-                        OUT_OF_GAS;
-                    }
-                    uint64_t words = (size + 31) / 32;
-                    uint64_t gasCost = G_COPY * words;
-                    if (gasCost > callContext->gas) {
-                        OUT_OF_GAS;
-                    }
-                    callContext->gas -= gasCost;
-                    if (
-                            UPPER(LOWER_P(callContext->top + 1)) || LOWER(UPPER_P(callContext->top + 1)) || UPPER(UPPER_P(callContext->top + 1))
-                            || start > code->size
-                        ) {
-                        bzero(callContext->memory.uint8s + dst, size);
-                    } else if (start + size > code->size) {
-                        uint64_t copySize = code->size - start;
-                        memcpy(callContext->memory.uint8s + dst, code->content + start, copySize);
-                        bzero(callContext->memory.uint8s + dst + copySize, size - copySize);
-                    } else {
-                        memcpy(callContext->memory.uint8s + dst, code->content + start, size);
                     }
                 }
-                break;
-            case SSTORE:
-                {
-                    if (callContext->gas <= G_CALLSTIPEND - G_ACCESS) {
-                        OUT_OF_GAS;
-                    }
-                    uint64_t warmBefore = getAccountStorage(callContext->account, callContext->top + 1)->warm;
-                    storage_t *storage = warmStorage(callContext, callContext->top + 1, G_COLD_STORAGE);
-                    if (storage == NULL) {
-                        OUT_OF_GAS;
-                    }
-                    // https://eips.ethereum.org/EIPS/eip-2200
-                    if (!equal256(&storage->value, callContext->top)) {
-                        if (equal256(&storage->value, &storage->original)) {
-                            uint64_t gasCost;
-                            if (zero256(&storage->original)) {
-                                gasCost = G_SSET - G_ACCESS;
-                            } else {
-                                gasCost = G_SRESET - G_ACCESS;
-                                if (zero256(callContext->top)) {
-                                    refundCounter += R_CLEAR;
-                                }
+                if (needForwardScan) {
+                    uint64_t fpc = 0;
+                    while (fpc < pc) {
+                        uint8_t cb = callContext->code.content[fpc];
+                        if (cb >= PUSH1 && cb <= PUSH32) {
+                            uint8_t n = cb - PUSH0;
+                            if (fpc + n >= pc) {
+                                fprintf(stderr, "%s to JUMPDEST inside PUSH%u data at %" PRIu64 "\n", opString[op], n, pc);
+                                FAIL_INVALID;
                             }
-                            if (gasCost > callContext->gas) {
-                                OUT_OF_GAS;
-                            }
-                            callContext->gas -= gasCost;
+                            fpc += 1 + n;
                         } else {
-                            if (!zero256(&storage->original)) {
-                                if (zero256(&storage->value)) {
-                                    refundCounter -= R_CLEAR;
-                                } else if (zero256(callContext->top)) {
-                                    refundCounter += R_CLEAR;
-                                }
-                            }
-                            if (equal256(&storage->original, callContext->top)) {
-                                if (zero256(&storage->original)) {
-                                    refundCounter += G_SSET - G_ACCESS;
-                                } else {
-                                    refundCounter += G_SRESET - G_ACCESS;
-                                }
-                            }
+                            fpc++;
                         }
                     }
-                    // track state changes in result in case of REVERT or exception
-                    stateChanges_t *changes = getCurrentAccountStateChanges(&result, callContext);
-                    storageChanges_t *change = malloc(sizeof(storageChanges_t));
-                    copy256(&change->key, &storage->key);
-                    copy256(&change->before, &storage->value);
-                    copy256(&change->after, callContext->top);
-                    change->warm = warmBefore;
-                    change->prev = changes->storageChanges;
-                    changes->storageChanges = change;
-                    copy256(&storage->value, callContext->top);
                 }
-                break;
-            case SLOAD:
-                {
-                    uint64_t warmBefore = getAccountStorage(callContext->account, callContext->top - 1)->warm;
-                    storage_t *storage = warmStorage(callContext, callContext->top - 1, G_COLD_STORAGE - G_ACCESS);
-                    if (storage == NULL) {
-                        OUT_OF_GAS;
-                    }
-                    copy256(callContext->top - 1, &storage->value);
-                    // track access list changes in result in case of REVERT or exception
-                    stateChanges_t *changes = getCurrentAccountStateChanges(&result, callContext);
-                    storageChanges_t *change = malloc(sizeof(storageChanges_t));
-                    copy256(&change->key, &storage->key);
-                    copy256(&change->before, &storage->value);
-                    copy256(&change->after, &storage->value);
-                    change->warm = warmBefore;
-                    change->prev = changes->storageChanges;
-                    changes->storageChanges = change;
-                }
-                break;
-            case TLOAD:
-                {
-                    tstorage_t *storage = getAccountTransientStorage(callContext->account, callContext->top -1);
-                    if (storage->warm == evmIteration) {
-                        copy256(callContext->top - 1, &storage->value);
-                    } else {
-                        clear256(callContext->top - 1);
-                    }
-                }
-                break;
-            case TSTORE:
-                {
-                    tstorage_t *storage = getAccountTransientStorage(callContext->account, callContext->top + 1);
-                    copy256(&storage->value, callContext->top);
-                    storage->warm = evmIteration;
-                }
-                break;
-            case COINBASE:
-                // TODO allow configuration for coinbase
-                AddressToUint256(callContext->top - 1, &coinbase);
-                break;
-            case TIMESTAMP:
-                UPPER(UPPER_P(callContext->top - 1)) = 0;
-                LOWER(UPPER_P(callContext->top - 1)) = 0;
-                UPPER(LOWER_P(callContext->top - 1)) = 0;
-                LOWER(LOWER_P(callContext->top - 1)) = timestamp;
-                break;
-            case NUMBER:
-                UPPER(UPPER_P(callContext->top - 1)) = 0;
-                LOWER(UPPER_P(callContext->top - 1)) = 0;
-                UPPER(LOWER_P(callContext->top - 1)) = 0;
-                LOWER(LOWER_P(callContext->top - 1)) = blockNumber;
-                break;
-            case CALLVALUE:
-                UPPER(UPPER_P(callContext->top - 1)) = 0;
-                LOWER(UPPER_P(callContext->top - 1)) = 0;
-                UPPER(LOWER_P(callContext->top - 1)) = callContext->callValue[0];
-                LOWER(LOWER_P(callContext->top - 1)) = callContext->callValue[2] | ((uint64_t) callContext->callValue[1] << 32);
+            }
+            break;
+        default:
+            fprintf(stderr, "Unsupported opcode %u (%s)\n", op, opString[op]);
+            FAIL_INVALID;
+        case STOP:
+            LOWER(LOWER(result.status)) = 1;
+            result.returnData.size = 0;
+            return result;
+        case GAS:
+            bzero(callContext->top - 1, 24);
+            LOWER(LOWER_P(callContext->top - 1)) = callContext->gas;
+            break;
+        case RETURNDATASIZE:
+            bzero(callContext->top - 1, 24);
+            LOWER(LOWER_P(callContext->top - 1)) = callContext->returnData.size;
+            break;
+        case CALLDATASIZE:
+            bzero(callContext->top - 1, 24);
+            LOWER(LOWER_P(callContext->top - 1)) = callContext->callData.size;
+            break;
+        case EXTCODESIZE:
+        {
+            account_t *account = warmAccount(callContext, AddressFromUint256(callContext->top - 1));
+            if (account == NULL) {
+                OUT_OF_GAS;
+            }
+            bzero(callContext->top - 1, 24);
+            LOWER(LOWER_P(callContext->top - 1)) = account->code.size;
+        }
+        break;
+        case CODESIZE:
+            bzero(callContext->top - 1, 24);
+            LOWER(LOWER_P(callContext->top - 1)) = callContext->code.size;
+            break;
+        case MSIZE:
+            clear256(callContext->top - 1);
+            uint64_t scratch = callContext->memory.num_uint8s;
+            if (scratch % 32) {
+                scratch += 32 - scratch % 32;
+            }
+            LOWER(LOWER_P(callContext->top - 1)) = scratch;
+            break;
+        case MSTORE:
+        {
+            if (!ensureMemory(callContext, 32 + LOWER(LOWER_P(callContext->top + 1)))) {
+                OUT_OF_GAS;
+            }
+            uint8_t *loc = (callContext->memory.uint8s + LOWER(LOWER_P(callContext->top + 1)));
+            dumpu256BE(callContext->top, loc);
+        }
+        break;
+        case MSTORE8:
+        {
+            if (!ensureMemory(callContext, 1 + LOWER(LOWER_P(callContext->top + 1)))) {
+                OUT_OF_GAS;
+            }
+            uint8_t *loc = (callContext->memory.uint8s + LOWER(LOWER_P(callContext->top + 1)));
+            *loc = LOWER(LOWER_P(callContext->top));
+        }
+        break;
+        case MLOAD:
+            if (UPPER(LOWER_P(callContext->top - 1)) || LOWER(UPPER_P(callContext->top - 1)) || UPPER(UPPER_P(callContext->top - 1))) {
+                OUT_OF_GAS;
+            }
+            if (!ensureMemory(callContext, 32 + LOWER(LOWER_P(callContext->top - 1)))) {
+                OUT_OF_GAS;
+            }
+            readu256BE(callContext->memory.uint8s + LOWER(LOWER_P(callContext->top - 1)), callContext->top - 1);
+            break;
+        case CALLDATALOAD:
+            if (UPPER(LOWER_P(callContext->top - 1)) || LOWER(UPPER_P(callContext->top - 1)) || UPPER(UPPER_P(callContext->top - 1)) || LOWER(LOWER_P(callContext->top - 1)) >= callContext->callData.size) {
+                clear256(callContext->top - 1);
+            } else if (LOWER(LOWER_P(callContext->top - 1)) + 32 > callContext->callData.size) {
+                uint8_t partial[32];
+                bzero(partial, 32);
+                memcpy(partial, callContext->callData.content + LOWER(LOWER_P(callContext->top - 1)), callContext->callData.size - LOWER(LOWER_P(callContext->top - 1)));
+                readu256BE(partial, callContext->top - 1);
+            } else {
+                readu256BE(callContext->callData.content + LOWER(LOWER_P(callContext->top - 1)), callContext->top - 1);
+            }
+            break;
+        case LOG0:
+        case LOG1:
+        case LOG2:
+        case LOG3:
+        case LOG4:
+        {
+            uint8_t topicCount = op - LOG0;
+            uint64_t src = LOWER(LOWER_P(callContext->top + topicCount + 1));
+            uint64_t size = LOWER(LOWER_P(callContext->top + topicCount));
+            if (
+                src + size < size
+                || UPPER(UPPER_P(callContext->top + topicCount)) || LOWER(UPPER_P(callContext->top + topicCount)) || UPPER(LOWER_P(callContext->top + topicCount))
+                || UPPER(UPPER_P(callContext->top + topicCount + 1)) || LOWER(UPPER_P(callContext->top + topicCount + 1)) || UPPER(LOWER_P(callContext->top + topicCount + 1))
+                || !ensureMemory(callContext, src + size)
+                    ) {
+                OUT_OF_GAS;
+            }
+            uint64_t gasCost = /*topicCount * G_LOGTOPIC +*/ G_LOGDATA * size;
+            if (gasCost > callContext->gas) {
+                OUT_OF_GAS;
+            }
+            callContext->gas -= gasCost;
+            logChanges_t *log = malloc(sizeof(logChanges_t));
+            log->logIndex = logIndex++;
+            log->topicCount = topicCount;
+            if (topicCount) {
+                size_t topicSize = topicCount * sizeof(uint256_t);
+                log->topics = malloc(topicSize);
+                memcpy(log->topics, callContext->top, topicSize);
+            } else {
+                log->topics = NULL;
+            }
+            if (size) {
+                log->data.size = size;
+                log->data.content = malloc(size);
+                memcpy(log->data.content, callContext->memory.uint8s + src, log->data.size);
+            } else {
+                log->data.size = 0;
+                log->data.content = NULL;
+            }
 
-                break;
-            case CHAINID:
-                // TODO allow configuration for chainId
-                UPPER(UPPER_P(callContext->top - 1)) = 0;
-                LOWER(UPPER_P(callContext->top - 1)) = 0;
-                UPPER(LOWER_P(callContext->top - 1)) = 0;
-                LOWER(LOWER_P(callContext->top - 1)) = 1;
-                break;
-            case SELFBALANCE:
-                UPPER(UPPER_P(callContext->top - 1)) = 0;
-                LOWER(UPPER_P(callContext->top - 1)) = 0;
-                UPPER(LOWER_P(callContext->top - 1)) = callContext->account->balance[0];
-                LOWER(LOWER_P(callContext->top - 1)) = callContext->account->balance[2] | ((uint64_t) callContext->account->balance[1] << 32);
-                break;
-            case BALANCE:
-                {
-                    account_t *account = warmAccount(callContext, AddressFromUint256(callContext->top - 1));
-                    if (account == NULL) {
-                        OUT_OF_GAS;
-                    }
-                    UPPER(UPPER_P(callContext->top - 1)) = 0;
-                    LOWER(UPPER_P(callContext->top - 1)) = 0;
-                    UPPER(LOWER_P(callContext->top - 1)) = account->balance[0];
-                    LOWER(LOWER_P(callContext->top - 1)) = account->balance[2] | ((uint64_t) account->balance[1] << 32);
-                }
-                break;
-            case CREATE:
-                {
-                    data_t input;
-                    input.size = LOWER(LOWER_P(callContext->top - 1));
-                    uint64_t src = LOWER(LOWER_P(callContext->top));
-                    if (!ensureMemory(callContext, src + input.size)) {
-                        OUT_OF_GAS;
-                    }
-                    input.content = callContext->memory.uint8s + src;
-                    val_t value;
-                    value[0] = UPPER(LOWER_P(callContext->top + 1));
-                    value[1] = LOWER(LOWER_P(callContext->top + 1)) >> 32;
-                    value[2] = LOWER(LOWER_P(callContext->top + 1));
-
-                    // apply R function before L function
-                    uint64_t rGas =  initcodeGas(&input);
-                    if (callContext->gas < rGas) {
-                        OUT_OF_GAS;
-                    }
-                    callContext->gas -= rGas;
-                    uint64_t gas = L(callContext->gas);
-                    callContext->gas -= gas;
-
-                    result_t createResult = evmCreate(callContext->account, gas, value, input);
-                    callContext->gas += createResult.gasRemaining;
-                    mergeStateChanges(&result.stateChanges, createResult.stateChanges);
-                    callContext->returnData = createResult.returnData;
-                    if (!zero256(&createResult.status)) {
-                        callContext->returnData.size = 0; // EIP-211: success = empty buffer
-                    }
-                    copy256(callContext->top - 1, &createResult.status);
-                }
-                break;
-            case CREATE2:
-                {
-                    data_t input;
-                    input.size = LOWER(LOWER_P(callContext->top));
-                    uint64_t src = LOWER(LOWER_P(callContext->top + 1));
-                    if (!ensureMemory(callContext, src + input.size)) {
-                        OUT_OF_GAS;
-                    }
-                    input.content = callContext->memory.uint8s + src;
-                    if (UPPER(UPPER_P(callContext->top + 2))
-                        || LOWER(UPPER_P(callContext->top + 2))
-                        || UPPER(LOWER_P(callContext->top + 2)) >> 32) {
-                        callContext->returnData.size = 0;
-                        clear256(callContext->top - 1);
-                        break;
-                    }
-                    val_t value;
-                    value[0] = UPPER(LOWER_P(callContext->top + 2));
-                    value[1] = LOWER(LOWER_P(callContext->top + 2)) >> 32;
-                    value[2] = LOWER(LOWER_P(callContext->top + 2));
-                    const uint256_t *salt = callContext->top - 1;
-
-                    // apply R function before L function; CREATE2 adds keccak word cost
-                    uint64_t rGas = initcodeGas(&input) + G_KECCAK_WORD * ((input.size + 31) >> 5);
-                    if (callContext->gas < rGas) {
-                        OUT_OF_GAS;
-                    }
-                    callContext->gas -= rGas;
-                    uint64_t gas = L(callContext->gas);
-                    callContext->gas -= gas;
-
-                    result_t createResult = evmCreate2(callContext->account, gas, value, input, salt);
-                    callContext->gas += createResult.gasRemaining;
-                    mergeStateChanges(&result.stateChanges, createResult.stateChanges);
-                    callContext->returnData = createResult.returnData;
-                    if (!zero256(&createResult.status)) {
-                        callContext->returnData.size = 0; // EIP-211: success = empty buffer
-                    }
-                    copy256(callContext->top - 1, &createResult.status);
-                }
-                break;
-            case CALL:
-                {
-                    data_t input;
-                    input.size = LOWER(LOWER_P(callContext->top + 1));
-                    uint64_t src = LOWER(LOWER_P(callContext->top + 2));
-                    uint64_t dst = LOWER(LOWER_P(callContext->top));
-                    uint64_t gas = LOWER(LOWER_P(callContext->top + 5));
-                    val_t value;
-                    value[0] = UPPER(LOWER_P(callContext->top + 3));
-                    value[1] = LOWER(LOWER_P(callContext->top + 3)) >> 32;
-                    value[2] = LOWER(LOWER_P(callContext->top + 3));
-                    uint64_t outSize = LOWER(LOWER_P(callContext->top - 1));
-                    if (!ensureMemory(callContext, src + input.size)) {
-                        OUT_OF_GAS;
-                    }
-                    if (!ensureMemory(callContext, dst + outSize)) {
-                        OUT_OF_GAS;
-                    }
-                    input.content = callContext->memory.uint8s + src;
-                    // C_EXTRA
-                    address_t to = AddressFromUint256(callContext->top + 4);
-                    account_t *toAccount = warmAccount(callContext, to);
-                    if (toAccount == NULL) {
-                        OUT_OF_GAS;
-                    }
-                    uint64_t gasCost = 0;
-                    if (value[0] || value[1] || value[2]) {
-                        gasCost += G_CALLVALUE;
-                        if (AccountDead(toAccount)) {
-                            gasCost += G_NEWACCOUNT;
-                        }
-                    }
-                    if (gasCost > callContext->gas) {
-                        OUT_OF_GAS;
-                    }
-                    callContext->gas -= gasCost;
-                    if (UPPER(UPPER_P(callContext->top + 5)) || LOWER(UPPER_P(callContext->top + 5)) || UPPER(LOWER_P(callContext->top + 5)) || gas > L(callContext->gas)) {
-                        gas = L(callContext->gas);
-                    }
-                    callContext->gas -= gas;
-                    if (value[0] || value[1] || value[2]) {
-                        gas += G_CALLSTIPEND;
-                    }
-                    result_t callResult = evmCall(callContext->account->address, gas, to, value, input);
-                    callContext->gas += callResult.gasRemaining;
-                    mergeStateChanges(&result.stateChanges, callResult.stateChanges);
-                    callContext->returnData = callResult.returnData;
-                    if (callContext->returnData.size < outSize) {
-                        outSize = callContext->returnData.size;
-                    }
-                    memcpy(callContext->memory.uint8s + dst, callResult.returnData.content, outSize);
-                    copy256(callContext->top - 1, &callResult.status);
-                }
-                break;
-            case DELEGATECALL:
-                {
-                    data_t input;
-                    input.size = LOWER(LOWER_P(callContext->top + 1));
-                    uint64_t src = LOWER(LOWER_P(callContext->top + 2));
-                    uint64_t dst = LOWER(LOWER_P(callContext->top));
-                    uint64_t gas = LOWER(LOWER_P(callContext->top + 4));
-                    uint64_t outSize = LOWER(LOWER_P(callContext->top - 1));
-                    if (!ensureMemory(callContext, src + input.size)) {
-                        OUT_OF_GAS;
-                    }
-                    if (!ensureMemory(callContext, dst + outSize)) {
-                        OUT_OF_GAS;
-                    }
-                    input.content = callContext->memory.uint8s + src;
-                    // C_EXTRA
-                    address_t to = AddressFromUint256(callContext->top + 3);
-                    account_t *toAccount = warmAccount(callContext, to);
-                    if (toAccount == NULL) {
-                        OUT_OF_GAS;
-                    }
-                    uint64_t gasCost = 0;
-                    if (gasCost > callContext->gas) {
-                        OUT_OF_GAS;
-                    }
-                    callContext->gas -= gasCost;
-                    if (UPPER(UPPER_P(callContext->top + 4)) || LOWER(UPPER_P(callContext->top + 4)) || UPPER(LOWER_P(callContext->top + 4)) || gas > L(callContext->gas)) {
-                        gas = L(callContext->gas);
-                    }
-                    callContext->gas -= gas;
-                    result_t delegateCallResult = evmDelegateCall(gas, toAccount, input);
-                    callContext->gas += delegateCallResult.gasRemaining;
-                    mergeStateChanges(&result.stateChanges, delegateCallResult.stateChanges);
-                    callContext->returnData = delegateCallResult.returnData;
-                    if (callContext->returnData.size < outSize) {
-                        outSize = callContext->returnData.size;
-                    }
-                    memcpy(callContext->memory.uint8s + dst, delegateCallResult.returnData.content, outSize);
-                    copy256(callContext->top - 1, &delegateCallResult.status);
-                }
-                break;
-            case STATICCALL:
-                {
-                    data_t input;
-                    input.size = LOWER(LOWER_P(callContext->top + 1));
-                    uint64_t src = LOWER(LOWER_P(callContext->top + 2));
-                    uint64_t dst = LOWER(LOWER_P(callContext->top));
-                    uint64_t gas = LOWER(LOWER_P(callContext->top + 4));
-                    uint64_t outSize = LOWER(LOWER_P(callContext->top - 1));
-                    if (!ensureMemory(callContext, src + input.size)) {
-                        OUT_OF_GAS;
-                    }
-                    if (!ensureMemory(callContext, dst + outSize)) {
-                        OUT_OF_GAS;
-                    }
-                    input.content = callContext->memory.uint8s + src;
-                    // C_EXTRA
-                    address_t to = AddressFromUint256(callContext->top + 3);
-                    account_t *toAccount = warmAccount(callContext, to);
-                    if (toAccount == NULL) {
-                        OUT_OF_GAS;
-                    }
-                    uint64_t gasCost = 0;
-                    if (gasCost > callContext->gas) {
-                        OUT_OF_GAS;
-                    }
-                    callContext->gas -= gasCost;
-                    if (UPPER(UPPER_P(callContext->top + 4)) || LOWER(UPPER_P(callContext->top + 4)) || UPPER(LOWER_P(callContext->top + 4)) || gas > L(callContext->gas)) {
-                        gas = L(callContext->gas);
-                    }
-                    callContext->gas -= gas;
-                    result_t callResult = evmStaticCall(callContext->account->address, gas, to, input);
-                    callContext->gas += callResult.gasRemaining;
-                    mergeStateChanges(&result.stateChanges, callResult.stateChanges);
-                    callContext->returnData = callResult.returnData;
-                    if (callContext->returnData.size < outSize) {
-                        outSize = callContext->returnData.size;
-                    }
-                    memcpy(callContext->memory.uint8s + dst, callResult.returnData.content, outSize);
-                    copy256(callContext->top - 1, &callResult.status);
-                }
-                break;
-            case RETURN:
-                LOWER(LOWER(result.status)) = 1;
-                // intentional fallthrough
-            case REVERT:
-                if (!ensureMemory(callContext, LOWER(LOWER_P(callContext->top + 1)) + LOWER(LOWER_P(callContext->top)))) {
+            stateChanges_t *stateChanges = getCurrentAccountStateChanges(&result, callContext);
+            if (SHOW_LOGS) {
+                fprintf(stderr, "\033[94m");
+                fprintLog(stderr, log, true);
+                fprintf(stderr, "\033[0m\n");
+            }
+            log->prev = stateChanges->logChanges;
+            stateChanges->logChanges = log;
+        }
+        break;
+        case CALLDATACOPY:
+        case EXTCODECOPY:
+        case RETURNDATACOPY:
+        case MCOPY:
+        case CODECOPY:
+        {
+            const data_t *code;
+            uint64_t start = LOWER(LOWER_P(callContext->top + 1));
+            uint64_t size = LOWER(LOWER_P(callContext->top));
+            switch (op) {
+            case EXTCODECOPY:
+            {
+                account_t *account = warmAccount(callContext, AddressFromUint256(callContext->top + 3));
+                if (account == NULL) {
                     OUT_OF_GAS;
                 }
-                result.returnData.content = callContext->memory.uint8s + LOWER(LOWER_P(callContext->top + 1));
-                result.returnData.size = LOWER(LOWER_P(callContext->top));
-                if (SHOW_CALLS) {
-                    INDENT;
-                    if (zero256(&result.status)) {
-                        fprintf(stderr, "\033[0;31m");
+                code = &account->code;
+            }
+            break;
+            case CALLDATACOPY:
+                code = &callContext->callData;
+                break;
+            case RETURNDATACOPY:
+                code = &callContext->returnData;
+                if (
+                    UPPER(LOWER_P(callContext->top + 1)) || LOWER(UPPER_P(callContext->top + 1)) || UPPER(UPPER_P(callContext->top + 1))
+                    || start + size > code->size) {
+                    FAIL_INVALID;
+                }
+                break;
+            case MCOPY:
+                if (
+                    UPPER(LOWER_P(callContext->top + 1))
+                    || LOWER(UPPER_P(callContext->top + 1))
+                    || UPPER(UPPER_P(callContext->top + 1))
+                    || !ensureMemory(callContext, start + size)) {
+                    OUT_OF_GAS;
+                }
+                code = (data_t *)(&callContext->memory);
+                break;
+            case CODECOPY:
+                code = &callContext->code;
+            }
+            uint64_t dst = LOWER(LOWER_P(callContext->top + 2));
+            if (
+                UPPER(LOWER_P(callContext->top + 2)) || LOWER(UPPER_P(callContext->top + 2)) || UPPER(UPPER_P(callContext->top + 2))
+                || (UPPER(LOWER_P(callContext->top)) || LOWER(UPPER_P(callContext->top)) || UPPER(UPPER_P(callContext->top)))
+                || dst + size < dst
+                || !ensureMemory(callContext, dst + size)
+                    ) {
+                OUT_OF_GAS;
+            }
+            uint64_t words = (size + 31) / 32;
+            uint64_t gasCost = G_COPY * words;
+            if (gasCost > callContext->gas) {
+                OUT_OF_GAS;
+            }
+            callContext->gas -= gasCost;
+            if (
+                UPPER(LOWER_P(callContext->top + 1)) || LOWER(UPPER_P(callContext->top + 1)) || UPPER(UPPER_P(callContext->top + 1))
+                || start > code->size
+                        ) {
+                bzero(callContext->memory.uint8s + dst, size);
+            } else if (start + size > code->size) {
+                uint64_t copySize = code->size - start;
+                memcpy(callContext->memory.uint8s + dst, code->content + start, copySize);
+                bzero(callContext->memory.uint8s + dst + copySize, size - copySize);
+            } else {
+                memcpy(callContext->memory.uint8s + dst, code->content + start, size);
+            }
+        }
+        break;
+        case SSTORE:
+        {
+            if (callContext->gas <= G_CALLSTIPEND - G_ACCESS) {
+                OUT_OF_GAS;
+            }
+            uint64_t warmBefore = getAccountStorage(callContext->account, callContext->top + 1)->warm;
+            storage_t *storage = warmStorage(callContext, callContext->top + 1, G_COLD_STORAGE);
+            if (storage == NULL) {
+                OUT_OF_GAS;
+            }
+            // https://eips.ethereum.org/EIPS/eip-2200
+            if (!equal256(&storage->value, callContext->top)) {
+                if (equal256(&storage->value, &storage->original)) {
+                    uint64_t gasCost;
+                    if (zero256(&storage->original)) {
+                        gasCost = G_SSET - G_ACCESS;
+                    } else {
+                        gasCost = G_SRESET - G_ACCESS;
+                        if (zero256(callContext->top)) {
+                            refundCounter += R_CLEAR;
+                        }
                     }
-                    fprintf(stderr, "output: ");
-                    fprintData(stderr, result.returnData);
-                    fprintf(stderr, "\n");
-                    if (zero256(&result.status)) {
-                        fprintf(stderr, "\033[0m");
+                    if (gasCost > callContext->gas) {
+                        OUT_OF_GAS;
+                    }
+                    callContext->gas -= gasCost;
+                } else {
+                    if (!zero256(&storage->original)) {
+                        if (zero256(&storage->value)) {
+                            refundCounter -= R_CLEAR;
+                        } else if (zero256(callContext->top)) {
+                            refundCounter += R_CLEAR;
+                        }
+                    }
+                    if (equal256(&storage->original, callContext->top)) {
+                        if (zero256(&storage->original)) {
+                            refundCounter += G_SSET - G_ACCESS;
+                        } else {
+                            refundCounter += G_SRESET - G_ACCESS;
+                        }
                     }
                 }
-                return result;
+            }
+            // track state changes in result in case of REVERT or exception
+            stateChanges_t *changes = getCurrentAccountStateChanges(&result, callContext);
+            storageChanges_t *change = malloc(sizeof(storageChanges_t));
+            copy256(&change->key, &storage->key);
+            copy256(&change->before, &storage->value);
+            copy256(&change->after, callContext->top);
+            change->warm = warmBefore;
+            change->prev = changes->storageChanges;
+            changes->storageChanges = change;
+            copy256(&storage->value, callContext->top);
+        }
+        break;
+        case SLOAD:
+        {
+            uint64_t warmBefore = getAccountStorage(callContext->account, callContext->top - 1)->warm;
+            storage_t *storage = warmStorage(callContext, callContext->top - 1, G_COLD_STORAGE - G_ACCESS);
+            if (storage == NULL) {
+                OUT_OF_GAS;
+            }
+            copy256(callContext->top - 1, &storage->value);
+            // track access list changes in result in case of REVERT or exception
+            stateChanges_t *changes = getCurrentAccountStateChanges(&result, callContext);
+            storageChanges_t *change = malloc(sizeof(storageChanges_t));
+            copy256(&change->key, &storage->key);
+            copy256(&change->before, &storage->value);
+            copy256(&change->after, &storage->value);
+            change->warm = warmBefore;
+            change->prev = changes->storageChanges;
+            changes->storageChanges = change;
+        }
+        break;
+        case TLOAD:
+        {
+            tstorage_t *storage = getAccountTransientStorage(callContext->account, callContext->top -1);
+            if (storage->warm == evmIteration) {
+                copy256(callContext->top - 1, &storage->value);
+            } else {
+                clear256(callContext->top - 1);
+            }
+        }
+        break;
+        case TSTORE:
+        {
+            tstorage_t *storage = getAccountTransientStorage(callContext->account, callContext->top + 1);
+            copy256(&storage->value, callContext->top);
+            storage->warm = evmIteration;
+        }
+        break;
+        case COINBASE:
+            // TODO allow configuration for coinbase
+            AddressToUint256(callContext->top - 1, &coinbase);
+            break;
+        case TIMESTAMP:
+            UPPER(UPPER_P(callContext->top - 1)) = 0;
+            LOWER(UPPER_P(callContext->top - 1)) = 0;
+            UPPER(LOWER_P(callContext->top - 1)) = 0;
+            LOWER(LOWER_P(callContext->top - 1)) = timestamp;
+            break;
+        case NUMBER:
+            UPPER(UPPER_P(callContext->top - 1)) = 0;
+            LOWER(UPPER_P(callContext->top - 1)) = 0;
+            UPPER(LOWER_P(callContext->top - 1)) = 0;
+            LOWER(LOWER_P(callContext->top - 1)) = blockNumber;
+            break;
+        case CALLVALUE:
+            UPPER(UPPER_P(callContext->top - 1)) = 0;
+            LOWER(UPPER_P(callContext->top - 1)) = 0;
+            UPPER(LOWER_P(callContext->top - 1)) = callContext->callValue[0];
+            LOWER(LOWER_P(callContext->top - 1)) = callContext->callValue[2] | ((uint64_t) callContext->callValue[1] << 32);
+
+            break;
+        case CHAINID:
+            // TODO allow configuration for chainId
+            UPPER(UPPER_P(callContext->top - 1)) = 0;
+            LOWER(UPPER_P(callContext->top - 1)) = 0;
+            UPPER(LOWER_P(callContext->top - 1)) = 0;
+            LOWER(LOWER_P(callContext->top - 1)) = 1;
+            break;
+        case SELFBALANCE:
+            UPPER(UPPER_P(callContext->top - 1)) = 0;
+            LOWER(UPPER_P(callContext->top - 1)) = 0;
+            UPPER(LOWER_P(callContext->top - 1)) = callContext->account->balance[0];
+            LOWER(LOWER_P(callContext->top - 1)) = callContext->account->balance[2] | ((uint64_t) callContext->account->balance[1] << 32);
+            break;
+        case BALANCE:
+        {
+            account_t *account = warmAccount(callContext, AddressFromUint256(callContext->top - 1));
+            if (account == NULL) {
+                OUT_OF_GAS;
+            }
+            UPPER(UPPER_P(callContext->top - 1)) = 0;
+            LOWER(UPPER_P(callContext->top - 1)) = 0;
+            UPPER(LOWER_P(callContext->top - 1)) = account->balance[0];
+            LOWER(LOWER_P(callContext->top - 1)) = account->balance[2] | ((uint64_t) account->balance[1] << 32);
+        }
+        break;
+        case CREATE:
+        {
+            data_t input;
+            input.size = LOWER(LOWER_P(callContext->top - 1));
+            uint64_t src = LOWER(LOWER_P(callContext->top));
+            if (!ensureMemory(callContext, src + input.size)) {
+                OUT_OF_GAS;
+            }
+            input.content = callContext->memory.uint8s + src;
+            val_t value;
+            value[0] = UPPER(LOWER_P(callContext->top + 1));
+            value[1] = LOWER(LOWER_P(callContext->top + 1)) >> 32;
+            value[2] = LOWER(LOWER_P(callContext->top + 1));
+
+            // apply R function before L function
+            uint64_t rGas =  initcodeGas(&input);
+            if (callContext->gas < rGas) {
+                OUT_OF_GAS;
+            }
+            callContext->gas -= rGas;
+            uint64_t gas = L(callContext->gas);
+            callContext->gas -= gas;
+
+            result_t createResult = evmCreate(callContext->account, gas, value, input);
+            callContext->gas += createResult.gasRemaining;
+            mergeStateChanges(&result.stateChanges, createResult.stateChanges);
+            callContext->returnData = createResult.returnData;
+            if (!zero256(&createResult.status)) {
+                callContext->returnData.size = 0;         // EIP-211: success = empty buffer
+            }
+            copy256(callContext->top - 1, &createResult.status);
+        }
+        break;
+        case CREATE2:
+        {
+            data_t input;
+            input.size = LOWER(LOWER_P(callContext->top));
+            uint64_t src = LOWER(LOWER_P(callContext->top + 1));
+            if (!ensureMemory(callContext, src + input.size)) {
+                OUT_OF_GAS;
+            }
+            input.content = callContext->memory.uint8s + src;
+            if (UPPER(UPPER_P(callContext->top + 2))
+                || LOWER(UPPER_P(callContext->top + 2))
+                || UPPER(LOWER_P(callContext->top + 2)) >> 32) {
+                callContext->returnData.size = 0;
+                clear256(callContext->top - 1);
+                break;
+            }
+            val_t value;
+            value[0] = UPPER(LOWER_P(callContext->top + 2));
+            value[1] = LOWER(LOWER_P(callContext->top + 2)) >> 32;
+            value[2] = LOWER(LOWER_P(callContext->top + 2));
+            const uint256_t *salt = callContext->top - 1;
+
+            // apply R function before L function; CREATE2 adds keccak word cost
+            uint64_t rGas = initcodeGas(&input) + G_KECCAK_WORD * ((input.size + 31) >> 5);
+            if (callContext->gas < rGas) {
+                OUT_OF_GAS;
+            }
+            callContext->gas -= rGas;
+            uint64_t gas = L(callContext->gas);
+            callContext->gas -= gas;
+
+            result_t createResult = evmCreate2(callContext->account, gas, value, input, salt);
+            callContext->gas += createResult.gasRemaining;
+            mergeStateChanges(&result.stateChanges, createResult.stateChanges);
+            callContext->returnData = createResult.returnData;
+            if (!zero256(&createResult.status)) {
+                callContext->returnData.size = 0;         // EIP-211: success = empty buffer
+            }
+            copy256(callContext->top - 1, &createResult.status);
+        }
+        break;
+        case CALL:
+        {
+            data_t input;
+            input.size = LOWER(LOWER_P(callContext->top + 1));
+            uint64_t src = LOWER(LOWER_P(callContext->top + 2));
+            uint64_t dst = LOWER(LOWER_P(callContext->top));
+            uint64_t gas = LOWER(LOWER_P(callContext->top + 5));
+            val_t value;
+            value[0] = UPPER(LOWER_P(callContext->top + 3));
+            value[1] = LOWER(LOWER_P(callContext->top + 3)) >> 32;
+            value[2] = LOWER(LOWER_P(callContext->top + 3));
+            uint64_t outSize = LOWER(LOWER_P(callContext->top - 1));
+            if (!ensureMemory(callContext, src + input.size)) {
+                OUT_OF_GAS;
+            }
+            if (!ensureMemory(callContext, dst + outSize)) {
+                OUT_OF_GAS;
+            }
+            input.content = callContext->memory.uint8s + src;
+            // C_EXTRA
+            address_t to = AddressFromUint256(callContext->top + 4);
+            account_t *toAccount = warmAccount(callContext, to);
+            if (toAccount == NULL) {
+                OUT_OF_GAS;
+            }
+            uint64_t gasCost = 0;
+            if (value[0] || value[1] || value[2]) {
+                gasCost += G_CALLVALUE;
+                if (AccountDead(toAccount)) {
+                    gasCost += G_NEWACCOUNT;
+                }
+            }
+            if (gasCost > callContext->gas) {
+                OUT_OF_GAS;
+            }
+            callContext->gas -= gasCost;
+            if (UPPER(UPPER_P(callContext->top + 5)) || LOWER(UPPER_P(callContext->top + 5)) || UPPER(LOWER_P(callContext->top + 5)) || gas > L(callContext->gas)) {
+                gas = L(callContext->gas);
+            }
+            callContext->gas -= gas;
+            if (value[0] || value[1] || value[2]) {
+                gas += G_CALLSTIPEND;
+            }
+            result_t callResult = evmCall(callContext->account->address, gas, to, value, input);
+            callContext->gas += callResult.gasRemaining;
+            mergeStateChanges(&result.stateChanges, callResult.stateChanges);
+            callContext->returnData = callResult.returnData;
+            if (callContext->returnData.size < outSize) {
+                outSize = callContext->returnData.size;
+            }
+            memcpy(callContext->memory.uint8s + dst, callResult.returnData.content, outSize);
+            copy256(callContext->top - 1, &callResult.status);
+        }
+        break;
+        case DELEGATECALL:
+        {
+            data_t input;
+            input.size = LOWER(LOWER_P(callContext->top + 1));
+            uint64_t src = LOWER(LOWER_P(callContext->top + 2));
+            uint64_t dst = LOWER(LOWER_P(callContext->top));
+            uint64_t gas = LOWER(LOWER_P(callContext->top + 4));
+            uint64_t outSize = LOWER(LOWER_P(callContext->top - 1));
+            if (!ensureMemory(callContext, src + input.size)) {
+                OUT_OF_GAS;
+            }
+            if (!ensureMemory(callContext, dst + outSize)) {
+                OUT_OF_GAS;
+            }
+            input.content = callContext->memory.uint8s + src;
+            // C_EXTRA
+            address_t to = AddressFromUint256(callContext->top + 3);
+            account_t *toAccount = warmAccount(callContext, to);
+            if (toAccount == NULL) {
+                OUT_OF_GAS;
+            }
+            uint64_t gasCost = 0;
+            if (gasCost > callContext->gas) {
+                OUT_OF_GAS;
+            }
+            callContext->gas -= gasCost;
+            if (UPPER(UPPER_P(callContext->top + 4)) || LOWER(UPPER_P(callContext->top + 4)) || UPPER(LOWER_P(callContext->top + 4)) || gas > L(callContext->gas)) {
+                gas = L(callContext->gas);
+            }
+            callContext->gas -= gas;
+            result_t delegateCallResult = evmDelegateCall(gas, toAccount, input);
+            callContext->gas += delegateCallResult.gasRemaining;
+            mergeStateChanges(&result.stateChanges, delegateCallResult.stateChanges);
+            callContext->returnData = delegateCallResult.returnData;
+            if (callContext->returnData.size < outSize) {
+                outSize = callContext->returnData.size;
+            }
+            memcpy(callContext->memory.uint8s + dst, delegateCallResult.returnData.content, outSize);
+            copy256(callContext->top - 1, &delegateCallResult.status);
+        }
+        break;
+        case STATICCALL:
+        {
+            data_t input;
+            input.size = LOWER(LOWER_P(callContext->top + 1));
+            uint64_t src = LOWER(LOWER_P(callContext->top + 2));
+            uint64_t dst = LOWER(LOWER_P(callContext->top));
+            uint64_t gas = LOWER(LOWER_P(callContext->top + 4));
+            uint64_t outSize = LOWER(LOWER_P(callContext->top - 1));
+            if (!ensureMemory(callContext, src + input.size)) {
+                OUT_OF_GAS;
+            }
+            if (!ensureMemory(callContext, dst + outSize)) {
+                OUT_OF_GAS;
+            }
+            input.content = callContext->memory.uint8s + src;
+            // C_EXTRA
+            address_t to = AddressFromUint256(callContext->top + 3);
+            account_t *toAccount = warmAccount(callContext, to);
+            if (toAccount == NULL) {
+                OUT_OF_GAS;
+            }
+            uint64_t gasCost = 0;
+            if (gasCost > callContext->gas) {
+                OUT_OF_GAS;
+            }
+            callContext->gas -= gasCost;
+            if (UPPER(UPPER_P(callContext->top + 4)) || LOWER(UPPER_P(callContext->top + 4)) || UPPER(LOWER_P(callContext->top + 4)) || gas > L(callContext->gas)) {
+                gas = L(callContext->gas);
+            }
+            callContext->gas -= gas;
+            result_t callResult = evmStaticCall(callContext->account->address, gas, to, input);
+            callContext->gas += callResult.gasRemaining;
+            mergeStateChanges(&result.stateChanges, callResult.stateChanges);
+            callContext->returnData = callResult.returnData;
+            if (callContext->returnData.size < outSize) {
+                outSize = callContext->returnData.size;
+            }
+            memcpy(callContext->memory.uint8s + dst, callResult.returnData.content, outSize);
+            copy256(callContext->top - 1, &callResult.status);
+        }
+        break;
+        case RETURN:
+            LOWER(LOWER(result.status)) = 1;
+        // intentional fallthrough
+        case REVERT:
+            if (!ensureMemory(callContext, LOWER(LOWER_P(callContext->top + 1)) + LOWER(LOWER_P(callContext->top)))) {
+                OUT_OF_GAS;
+            }
+            result.returnData.content = callContext->memory.uint8s + LOWER(LOWER_P(callContext->top + 1));
+            result.returnData.size = LOWER(LOWER_P(callContext->top));
+            if (SHOW_CALLS) {
+                INDENT;
+                if (zero256(&result.status)) {
+                    fprintf(stderr, "\033[0;31m");
+                }
+                fprintf(stderr, "output: ");
+                fprintData(stderr, result.returnData);
+                fprintf(stderr, "\n");
+                if (zero256(&result.status)) {
+                    fprintf(stderr, "\033[0m");
+                }
+            }
+            return result;
         }
     }
 #undef OUT_OF_GAS
@@ -1859,8 +1865,8 @@ static result_t evmCall(address_t from, uint64_t gas, address_t to, val_t value,
     account_t *fromAccount = getAccount(from);
     if (!BalanceSub(fromAccount->balance, value)) {
         fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for call (need [0x%08x%08x%08x])\n",
-            fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
-            value[0], value[1], value[2]
+                fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
+                value[0], value[1], value[2]
         );
 
         result_t result;
@@ -2011,8 +2017,8 @@ result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t 
 result_t evmCreate(account_t *fromAccount, uint64_t gas, val_t value, data_t input) {
     if (!BalanceSub(fromAccount->balance, value)) {
         fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for create (need [0x%08x%08x%08x])\n",
-            fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
-            value[0], value[1], value[2]
+                fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
+                value[0], value[1], value[2]
         );
 
         result_t result;
@@ -2029,8 +2035,8 @@ result_t evmCreate(account_t *fromAccount, uint64_t gas, val_t value, data_t inp
 static result_t evmCreate2(account_t *fromAccount, uint64_t gas, val_t value, data_t input, const uint256_t *salt) {
     if (!BalanceSub(fromAccount->balance, value)) {
         fprintf(stderr, "Insufficient balance [0x%08x%08x%08x] for create2 (need [0x%08x%08x%08x])\n",
-            fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
-            value[0], value[1], value[2]
+                fromAccount->balance[0], fromAccount->balance[1], fromAccount->balance[2],
+                value[0], value[1], value[2]
         );
         result_t result;
         result.gasRemaining = gas;

@@ -92,11 +92,12 @@ statement_t labelForPc(pc_t pc) {
         str[i] += 'a' - '0';
     }
     */
-    return (statement_t) {
+    statement_t label = {
         strLen,
         str,
         bufLen,
     };
+    return label;
 }
 
 static void disassemblePush(op_t op, const char **iter) {
@@ -165,7 +166,7 @@ int disassembleValid(const char **iter) {
 
 void disassembleFinalize() {
     for (size_t j = 0; j < jumpdests.num_pcs; j++) {
-        size_t jumpdest = jumpdests.pcs[j]; 
+        size_t jumpdest = jumpdests.pcs[j];
         for (size_t i = 0; i < stack.num_statements; i++) {
             // TODO scan for label
         }
