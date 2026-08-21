@@ -497,6 +497,7 @@ static void jsonScanLog(const char **iter, logChanges_t **prev) {
                     log->logIndex = (log->logIndex << 4) | hexString8ToUint8(*v);
                     v++;
                 }
+                log->logIndex++;
             } else {
                 fputs("Unexpected log heading: ", stderr);
                 for (size_t i = 0; i < logHeadingLen; i++) {

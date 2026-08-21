@@ -45,14 +45,14 @@ typedef struct storageChanges {
 typedef struct logChanges {
     uint256_t *topics; // in reverse order
     uint8_t topicCount;
-    uint16_t logIndex;
+    uint16_t logIndex; // expected: 1-indexed, 0 = unspecified; actual: 0-indexed
     data_t data;
     struct logChanges *prev;
 } logChanges_t;
 
 static int LogsEqual(const logChanges_t *expectedLog, const logChanges_t *actualLog) {
     while (expectedLog && actualLog) {
-        if (expectedLog->logIndex && expectedLog->logIndex != actualLog->logIndex) {
+        if (expectedLog->logIndex && expectedLog->logIndex - 1 != actualLog->logIndex) {
             return false;
         }
         if (!DataEqual(&expectedLog->data, &actualLog->data)) {
