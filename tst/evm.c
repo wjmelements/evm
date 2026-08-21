@@ -2305,6 +2305,44 @@ void test_create2InsufficientBalance() {
     evmFinalize();
 }
 
+// A CREATE target that was pre-funded before deployment (a common counterfactual-address
+// pattern) must still see that balance via SELFBALANCE during construction.
+void test_createSeesPreexistingBalance() {
+    evmInit();
+
+    address_t from  = AddressFromHex42("0xF14F8427bBCf26b2c2087Dc3CD0fDe368c2610da");
+    // The address CREATEd by `from` at nonce 0 (per test_createOutOfGas).
+    address_t child = AddressFromHex42("0xa70ceab58120a6b4209448716813c9e729fba16e");
+    uint64_t gas = 1000000;
+    val_t value;
+    value[0] = 0;
+    value[1] = 0;
+    value[2] = 0;
+
+    val_t preexisting;
+    preexisting[0] = 0;
+    preexisting[1] = 0;
+    preexisting[2] = 7;
+    evmMockBalance(child, preexisting);
+
+    op_t initcode[] = {
+        SELFBALANCE, PUSH0, MSTORE,
+        PUSH1, 32, PUSH0, REVERT,
+    };
+    data_t input = {sizeof(initcode), initcode};
+
+    result_t result = txCreate(from, gas, value, input);
+    assert(zero256(&result.status));
+    assert(result.returnData.size == 32);
+
+    uint8_t expectedBalance[32];
+    bzero(expectedBalance, sizeof(expectedBalance));
+    expectedBalance[31] = 7;
+    assert(memcmp(result.returnData.content, expectedBalance, 32) == 0);
+
+    evmFinalize();
+}
+
 void test_returnDataCopyOOB() {
     evmInit();
 
@@ -2692,6 +2730,7 @@ int main() {
     test_createOutOfGas();
     test_create2();
     test_create2InsufficientBalance();
+    test_createSeesPreexistingBalance();
     test_memoryFreshOnRepeatedCall();
     test_tstore_tload();
 
