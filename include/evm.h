@@ -138,6 +138,7 @@ void evmMockCall(address_t to, val_t value, data_t inputData, result_t result);
 void evmMockStorage(address_t to, const uint256_t *key, const uint256_t *storedValue);
 void evmMockNonce(address_t to, uint64_t nonce);
 void evmMockCode(address_t to, data_t code);
+uint64_t evmGetNonce(address_t to);
 
 typedef struct accessListStorage {
     uint256_t key;

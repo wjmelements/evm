@@ -2296,6 +2296,11 @@ void test_create2InsufficientBalance() {
     // https://hoodi.etherscan.io/tx/0xf3c3de8400562fe80b140a455b5842dbc971e090c9ddf67cbb3629bd3548bb02
     assert(gas - result.gasRemaining == 53033);
 
+    // Same deployer/salt/initcode as test_create2, so this is the same child address.
+    // The failed CREATE2 must not leave a phantom nonce on it.
+    address_t child = AddressFromHex42("0xb928f69bb1d91cd65274e3c79d8986362984fda3");
+    assert(evmGetNonce(child) == 0);
+
     evmMockCode(to, input);
     evmFinalize();
 }

@@ -498,6 +498,10 @@ void evmMockNonce(address_t to, uint64_t nonce) {
     getAccount(to)->nonce = nonce;
 }
 
+uint64_t evmGetNonce(address_t to) {
+    return getAccount(to)->nonce;
+}
+
 typedef struct hashResult {
     val_t top96;
     address_t bottom160;
@@ -2013,6 +2017,8 @@ static result_t _evmConstruct(account_t *fromAccount, account_t *to, uint64_t ga
     callContext->account->warm = evmIteration;
     callContext->code = input;
     callContext->callData.size = 0;
+    // TODO revert to the true prior nonce once CREATE checks that the target account is empty; assumed 0 until then.
+    trackNonceChange(&callContext->stateChanges, callContext->account, 0);
 
     if (!ValueIsZero(value)) {
         val_t fromBefore;
@@ -2036,7 +2042,6 @@ static result_t _evmConstruct(account_t *fromAccount, account_t *to, uint64_t ga
         BalanceAdd(callContext->account->balance, value);
         trackBalanceChange(&callContext->stateChanges, callContext->account, toBefore);
     }
-    trackNonceChange(&callContext->stateChanges, callContext->account, 0);
 
     result_t result = _evmCall(callContext);
 
