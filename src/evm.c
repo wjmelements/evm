@@ -395,21 +395,6 @@ void evmSetDebug(uint64_t flags) {
 #define SHOW_CALLS (debugFlags & EVM_DEBUG_CALLS)
 #define SHOW_LOGS (debugFlags & EVM_DEBUG_LOGS)
 
-static account_t *createLocalAccount(const address_t address) {
-    account_t *result = emptyAccount++;
-    AddressCopy(result->address, address);
-    result->code.size = 0;
-    result->nonce = 0;
-    result->balance[0] = 0;
-    result->balance[1] = 0;
-    result->balance[2] = 0;
-    result->local = true;
-    result->storage = NULL;
-    result->tstorage = NULL;
-    result->warm = 0;
-    return result;
-}
-
 static account_t *getAccount(const address_t address) {
     if (AddressIsPrecompile(address)) {
         if (PrecompileIsKnownPrecompile(address)) {
@@ -440,6 +425,12 @@ static account_t *getAccount(const address_t address) {
             accountFetch(address);
         }
     }
+    return result;
+}
+
+static account_t *createLocalAccount(const address_t address) {
+    account_t *result = getAccount(address);
+    result->local = true;
     return result;
 }
 
@@ -496,6 +487,10 @@ void evmMockCode(address_t to, data_t code) {
 
 void evmMockNonce(address_t to, uint64_t nonce) {
     getAccount(to)->nonce = nonce;
+}
+
+uint64_t evmGetNonce(address_t to) {
+    return getAccount(to)->nonce;
 }
 
 typedef struct hashResult {
@@ -2013,6 +2008,8 @@ static result_t _evmConstruct(account_t *fromAccount, account_t *to, uint64_t ga
     callContext->account->warm = evmIteration;
     callContext->code = input;
     callContext->callData.size = 0;
+    // TODO revert to the true prior nonce once CREATE checks that the target account is empty; assumed 0 until then.
+    trackNonceChange(&callContext->stateChanges, callContext->account, 0);
 
     if (!ValueIsZero(value)) {
         val_t fromBefore;
@@ -2036,7 +2033,6 @@ static result_t _evmConstruct(account_t *fromAccount, account_t *to, uint64_t ga
         BalanceAdd(callContext->account->balance, value);
         trackBalanceChange(&callContext->stateChanges, callContext->account, toBefore);
     }
-    trackNonceChange(&callContext->stateChanges, callContext->account, 0);
 
     result_t result = _evmCall(callContext);
 

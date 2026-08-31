@@ -45,14 +45,14 @@ typedef struct storageChanges {
 typedef struct logChanges {
     uint256_t *topics; // in reverse order
     uint8_t topicCount;
-    uint16_t logIndex;
+    uint16_t logIndex; // expected: 1-indexed, 0 = unspecified; actual: 0-indexed
     data_t data;
     struct logChanges *prev;
 } logChanges_t;
 
 static int LogsEqual(const logChanges_t *expectedLog, const logChanges_t *actualLog) {
     while (expectedLog && actualLog) {
-        if (expectedLog->logIndex && expectedLog->logIndex != actualLog->logIndex) {
+        if (expectedLog->logIndex && expectedLog->logIndex - 1 != actualLog->logIndex) {
             return false;
         }
         if (!DataEqual(&expectedLog->data, &actualLog->data)) {
@@ -138,6 +138,7 @@ void evmMockCall(address_t to, val_t value, data_t inputData, result_t result);
 void evmMockStorage(address_t to, const uint256_t *key, const uint256_t *storedValue);
 void evmMockNonce(address_t to, uint64_t nonce);
 void evmMockCode(address_t to, data_t code);
+uint64_t evmGetNonce(address_t to);
 
 typedef struct accessListStorage {
     uint256_t key;

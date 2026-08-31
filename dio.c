@@ -623,8 +623,9 @@ static void run(
     runViaEvm(r, post, ctx, accounts, sub);
 
     if (r->to[0] == '\0') {
-        /* Register the deployed account so subsequent calls can find it locally */
-        if (r->status && strlen(r->status) == 42) {
+        /* Register the deployed account so subsequent calls can find it locally.
+         * A successful deploy is any nonzero status, not a fixed-width string. */
+        if (r->status && strcmp(r->status, "0x0") != 0) {
             account_t *deployed = ensureAccount(accounts, r->status);
             free(deployed->code);
             deployed->code = strdup(r->output ? r->output : "0x");
@@ -828,7 +829,11 @@ int main(int argc, char *const argv[]) {
     fclose(sub.toChild);
     int status;
     waitpid(sub.pid, &status, 0);
-    if (WEXITSTATUS(status) != 0) {
+    if (WIFSIGNALED(status)) {
+        fprintf(stderr, "dio: evm subprocess killed by signal %d\n", WTERMSIG(status));
+        _exit(1);
+    }
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
         fputs("dio: evm subprocess failed\n", stderr);
         _exit(1);
     }

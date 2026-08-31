@@ -151,17 +151,29 @@ static void execute(const char *contents) {
     if (contents[0] == '{') {
         size_t flen;
         const char *p = jsonStrVal(contents, "to", &flen);
-        if (p && flen == 40) {
+        if (p) {
+            if (flen != 40) {
+                fputs("evm: malformed \"to\" address\n", stderr);
+                exit(1);
+            }
             hasTo = 1;
             to = AddressFromHex40(p);
         }
         p = jsonStrVal(contents, "from", &flen);
-        if (p && flen == 40) {
+        if (p) {
+            if (flen != 40) {
+                fputs("evm: malformed \"from\" address\n", stderr);
+                exit(1);
+            }
             from = AddressFromHex40(p);
         }
         p = jsonStrVal(contents, "data", &flen);
         if (!p) {
             p = jsonStrVal(contents, "input", &flen);
+        }
+        if (p && (flen & 1)) {
+            fputs("evm: odd-lengthed input\n", stderr);
+            exit(1);
         }
         hexData = p ? p : "";
         hexLen = p ? flen : 0;
@@ -204,7 +216,12 @@ static void execute(const char *contents) {
         }
         if (includeStatus) {
             fputs("status\":\"", stdout);
-            fprintCompact256(stdout, &result.status);
+            if (!hasTo && !zero256(&result.status)) {
+                // CREATE status is a deployed address: print it fixed-width, not compact.
+                fprintAddress(stdout, AddressFromUint256(&result.status));
+            } else {
+                fprintCompact256(stdout, &result.status);
+            }
             fputs("\",\"", stdout);
         }
         fputs("returnData\":\"0x", stdout);
