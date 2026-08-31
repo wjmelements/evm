@@ -829,7 +829,11 @@ int main(int argc, char *const argv[]) {
     fclose(sub.toChild);
     int status;
     waitpid(sub.pid, &status, 0);
-    if (WEXITSTATUS(status) != 0) {
+    if (WIFSIGNALED(status)) {
+        fprintf(stderr, "dio: evm subprocess killed by signal %d\n", WTERMSIG(status));
+        _exit(1);
+    }
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
         fputs("dio: evm subprocess failed\n", stderr);
         _exit(1);
     }
