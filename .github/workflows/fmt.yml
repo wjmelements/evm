@@ -14,7 +14,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install uncrustify
-        run: sudo apt-get install -y uncrustify
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y uncrustify
 
       - name: Check brace style
         run: >
