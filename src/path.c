@@ -23,7 +23,7 @@ static const char *derivePath() {
         return derivedPath;
     }
     if (!selfPath) {
-        fprintf(stderr, "must pathInit\n");
+        fputs("must pathInit\n", stderr);
         exit(1);
     }
     if (selfPath[0] == '/') {

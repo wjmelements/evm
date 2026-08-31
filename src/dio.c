@@ -270,9 +270,9 @@ static void reportResult(testEntry_t *test, result_t *result, uint64_t gas, cons
             // less actual gasUsed than expected
             fprintf(stderr, "gasUsed \033[0;32m%" PRIu64 "\033[0m expected %" PRIu64 " (\033[0;32m-%" PRIu64 "\033[0m)\n", gasUsed, test->gasUsed, test->gasUsed - gasUsed);
         } else if (testFailure) {
-            fprintf(stderr, "\033[0;31mfail\033[0m\n");
+            fputs("\033[0;31mfail\033[0m\n", stderr);
         } else {
-            fprintf(stderr, "\033[0;32mpass\033[0m\n");
+            fputs("\033[0;32mpass\033[0m\n", stderr);
         }
     } else if (testFailure) {
         fprintf(stderr, "\033[0;31mfail\033[0m\n");
@@ -323,9 +323,9 @@ static void verifyConstructResult(result_t *constructResult, entry_t *entry) {
         if (constructResult->returnData.size != entry->code.size || memcmp(constructResult->returnData.content, entry->code.content, entry->code.size)) {
             fputs("Code mismatch at address ", stderr);
             fprintAddress(stderr, (*entry->address));
-            fprintf(stderr, ":\ninitcode result:\n");
+            fputs(":\ninitcode result:\n", stderr);
             fprintData(stderr, constructResult->returnData);
-            fprintf(stderr, "\nexpected:\n");
+            fputs("\nexpected:\n", stderr);
             fprintData(stderr, entry->code);
             fputc('\n', stderr);
             _exit(-1);
@@ -333,17 +333,19 @@ static void verifyConstructResult(result_t *constructResult, entry_t *entry) {
     }
 }
 
+static address_t *anonymousAddress() {
+    address_t *addr = calloc(1, sizeof(address_t));
+    addr->address[0] = 0xaa;
+    addr->address[1] = 0xbb;
+    static uint32_t anonymousId;
+    *(uint32_t *)(&addr->address[15]) = anonymousId++;
+    return addr;
+}
+
 static void applyEntry(entry_t *entry) {
     if (entry->importPath) {
         loadConfig(entry->importPath, false);
         return;
-    }
-    if (entry->address == NULL) {
-        entry->address = calloc(1, sizeof(address_t));
-        entry->address->address[0] = 0xaa;
-        entry->address->address[1] = 0xbb;
-        static uint32_t anonymousId;
-        *(uint32_t *)(&entry->address->address[15]) = anonymousId++;
     }
     bool constructHeaderPrinted = false;
     if (entry->initCode.size) {
@@ -357,7 +359,7 @@ static void applyEntry(entry_t *entry) {
         if (entry->constructTest) {
             if (!AddressZero(&entry->constructTest->from)) {
                 if (entry->creator && !AddressEqual(&entry->constructTest->from, entry->creator)) {
-                    fprintf(stderr, "constructTest.from conflicts with creator\n");
+                    fputs("constructTest.from conflicts with creator\n", stderr);
                     _exit(1);
                 }
                 AddressCopy(from, entry->constructTest->from);
@@ -380,7 +382,21 @@ static void applyEntry(entry_t *entry) {
         value[1] = 0;
         value[2] = 0;
 
-        result_t constructResult = evmConstruct(from, *entry->address, gas, value, entry->initCode);
+        result_t constructResult;
+        if (entry->address == NULL && !AddressZero(&from)) {
+            constructResult = txCreate(from, gas, value, entry->initCode);
+            if (!zero256(&constructResult.status)) {
+                entry->address = malloc(sizeof(address_t));
+                *entry->address = AddressFromUint256(&constructResult.status);
+            } else {
+                entry->address = anonymousAddress();
+            }
+        } else {
+            if (entry->address == NULL) {
+                entry->address = anonymousAddress();
+            }
+            constructResult = evmConstruct(from, *entry->address, gas, value, entry->initCode);
+        }
         verifyConstructResult(&constructResult, entry);
         if (entry->constructTest) {
             // normalize status to 1/0 for test comparison: deployed address → 1
@@ -391,8 +407,13 @@ static void applyEntry(entry_t *entry) {
             runConstructTest(entry, entry->constructTest, &constructResult, gas);
             constructHeaderPrinted = true;
         }
-    } else if (entry->code.size) {
-        evmMockCode(*entry->address, entry->code);
+    } else {
+        if (entry->address == NULL) {
+            entry->address = anonymousAddress();
+        }
+        if (entry->code.size) {
+            evmMockCode(*entry->address, entry->code);
+        }
     }
     evmMockNonce(*entry->address, entry->nonce);
     evmMockBalance(*entry->address, entry->balance);
@@ -467,8 +488,17 @@ static void jsonScanLog(const char **iter, logChanges_t **prev) {
             } else if (logHeadingLen == 4 && *logHeading == 'd') {
                 // data
                 jsonScanData(iter, &log->data);
+            } else if (logHeadingLen == 8 && *logHeading == 'l') {
+                // logIndex
+                const char *v = jsonScanStr(iter);
+                jsonSkipExpectedChar(&v, '0');
+                jsonSkipExpectedChar(&v, 'x');
+                while (*v != '"') {
+                    log->logIndex = (log->logIndex << 4) | hexString8ToUint8(*v);
+                    v++;
+                }
             } else {
-                fprintf(stderr, "Unexpected log heading: ");
+                fputs("Unexpected log heading: ", stderr);
                 for (size_t i = 0; i < logHeadingLen; i++) {
                     fputc(logHeading[i], stderr);
                 }

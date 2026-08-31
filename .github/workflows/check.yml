@@ -16,5 +16,8 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install dependencies
+        run: sudo apt-get install -y libcurl4-openssl-dev
+
       - name: make check
         run: make check

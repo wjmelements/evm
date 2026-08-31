@@ -6,10 +6,13 @@ CXXSTD=-std=gnu++11
 CFLAGS=-O3 -fdiagnostics-color=auto -Wno-multichar -pthread -g $(CCSTD)
 CXXFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) $(CXXSTD) -fno-exceptions -Wno-write-strings -Wno-pointer-arith
 OCFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) -fmodules
-MKDIRS=lib bin tst/bin .pass .pass/tst/bin .make .make/bin .make/tst/bin .make/lib .pass/tst/in .pass/tst/diotst
+MKDIRS=lib bin tst/bin .pass .pass/tst/bin .make .make/bin .make/tst/bin .make/lib .pass/tst/in .pass/tst/diotst .pass/tst/dio tst/dio/out
+DIO_RPC=$(or $(ETH_RPC_URL),https://mainnet.gateway.tenderly.co)
+DIOTESTS=$(wildcard tst/dio/*.json)
 SECP256K1=secp256k1/.libs/libsecp256k1.a
 INCLUDE=$(addprefix -I,include) -Isecp256k1/include
-EXECS=$(patsubst %.c, bin/%, $(wildcard *.c))
+CURL_LDFLAGS := $(shell curl-config --libs 2>/dev/null || echo -lcurl)
+EXECS=$(patsubst %.c, bin/%, $(wildcard *.c)) $(patsubst %.py, bin/%, $(wildcard *.py))
 TESTS=$(patsubst tst/%.c, tst/bin/%, $(wildcard tst/*.c))
 SRC=$(wildcard src/*.cpp) $(wildcard src/*.m) $(wildcard src/%.c)
 LIBS=$(patsubst src/%.cpp, lib/%.o, $(wildcard src/*.cpp)) $(patsubst src/%.m, lib/%.o, $(wildcard src/*.m)) $(patsubst src/%.c, lib/%.o, $(wildcard src/*.c))
@@ -24,7 +27,7 @@ clean:
 	rm -rf $(MKDIRS)
 	make -C secp256k1 clean
 again: clean all
-check: $(addprefix .pass/,$(TESTS) $(INTEGRATIONS))
+check: $(addprefix .pass/,$(TESTS) $(INTEGRATIONS) $(DIOTESTS))
 fmt:
 	find . -path ./.git -prune -o -path ./secp256k1 -prune -o \( -name '*.c' -o -name '*.h' \) -print | xargs uncrustify -c .uncrustify.cfg --replace --no-backup
 
@@ -68,6 +71,18 @@ distcheck dist-check:
 .pass/tst/diotst/%.json: bin/evm tst/%.json | .pass/tst/diotst
 	@echo [$(patsubst .pass/tst/diotst/%,tst/%,$@)]
 	@$(subst $(eval ) , -w ,$^) && touch $@
+# dio integration tests: each tst/dio/*.json is a JSON array of call inputs for bin/dio.
+# Step 1: split inputs into tst/dio/out/<stem>/<n>.json, run bin/dio writing tst/dio/out/<stem>.json.
+# Step 2: verify no standalone "tests" entry (all tests co-located), then run bin/evm -w.
+tst/dio/out/%.json: tst/dio/%.json bin/dio | tst/dio/out
+	@echo [dio $<]
+	@bin/dio $(DIO_RPC) $@ $<
+.pass/tst/dio/%.json: tst/dio/out/%.json bin/evm | .pass/tst/dio
+	@{ jq -e 'all(.[]; has("address") or has("initcode"))' $< >/dev/null \
+		&& bin/evm -w $< \
+		&& [ ! -f tst/dio/expected/$*.json ] || perl make/diocmp.pl tst/dio/expected/$*.json $<; } \
+		&& echo -e "tst/dio/$*.json: \033[0;32mpass\033[0m" && touch $@ \
+		|| { echo -e "tst/dio/$*.json: \033[0;31mfail\033[0m"; exit 1; }
 $(MKDIRS):
 	@mkdir -p $@
 $(EXECS): | bin
@@ -75,6 +90,10 @@ bin/%: %.cpp
 	$(CPP) $(CXXFLAGS) $(INCLUDE) $^ -o $@
 bin/%: %.c
 	$(CC) $(CFLAGS) $(INCLUDE) $^ -o $@
+bin/dio: dio.c | bin
+	$(CC) $(CFLAGS) $(INCLUDE) $^ $(CURL_LDFLAGS) -o $@
+tst/bin/ws: tst/ws.c | tst/bin
+	$(CC) $(CFLAGS) $(INCLUDE) $^ $(CURL_LDFLAGS) -o $@
 lib/%.o: src/%.m include/%.h | lib
 	$(CC) -c $(OCFLAGS) $(INCLUDE) $< -o $@
 lib/%.o: src/%.cpp include/%.h | lib
@@ -115,4 +134,4 @@ secp256k1/Makefile: secp256k1/configure
 	cd $(dir $@); ./configure --enable-module-recovery
 
 secp256k1/.libs/libsecp256k1.a: secp256k1/Makefile
-	$(MAKE) -C secp256k1
+	$(MAKE) -C secp256k1 libsecp256k1.la
