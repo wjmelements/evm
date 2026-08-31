@@ -8,26 +8,32 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// Fork, wire pipes onto child stdin/stdout, run child() in child and
-// parent(req,rsp) in parent, then assert child exited 0.
-static void with_mock_rpc(void (*child)(void), void (*parent)(FILE *req, FILE *rsp)) {
-    int req_pipe[2], rsp_pipe[2];
+// Fork, wire pipes onto child stdin/stdout/stderr, run child() in child and
+// parent(req,rsp) in parent, then assert child exited with expectedStatus
+// and its captured stderr matched expectedStderr exactly.
+static void with_mock_rpc(void (*child)(void), void (*parent)(FILE *req, FILE *rsp), int expectedStatus, const char *expectedStderr) {
+    int req_pipe[2], rsp_pipe[2], err_pipe[2];
     assert(pipe(req_pipe) == 0);
     assert(pipe(rsp_pipe) == 0);
+    assert(pipe(err_pipe) == 0);
     pid_t pid = fork();
     assert(pid >= 0);
     if (pid == 0) {
         close(req_pipe[0]);
         close(rsp_pipe[1]);
+        close(err_pipe[0]);
         dup2(rsp_pipe[0], STDIN_FILENO);
         dup2(req_pipe[1], STDOUT_FILENO);
+        dup2(err_pipe[1], STDERR_FILENO);
         close(rsp_pipe[0]);
         close(req_pipe[1]);
+        close(err_pipe[1]);
         child();
         exit(0);
     }
     close(req_pipe[1]);
     close(rsp_pipe[0]);
+    close(err_pipe[1]);
     FILE *req = fdopen(req_pipe[0], "r");
     FILE *rsp = fdopen(rsp_pipe[1], "w");
     parent(req, rsp);
@@ -35,7 +41,14 @@ static void with_mock_rpc(void (*child)(void), void (*parent)(FILE *req, FILE *r
     fclose(req);
     int status;
     waitpid(pid, &status, 0);
-    assert(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    assert(WIFEXITED(status) && WEXITSTATUS(status) == expectedStatus);
+
+    char errBuf[4096];
+    ssize_t errLen = read(err_pipe[0], errBuf, sizeof(errBuf) - 1);
+    assert(errLen >= 0);
+    errBuf[errLen] = 0;
+    close(err_pipe[0]);
+    assert(strcmp(errBuf, expectedStderr) == 0);
 }
 
 static void batch_response(FILE *rsp, const char *code_hex, const char *balance_hex) {
@@ -95,7 +108,28 @@ static void parent_storage(FILE *req, FILE *rsp) {
 }
 
 void test_networkFetchStorage(void) {
-    with_mock_rpc(child_storage, parent_storage);
+    with_mock_rpc(child_storage, parent_storage, 0, "");
+}
+
+// --- test_networkFetchStorageRpcError ---
+// A JSON-RPC error response (no "result" key) for eth_getStorageAt must
+// make the client exit rather than silently misparse a garbage value.
+static void parent_storage_rpc_error(FILE *req, FILE *rsp) {
+    char buf[8192];
+    while (fgets(buf, sizeof(buf), req)) {
+        if (strstr(buf, "getStorageAt")) {
+            fputs("{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32000,\"message\":\"missing trie node\"}}\n", rsp);
+            fflush(rsp);
+        } else if (strstr(buf, "0x1111000000000000000000000000000000000001")) {
+            batch_response(rsp, "0x5f545f52595ff3", "0x0");
+        } else {
+            batch_response(rsp, "0x", "0x0");
+        }
+    }
+}
+
+void test_networkFetchStorageRpcError(void) {
+    with_mock_rpc(child_storage, parent_storage_rpc_error, 1, "evm: network: bad eth_getStorageAt response\n");
 }
 
 // --- test_networkFetchAccount ---
@@ -151,11 +185,12 @@ static void parent_account(FILE *req, FILE *rsp) {
 }
 
 void test_networkFetchAccount(void) {
-    with_mock_rpc(child_account, parent_account);
+    with_mock_rpc(child_account, parent_account, 0, "");
 }
 
 int main(void) {
     test_networkFetchStorage();
+    test_networkFetchStorageRpcError();
     test_networkFetchAccount();
     return 0;
 }
