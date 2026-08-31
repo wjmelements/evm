@@ -204,7 +204,12 @@ static void execute(const char *contents) {
         }
         if (includeStatus) {
             fputs("status\":\"", stdout);
-            fprintCompact256(stdout, &result.status);
+            if (!hasTo && !zero256(&result.status)) {
+                // CREATE status is a deployed address: print it fixed-width, not compact.
+                fprintAddress(stdout, AddressFromUint256(&result.status));
+            } else {
+                fprintCompact256(stdout, &result.status);
+            }
             fputs("\",\"", stdout);
         }
         fputs("returnData\":\"0x", stdout);
