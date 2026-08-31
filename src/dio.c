@@ -549,6 +549,23 @@ static void jsonScanAccountLogs(const char **iter, logsEntry_t **prev) {
     jsonSkipExpectedChar(iter, ']');
 }
 
+/*
+ * Parse an address from the hex digits of a config value (the "0x" prefix must
+ * already have been consumed).  Values shorter than 40 hex digits are
+ * left-padded with zeros; values longer than 40 hex digits are rejected.
+ */
+static address_t addressFromHexDigits(const char *hex, size_t length) {
+    if (length > 40) {
+        fprintf(stderr, "Config: address too long (%zu) on line %" PRIu64 "\n", length, lineNumber);
+        _exit(1);
+    }
+    char padded[40];
+    size_t pad = 40 - length;
+    memset(padded, '0', pad);
+    memcpy(padded + pad, hex, length);
+    return AddressFromHex40(padded);
+}
+
 static address_t *jsonReadAddress(const char **iter) {
     jsonSkipExpectedChar(iter, '0');
     jsonSkipExpectedChar(iter, 'x');
@@ -746,10 +763,7 @@ static testEntry_t *jsonScanTestEntry(const char **iter) {
                     // from
                     jsonSkipExpectedChar(&testValue, '0');
                     jsonSkipExpectedChar(&testValue, 'x');
-                    for (unsigned int i = 0; i < 20; i++) {
-                        test->from.address[i] = hexString16ToUint8(testValue);
-                        testValue += 2;
-                    }
+                    test->from = addressFromHexDigits(testValue, testValueLength - 2);
                 } else if (testHeadingLen == 2 && *testHeading == 't') {
                     // to
                     if (test->to) {

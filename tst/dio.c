@@ -3,6 +3,8 @@
 
 
 #include <assert.h>
+#include <stdlib.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 void test_applyConfig_code() {
@@ -239,6 +241,78 @@ void test_applyConfig_tests() {
     evmFinalize();
 }
 
+// A short "from" address is left-padded with zeros.
+void test_applyConfig_from_short() {
+    evmInit();
+
+    const char config[] =
+        "["
+        "    {"
+        "        \"address\":\"0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3\","
+        "        \"code\":\"0x335f5260205ff3\","
+        "        \"tests\":"
+        "            ["
+        "                {"
+        "                    \"op\": \"CALL\","
+        "                    \"from\": \"0x1234\","
+        "                    \"input\": \"0x\","
+        "                    \"output\": \"0x0000000000000000000000000000000000000000000000000000000000001234\""
+        "                }"
+        "            ]"
+        "    }"
+        "]";
+    // applyConfig calls _exit(1) if the test's expected output does not match.
+    applyConfig(config);
+
+    evmFinalize();
+}
+
+// A "from" address with more than 40 hex digits is rejected.
+void test_applyConfig_from_long() {
+    const char config[] =
+        "["
+        "    {"
+        "        \"address\":\"0x80d9b122dc3a16fdc41f96cf010ffe7e38d227c3\","
+        "        \"code\":\"0x335f5260205ff3\","
+        "        \"tests\":"
+        "            ["
+        "                {"
+        "                    \"op\": \"CALL\","
+        "                    \"from\": \"0xaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\","
+        "                    \"input\": \"0x\","
+        "                    \"output\": \"0x\""
+        "                }"
+        "            ]"
+        "    }"
+        "]";
+    const char *expectedErr = "Config: address too long (42) on line 1\n";
+
+    int rw[2];
+    assert(pipe(rw) == 0);
+    pid_t pid = fork();
+    assert(pid >= 0);
+    if (pid == 0) {
+        dup2(rw[1], 2);
+        clearerr(stderr);  // main() closed fd 2; drop the stale error flag
+        close(rw[0]);
+        close(rw[1]);
+        evmInit();
+        applyConfig(config);
+        _exit(0);
+    }
+    close(rw[1]);
+    char actualErr[128];
+    ssize_t red = read(rw[0], actualErr, sizeof(actualErr) - 1);
+    assert(red >= 0);
+    actualErr[red] = '\0';
+    close(rw[0]);
+
+    int status;
+    assert(waitpid(pid, &status, 0) == pid);
+    assert(WIFEXITED(status) && WEXITSTATUS(status) == 1);
+    assert(strcmp(actualErr, expectedErr) == 0);
+}
+
 int main() {
     pathInit("bin/evm");
 
@@ -250,5 +324,7 @@ int main() {
     close(2);
     test_applyConfig_constructTest();
     test_applyConfig_tests();
+    test_applyConfig_from_short();
+    test_applyConfig_from_long();
     return 0;
 }
