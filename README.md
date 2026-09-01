@@ -112,6 +112,7 @@ RETURN(RETURNDATASIZE,CODESIZE)
 <img alt="The World Tarot Card" src="https://upload.wikimedia.org/wikipedia/commons/f/ff/RWS_Tarot_21_World.jpg" height=120>
 
 By using `-w config.json`, you can define the precondition state before execution.
+The recommended way to generate this is `bin/dio`, which snapshots live chain state; see [On-chain state](#on-chain-state-bindio) below.
 ```json
 [
     {
@@ -146,6 +147,41 @@ If `code` is also supplied for the entry, the code will be used to verify the re
 | `tests` | transactions executed sequentially, after account configuration | <pre>[<br>    {<br>        "input": "0x18160ddd",<br>        "output": "0x115eec47f6cf7e35000000"<br>    }<br>]</pre> | `[]` |
 
 See the next section for test configuration.
+
+##### On-chain state (`bin/dio`)
+`dio` drives `evm -nx` against a real node and emits a `-w` config JSON capturing every account, balance, nonce, code, and storage slot the call touched.
+That config then replays offline and deterministically with `evm -w`.
+`dio` links `libcurl` and execs the `evm` binary at runtime, so build both (`make bin/evm bin/dio`).
+```sh
+# provider URL positionally, or via $ETH_RPC_URL
+echo '{"to":"0x6b175474e89094c44da98b954eedeac495271d0f","data":"0x18160ddd"}' \
+    | dio https://mainnet.infura.io/v3/KEY | jq
+
+# write to a file instead of stdout
+export ETH_RPC_URL=https://mainnet.infura.io/v3/KEY
+dio $ETH_RPC_URL dai.json < call.json
+
+# CREATE: omit "to"; with "from" the deployed address is derived from from+nonce
+echo '{"from":"0xd8da6bf26964af9d7eed9e03e53415d37aa96045","data":"0x<initcode>"}' | dio $ETH_RPC_URL
+```
+The call JSON comes from `-o`, file arguments, or stdin, and may be a single object or an array of them.
+Each object becomes a `tests` entry (or `constructTest`, for a CREATE) on the generated account.
+
+| Call JSON key | Meaning | Default |
+| :-----------: | ------- | :-----: |
+| `to` | contract called; omit for a CREATE | _(CREATE)_ |
+| `from` | `msg.sender` / deployer | `0x00…00` |
+| `data` / `input` | calldata, or initcode when `to` is omitted | `0x` |
+| `value` | wei sent with the call | `0x0` |
+| `block` | `latest`, or a `0x`-prefixed hex block number, to pin state to | `latest` |
+
+| dio argument | Meaning |
+| :----------: | ------- |
+| _1st positional_ | provider URL (`http(s)://` or `ws(s)://`); falls back to `$ETH_RPC_URL` |
+| _2nd positional_ | output file (default: stdout) |
+| _more positionals_ | files of call JSON to read |
+| `-o <json>` | call JSON inline instead of stdin/file |
+| `-h`, `--help` | usage |
 
 ##### Testing
 ```json
@@ -229,6 +265,27 @@ The JSON will always contain the returndata but other outputs can be specified.
 * `-g`: gasUsed
 * `-l`: logs
 * `-s`: status
+#### Network mode (`-nx`)
+`evm -nx` executes against **live chain state**.
+Rather than declaring every touched account and storage slot up front with `-w`, the interpreter fetches them on demand.
+Each fetch is a [JSON-RPC](https://ethereum.org/en/developers/docs/apis/json-rpc/) request written to `stdout`; the matching response is read back from `stdin`.
+
+`evm` never opens a socket itself.
+Use [dio](#on-chain-state-bindio) to forward requests to an Ethereum RPC.
+
+The bytecode input becomes a JSON call object (the `eth_call` shape), one per line, each sharing the same EVM state:
+```json
+{"to":"0x6b175474e89094c44da98b954eedeac495271d0f","from":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266","data":"0x18160ddd"}
+```
+Omit `to` to deploy `data` as initcode.
+
+| Request emitted by `evm` | When |
+| ------------------------ | ---- |
+| `eth_blockNumber` | once, on the first fetch |
+| `eth_getCode` + `eth_getTransactionCount` + `eth_getBalance` | first touch of an account (sent as one batch array) |
+| `eth_getStorageAt` | first read of a storage slot |
+
+Accounts created during execution are served locally and never fetched.
 #### Warning
 EVM execution should mostly work but may not implement every opcode and corner-case.
 If you find a bug that disrupts you, please file an issue with its impact to you and code that reproduces it and I may find time to fix it, or alternatively you can submit a pull request.

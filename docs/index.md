@@ -7,6 +7,7 @@
 * Disassembler
 * Runtime
 * Test Environment
+* Fork and Snapshot
 * Gas Profiler
 
 
@@ -18,9 +19,15 @@ make -C evm bin/evm
 sudo install evm/bin/evm /usr/local/bin/
 ```
 
+To also build `bin/dio` (on-chain state snapshotter), `libcurl` development headers are required:
+```sh
+make -C evm bin/evm bin/dio
+sudo install evm/bin/evm evm/bin/dio /usr/local/bin/
+```
+
 ### Uninstallation
 ```sh
-sudo rm -f /usr/local/bin/evm
+sudo rm -f /usr/local/bin/evm /usr/local/bin/dio
 ```
 
 ### Update
