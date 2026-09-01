@@ -151,7 +151,7 @@ See the next section for test configuration.
 ##### On-chain state (`bin/dio`)
 `dio` drives `evm -nx` against a real node and emits a `-w` config JSON capturing every account, balance, nonce, code, and storage slot the call touched.
 That config then replays offline and deterministically with `evm -w`.
-Building `dio` requires `libcurl` (`make bin/dio`).
+`dio` links `libcurl` and execs the `evm` binary at runtime, so build both (`make bin/evm bin/dio`).
 ```sh
 # provider URL positionally, or via $ETH_RPC_URL
 echo '{"to":"0x6b175474e89094c44da98b954eedeac495271d0f","data":"0x18160ddd"}' \
@@ -173,7 +173,7 @@ Each object becomes a `tests` entry (or `constructTest`, for a CREATE) on the ge
 | `from` | `msg.sender` / deployer | `0x00…00` |
 | `data` / `input` | calldata, or initcode when `to` is omitted | `0x` |
 | `value` | wei sent with the call | `0x0` |
-| `block` | block tag or number to pin state to | `latest` |
+| `block` | `latest`, or a `0x`-prefixed hex block number, to pin state to | `latest` |
 
 | dio argument | Meaning |
 | :----------: | ------- |
@@ -281,7 +281,7 @@ Omit `to` to deploy `data` as initcode.
 
 | Request emitted by `evm` | When |
 | ------------------------ | ---- |
-| `eth_blockNumber` | once, unless `blockNumber` is already pinned |
+| `eth_blockNumber` | once, on the first fetch |
 | `eth_getCode` + `eth_getTransactionCount` + `eth_getBalance` | first touch of an account (sent as one batch array) |
 | `eth_getStorageAt` | first read of a storage slot |
 

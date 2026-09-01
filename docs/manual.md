@@ -163,16 +163,11 @@ With `-x` reading from stdin, each line is a separate call sharing the accumulat
 Instead of declaring every account and storage slot up front with `-w`, the interpreter fetches them lazily.
 Each fetch is emitted as a [JSON-RPC](https://ethereum.org/en/developers/docs/apis/json-rpc/) request on **stdout**; the response is read from **stdin**.
 `evm` opens no socket of its own — it must sit between the requests and a node.
-
-```sh
-# feed RPC replies on stdin, e.g. via a proxy script or bin/dio
-echo '{"to":"0x6b175474e89094c44da98b954eedeac495271d0f","data":"0x18160ddd"}' \
-    | evm -nx | your-rpc-proxy https://…
-```
+Wiring stdout back to stdin needs a bidirectional pipe, not a plain shell `|`.
 
 | Request | Emitted |
 | ------- | ------- |
-| `eth_blockNumber` | once, unless `blockNumber` is pinned in the call object |
+| `eth_blockNumber` | once, on the first fetch |
 | `eth_getCode` + `eth_getTransactionCount` + `eth_getBalance` | on first touch of an account, as one batch array |
 | `eth_getStorageAt` | on first read of a storage slot |
 
@@ -186,11 +181,13 @@ Accounts created during execution are served locally and never fetched.
 `bin/dio` drives `evm -nx` against a node and writes a `-w` config JSON snapshotting every
 account, balance, nonce, code, and storage slot the call touched, so the call replays
 offline and deterministically with `evm -w`.
-It links `libcurl`; build it with `make bin/dio`.
+It links `libcurl` and execs the `evm` binary at runtime, so build both:
 
 ```sh
-dio [provider-url] [outfile] [-o json] [file...]
+make bin/evm bin/dio
 ```
+
+    dio [provider-url] [outfile] [-o json] [file...]
 
 - The provider URL is the first positional argument, or `$ETH_RPC_URL`. `http(s)://` and `ws(s)://` are supported.
 - The second positional argument is the output file; output goes to stdout when omitted.
@@ -217,7 +214,7 @@ echo '{"from":"0xd8da6bf26964af9d7eed9e03e53415d37aa96045","data":"0x<initcode>"
 | `from` | `msg.sender` / deployer | `0x000…000` |
 | `data` / `input` | calldata, or initcode when `to` is omitted | `0x` |
 | `value` | wei sent with the call | `0x0` |
-| `block` | block tag or number to pin state to | `latest` |
+| `block` | `latest`, or a `0x`-prefixed hex block number, to pin state to | `latest` |
 
 Each call object becomes a `tests` entry on the generated account, or a `constructTest` when it is a CREATE.
 
