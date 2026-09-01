@@ -22,6 +22,7 @@
 | `-g` | `-x` | Include `gasUsed` in JSON output |
 | `-l` | `-x` | Include `logs` in JSON output |
 | `-s` | `-x` | Include `status` in JSON output |
+| `-n` | `-x` | Network mode: fetch account and storage state on demand over JSON-RPC |
 | `-u` | `-w` | Update `gasUsed` fields in config file in-place |
 
 **Shared**
@@ -142,12 +143,91 @@ Adding any of `-g`, `-l`, `-s` switches to JSON output.
 `returnData` is always included.
 Flags combine freely: `evm -xgls foo.out`.
 
+### JSON call input
+
+When the input to `-x` begins with `{`, it is parsed as a call object instead of raw bytecode:
+
+| Key | Meaning |
+| :-: | ------- |
+| `to` | callee; when present, the input is a `CALL` instead of a `CREATE` |
+| `from` | `msg.sender` |
+| `data` / `input` | calldata, or initcode when `to` is absent |
+
+With `-x` reading from stdin, each line is a separate call sharing the accumulated EVM state.
+
+---
+
+## Network mode (`-n`)
+
+`evm -nx` executes against **live chain state**.
+Instead of declaring every account and storage slot up front with `-w`, the interpreter fetches them lazily.
+Each fetch is emitted as a [JSON-RPC](https://ethereum.org/en/developers/docs/apis/json-rpc/) request on **stdout**; the response is read from **stdin**.
+`evm` opens no socket of its own — it must sit between the requests and a node.
+
+```sh
+# feed RPC replies on stdin, e.g. via a proxy script or bin/dio
+echo '{"to":"0x6b175474e89094c44da98b954eedeac495271d0f","data":"0x18160ddd"}' \
+    | evm -nx | your-rpc-proxy https://…
+```
+
+| Request | Emitted |
+| ------- | ------- |
+| `eth_blockNumber` | once, unless `blockNumber` is pinned in the call object |
+| `eth_getCode` + `eth_getTransactionCount` + `eth_getBalance` | on first touch of an account, as one batch array |
+| `eth_getStorageAt` | on first read of a storage slot |
+
+Accounts created during execution are served locally and never fetched.
+`bin/dio` implements this proxy against a real endpoint — see [dio](#dio).
+
+---
+
+## dio
+
+`bin/dio` drives `evm -nx` against a node and writes a `-w` config JSON snapshotting every
+account, balance, nonce, code, and storage slot the call touched, so the call replays
+offline and deterministically with `evm -w`.
+It links `libcurl`; build it with `make bin/dio`.
+
+```sh
+dio [provider-url] [outfile] [-o json] [file...]
+```
+
+- The provider URL is the first positional argument, or `$ETH_RPC_URL`. `http(s)://` and `ws(s)://` are supported.
+- The second positional argument is the output file; output goes to stdout when omitted.
+- The call JSON comes from `-o <json>`, from file arguments, or from stdin, and may be a single object or an array.
+
+```sh
+export ETH_RPC_URL=https://mainnet.infura.io/v3/KEY
+
+# totalSupply() of DAI, config to stdout
+echo '{"to":"0x6b175474e89094c44da98b954eedeac495271d0f","data":"0x18160ddd"}' | dio | jq
+
+# write to a file
+dio $ETH_RPC_URL dai.json < call.json
+
+# CREATE entry: omit "to"; with "from", the deployed address is derived from from + nonce
+echo '{"from":"0xd8da6bf26964af9d7eed9e03e53415d37aa96045","data":"0x<initcode>"}' | dio $ETH_RPC_URL
+```
+
+### Call JSON
+
+| Key | Meaning | Default |
+| :-: | ------- | :-----: |
+| `to` | contract called; omit to generate a CREATE entry | — (CREATE) |
+| `from` | `msg.sender` / deployer | `0x000…000` |
+| `data` / `input` | calldata, or initcode when `to` is omitted | `0x` |
+| `value` | wei sent with the call | `0x0` |
+| `block` | block tag or number to pin state to | `latest` |
+
+Each call object becomes a `tests` entry on the generated account, or a `constructTest` when it is a CREATE.
+
 ---
 
 ## Dio config (`-w`)
 
 `-w config.json` loads a JSON array of account entries defining world state, runs any `tests` entries, then exits.
 Add `-x` to also execute a bytecode input using that world state.
+The recommended way to generate this config is `bin/dio`, which snapshots live chain state; see [dio](#dio).
 
 ```sh
 evm -w tst/foo.json          # run tests
