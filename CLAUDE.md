@@ -64,6 +64,7 @@ The library is linked automatically via the sentinel header mechanism (see Build
 - Function syntax: `MSTORE(MSIZE, 42)` — args evaluated left-to-right, pushed right-to-left
 - Nested calls: `RETURN(0, ADD(#str, #str))`
 - Data sections: `{ str: 0xdeadbeef }` — defines labeled data inline
+- Data section slice: `{ rt: assemble foo.evm[12:] }` — Python-style `[start:end]` byte suffix on any item form (hex/string/assemble/construct); negative bounds count from the end
 - `#label` — push byte length of labeled data
 - Lowercase identifiers are jump labels
 - Precompile names (e.g. `ECRECOVER`, `IDENTITY`) are valid arguments, emit `PUSH0`/`PUSH1 <addr>`

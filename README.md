@@ -77,6 +77,15 @@ RETURN(0, 32)
 | Assembly | `selfdestruct: assemble tst/in/selfdestruct.evm` | `33ff` |
 | Construct | `constructor: construct tst/in/selfdestruct.evm` | `6133ff3d526002601ef3` |
 
+Any item can be sliced with a Python-style `[start:end]` byte suffix to inline only a subset.
+`start` defaults to `0` and `end` to the item length; either bound may be negative to count from the end.
+
+| Sliced Item | Example Data |
+| :---------- | :----------: |
+| `runtime: assemble tst/in/selfdestruct.evm[1:]` | `ff` |
+| `head: 0xdeadbeef[:2]` | `dead` |
+| `tail: "Hello, world!"[-6:]` | `776f726c6421` |
+
 ### Disassembler
 ```sh
 $ cat selfdestruct.out

@@ -20,6 +20,8 @@ static inline int shouldIgnore(char ch) {
            && ch != '-'
            && ch != '{'
            && ch != '}'
+           && ch != '['
+           && ch != ']'
            && ch != '#'
            && (ch < '0' || ch > '9')
            && (ch < 'A' || ch > 'Z')
@@ -281,6 +283,129 @@ static void scanLabel(const char **iter) {
     scanWaste(iter);
 }
 
+static char *scanPathDup(const char **iter) {
+    const char *start = *iter;
+    scanPath(iter);
+    size_t len = *iter - start;
+    char *path = malloc(len + 1);
+    memcpy(path, start, len);
+    path[len] = '\0';
+    return path;
+}
+
+static data_t parseHexData(const char **iter) {
+    const char *start = *iter;
+    while (isHex(**iter)) {
+        (*iter)++;
+    }
+    size_t nibbles = *iter - start;
+    data_t out;
+    out.size = (nibbles + 1) / 2;
+    out.content = malloc(out.size + 1);
+    size_t i = 0;
+    const char *p = start;
+    if (nibbles & 1) {
+        out.content[i++] = hexString8ToUint8(*p++);
+    }
+    while (p < *iter) {
+        out.content[i++] = hexString16ToUint8(p);
+        p += 2;
+    }
+    return out;
+}
+
+// Any slice bound this large is nonsense: data sizes are bounded by uint16_t.
+// Capping well below LONG_MAX keeps the accumulation below from overflowing.
+#define SLICE_BOUND_MAX 0xffffffL
+
+// Parses one slice bound: an optional '-' followed by decimal digits or a 0x
+// hex literal. Returns false for an omitted bound (no digits present).
+static bool parseSliceInt(const char **iter, long *value) {
+    bool negative = false;
+    if (**iter == '-') {
+        negative = true;
+        (*iter)++;
+    }
+    long v = 0;
+    if ((*iter)[0] == '0' && (*iter)[1] == 'x') {
+        *iter += 2;
+        if (!isHex(**iter)) {
+            fprintf(stderr, "Data section slice: malformed hex bound at line %u\n", lineNumber);
+            exit(1);
+        }
+        while (isHex(**iter)) {
+            v = v * 16 + hexString8ToUint8(*((*iter)++));
+            if (v > SLICE_BOUND_MAX) {
+                fprintf(stderr, "Data section slice: bound too large at line %u\n", lineNumber);
+                exit(1);
+            }
+        }
+    } else if (**iter >= '0' && **iter <= '9') {
+        while (**iter >= '0' && **iter <= '9') {
+            v = v * 10 + (*((*iter)++) - '0');
+            if (v > SLICE_BOUND_MAX) {
+                fprintf(stderr, "Data section slice: bound too large at line %u\n", lineNumber);
+                exit(1);
+            }
+        }
+    } else {
+        if (negative) {
+            fprintf(stderr, "Data section slice: expected digits after '-' at line %u\n", lineNumber);
+            exit(1);
+        }
+        return false;
+    }
+    *value = negative ? -v : v;
+    return true;
+}
+
+// Applies an optional Python-style byte slice suffix
+static void scanSlice(const char **iter, data_t *data) {
+    scanWaste(iter);
+    if (**iter != '[') {
+        return;
+    }
+    (*iter)++;
+    long size = (long)data->size;
+    long lo = 0;
+    long hi = size;
+    long bound;
+
+    scanWaste(iter);
+    if (parseSliceInt(iter, &bound)) {
+        lo = bound < 0 ? bound + size : bound;
+    }
+    scanWaste(iter);
+    if (**iter != ':') {
+        fprintf(stderr, "Data section slice expects ':' at line %u\n", lineNumber);
+        exit(1);
+    }
+    (*iter)++;
+    scanWaste(iter);
+    if (parseSliceInt(iter, &bound)) {
+        hi = bound < 0 ? bound + size : bound;
+    }
+    scanWaste(iter);
+    if (**iter != ']') {
+        fprintf(stderr, "Data section slice expects ']' at line %u\n", lineNumber);
+        exit(1);
+    }
+    (*iter)++;
+
+    if (lo < 0) {
+        lo = 0;
+    }
+    if (hi < 0) {
+        hi = 0;
+    }
+    if (lo > hi || hi > size) {
+        fprintf(stderr, "Data section slice [%ld:%ld] out of range for %ld bytes at line %u\n", lo, hi, size, lineNumber);
+        exit(1);
+    }
+    data->content += lo;
+    data->size = (size_t)(hi - lo);
+}
+
 static void scanDataSection(const char **iter) {
     (*iter)++; // '{' or ','
     inDataSection = true;
@@ -302,54 +427,40 @@ static void scanDataSection(const char **iter) {
     }
     (*iter)++;
     scanWaste(iter);
+
+    data_t value;
+    uint8_t *owned = NULL;
     if (**iter == '"') {
         scanChar(iter, '"');
-
-        data_t str;
-        str.content = (uint8_t *)*iter;
+        value.content = (uint8_t *)*iter;
         scanTo(iter, '"');
-        str.size = (uint8_t *)*iter - str.content;
-        scanstackPushData(&str);
-
+        value.size = (uint8_t *)*iter - value.content;
         scanChar(iter, '"');
     } else if (isHexConstantPrefix(*iter)) {
         *iter += 2;
-        parseHex(iter);
+        value = parseHexData(iter);
+        owned = value.content;
     } else if (isConstruct(*iter)) {
         *iter += 9;
         scanWaste(iter);
-        const char *fileStart = *iter;
-        scanPath(iter);
-        const char *fileEnd = *iter;
-
-        char *path = malloc(fileEnd - fileStart + 1);
-        strncpy(path, fileStart, fileEnd - fileStart);
-        path[fileEnd - fileStart] = '\0';
-        data_t defaultConstructor = defaultConstructorForPath(path);
-        //fprintf(stderr, "Parsed constructor size %u\n", defaultConstructor.size);
+        char *path = scanPathDup(iter);
+        value = defaultConstructorForPath(path);
         free(path);
-
-        scanstackPushData(&defaultConstructor);
-        free(defaultConstructor.content);
+        owned = value.content;
     } else if (isAssemble(*iter)) {
         *iter += 8;
         scanWaste(iter);
-        const char *fileStart = *iter;
-        scanPath(iter);
-        const char *fileEnd = *iter;
-
-        char *path = malloc(fileEnd - fileStart + 1);
-        strncpy(path, fileStart, fileEnd - fileStart);
-        path[fileEnd - fileStart] = '\0';
-        data_t assembled = assemblePath(path);
-        //fprintf(stderr, "Assembled size %u\n", assembled.size);
+        char *path = scanPathDup(iter);
+        value = assemblePath(path);
         free(path);
-
-        scanstackPushData(&assembled);
-        free(assembled.content);
+        owned = value.content;
     } else {
         fprintf(stderr, "Unsupported data section type at line %u\n", lineNumber);
+        exit(1);
     }
+    scanSlice(iter, &value);
+    scanstackPushData(&value);
+    free(owned);
     scanstackPushLabel(start, end - start, CODECOPY);
     scanWaste(iter);
     if (**iter == '}') {

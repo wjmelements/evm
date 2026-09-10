@@ -1,0 +1,7 @@
+CODECOPY(0, data, #data)
+JUMP(label)
+{
+    data: assemble tst/in/selfdestruct.evm[1:]
+}
+label:
+RETURN(0, #data)

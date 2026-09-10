@@ -38,6 +38,28 @@ void test_parseAssemble() {
     assert(memcmp(program, expected, 12) == 0);
 }
 
+void test_parseSlice() {
+    scanInit();
+    const char *test = "CODECOPY(0, sd, #sd)\
+        RETURN(0, #sd) \
+        { sd: assemble tst/in/selfdestruct.evm[1:] }";
+    const char *remaining = test;
+    uint32_t programLength = 0;
+    while (scanValid(&remaining)) {
+        assert(programLength < 40);
+        program[programLength++] = scanNextOp(&remaining);
+    }
+    scanFinalize(program, &programLength);
+
+    op_t expected[] = {
+        PUSH1, 0x01, PUSH1, 0x0a, PUSH0, CODECOPY,
+        PUSH1, 0x01, PUSH0, RETURN,
+        SELFDESTRUCT,
+    };
+    assert(programLength == 11);
+    assert(memcmp(program, expected, 11) == 0);
+}
+
 void test_parseConstruct() {
     scanInit();
     const char *test = "CODECOPY(0, test, #test)\
@@ -99,5 +121,6 @@ int main() {
 
     test_parseAssemble();
     test_parseConstruct();
+    test_parseSlice();
     return 0;
 }
