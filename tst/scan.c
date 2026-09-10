@@ -60,6 +60,27 @@ void test_parseSlice() {
     assert(memcmp(program, expected, 11) == 0);
 }
 
+void test_parseEmptyData() {
+    scanInit();
+    const char *test = "CODECOPY(0, empty, #empty) STOP { empty: 0x }";
+    const char *remaining = test;
+    uint32_t programLength = 0;
+    while (scanValid(&remaining)) {
+        assert(programLength < 40);
+        program[programLength++] = scanNextOp(&remaining);
+    }
+    scanFinalize(program, &programLength);
+
+    op_t expected[] = {
+        PUSH1, 0x00,       // #empty: the empty item's data size
+        PUSH1, 0x07,       // empty: its location, one past the program
+        PUSH0, CODECOPY,
+        STOP,
+    };
+    assert(programLength == 7);
+    assert(memcmp(program, expected, 7) == 0);
+}
+
 void test_parseConstruct() {
     scanInit();
     const char *test = "CODECOPY(0, test, #test)\
@@ -122,5 +143,6 @@ int main() {
     test_parseAssemble();
     test_parseConstruct();
     test_parseSlice();
+    test_parseEmptyData();
     return 0;
 }

@@ -40,10 +40,6 @@ void scanInit() {
     labelQueueInit();
 }
 
-int scanValid(const char **iter) {
-    return **iter || !scanstackEmpty();
-}
-
 static int isHexConstantPrefix(const char *iter) {
     return *(uint16_t *)iter == 'x0';
 }
@@ -283,6 +279,17 @@ static void scanLabel(const char **iter) {
     scanWaste(iter);
 }
 
+// Records a data-section label whose location and size are already known,
+// bypassing the deferred CODECOPY-marker path (which always emits an op).
+static inline void registerDataLabel(const char *start, size_t len, uint32_t pc, uint16_t size) {
+    jump_t jump;
+    jump.programCounter = pc;
+    jump.dataSize = size;
+    jump.label.start = start;
+    jump.label.length = len;
+    registerLabel(jump);
+}
+
 static char *scanPathDup(const char **iter) {
     const char *start = *iter;
     scanPath(iter);
@@ -459,9 +466,16 @@ static void scanDataSection(const char **iter) {
         exit(1);
     }
     scanSlice(iter, &value);
-    scanstackPushData(&value);
+    if (value.size) {
+        scanstackPushData(&value);
+        scanstackPushLabel(start, end - start, CODECOPY);
+    } else {
+        // Empty item: contributes no bytes, so there is no CODECOPY marker for
+        // scanNextOp to turn into a label. Register it directly, pointing at
+        // where the next byte would land.
+        registerDataLabel(start, end - start, programCounter + 1, 0);
+    }
     free(owned);
-    scanstackPushLabel(start, end - start, CODECOPY);
     scanWaste(iter);
     if (**iter == '}') {
         inDataSection = false;
@@ -577,6 +591,20 @@ static void scanOp(const char **iter) {
     scanWaste(iter);
 }
 
+
+int scanValid(const char **iter) {
+    // A data item that emits no bytes (e.g. `x: 0x`) is consumed here rather
+    // than by scanNextOp, which must always yield one op. Consuming it now lets
+    // the scan finish cleanly when only such items remain.
+    while (scanstackEmpty()) {
+        scanWaste(iter);
+        if (**iter != '{' && !(inDataSection && **iter == ',')) {
+            break;
+        }
+        scanOp(iter);
+    }
+    return **iter || !scanstackEmpty();
+}
 
 op_t scanNextOp(const char **iter) {
     jump_t jump;
