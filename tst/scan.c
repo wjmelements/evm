@@ -105,6 +105,25 @@ void test_parseConstruct() {
 }
 
 
+void test_blockComment() {
+    scanInit();
+    const char *test = "/*8*/GAS/*9*/CODESIZE/*10*/ADD/*11*/(/*12*/CALLER/*13*/,/*14*/GAS/*15*/)/*16*/";
+    const char *remaining = test;
+    assert(scanNextOp(&remaining) == GAS);
+    assert(scanNextOp(&remaining) == CODESIZE);
+    assert(scanNextOp(&remaining) == GAS);
+    assert(scanNextOp(&remaining) == CALLER);
+    assert(scanNextOp(&remaining) == ADD);
+    assert(!scanValid(&remaining));
+
+    scanInit();
+    const char *multiline = "GAS/* this comment\nspans several\nlines */CODESIZE";
+    remaining = multiline;
+    assert(scanNextOp(&remaining) == GAS);
+    assert(scanNextOp(&remaining) == CODESIZE);
+    assert(!scanValid(&remaining));
+}
+
 int main() {
     pathInit("bin/evm");
     scanInit();
@@ -144,5 +163,6 @@ int main() {
     test_parseConstruct();
     test_parseSlice();
     test_parseEmptyData();
+    test_blockComment();
     return 0;
 }

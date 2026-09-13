@@ -226,7 +226,27 @@ static void scanPath(const char **iter) {
     }
 }
 
+static void scanBlockComment(const char **iter) {
+    uint32_t startLine = lineNumber;
+    for (char ch; (ch = **iter); (*iter)++) {
+        if (ch == '\n') {
+            lineNumber++;
+        } else if (ch == '*' && (*iter)[1] == '/') {
+            *iter += 2;
+            return;
+        }
+    }
+    fprintf(stderr, "Unexpected EOF in block comment starting at line %u\n", startLine);
+    exit(1);
+}
+
 static void scanComment(const char **iter) {
+    (*iter)++; // consume leading '/'
+    if (**iter == '*') {
+        (*iter)++; // consume '*'
+        scanBlockComment(iter);
+        return;
+    }
     for (char ch; (ch = **iter) != '\n'; (*iter)++) {
         ;
     }
