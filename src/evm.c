@@ -1227,7 +1227,7 @@ static result_t doCall(context_t *callContext) {
             break;
         case SELFDESTRUCT:
             CHECK_READONLY;
-            // fall through: SELFDESTRUCT execution itself is unsupported
+        // fall through: SELFDESTRUCT execution itself is unsupported
         default:
             fprintf(stderr, "Unsupported opcode %u (%s)\n", op, opString[op]);
             FAIL_INVALID;
