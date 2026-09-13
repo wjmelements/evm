@@ -835,6 +835,11 @@ static result_t doCall(context_t *callContext) {
         #define OUT_OF_GAS \
                 fprintf(stderr, "Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]); \
                 FAIL_INVALID
+        #define CHECK_READONLY \
+                if (callContext->readonly) { \
+                    fprintf(stderr, "Attempted %s inside STATICCALL\n", opString[op]); \
+                    FAIL_INVALID; \
+                }
         if (
             (callContext->top < callContext->bottom + argCount[op])
             || (op >= DUP1 && op <= DUP16 && callContext->top - (op - PUSH32) < callContext->bottom)
@@ -843,31 +848,6 @@ static result_t doCall(context_t *callContext) {
             // stack underflow
             fprintf(stderr, "Stack underflow at pc %" PRIu64 " op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom);
             FAIL_INVALID;
-        }
-        // Check staticcall
-        switch (op) {
-        case CALL:
-            if (zero256((callContext->top-3))) {
-                // CALL is permitted without CALLVALUE
-                break;
-            }
-        // intentional fallthrough
-        case LOG0:
-        case LOG1:
-        case LOG2:
-        case LOG3:
-        case LOG4:
-        case CREATE:
-        case CREATE2:
-        case SELFDESTRUCT:
-        case SSTORE:
-        case TSTORE:
-            if (callContext->readonly) {
-                fprintf(stderr, "Attempted %s inside STATICCALL\n", opString[op]);
-                FAIL_INVALID;
-            }
-        default:
-            break;
         }
         if (callContext->gas < gasCost[op]) {
             OUT_OF_GAS;
@@ -1245,6 +1225,9 @@ static result_t doCall(context_t *callContext) {
                 }
             }
             break;
+        case SELFDESTRUCT:
+            CHECK_READONLY;
+            // fall through: SELFDESTRUCT execution itself is unsupported
         default:
             fprintf(stderr, "Unsupported opcode %u (%s)\n", op, opString[op]);
             FAIL_INVALID;
@@ -1331,6 +1314,7 @@ static result_t doCall(context_t *callContext) {
         case LOG3:
         case LOG4:
         {
+            CHECK_READONLY;
             uint8_t topicCount = op - LOG0;
             uint64_t src = LOWER(LOWER_P(callContext->top + topicCount + 1));
             uint64_t size = LOWER(LOWER_P(callContext->top + topicCount));
@@ -1450,6 +1434,7 @@ static result_t doCall(context_t *callContext) {
         break;
         case SSTORE:
         {
+            CHECK_READONLY;
             if (callContext->gas <= G_CALLSTIPEND - G_ACCESS) {
                 OUT_OF_GAS;
             }
@@ -1534,6 +1519,7 @@ static result_t doCall(context_t *callContext) {
         break;
         case TSTORE:
         {
+            CHECK_READONLY;
             tstorage_t *storage = getAccountTransientStorage(callContext->account, callContext->top + 1);
             copy256(&storage->value, callContext->top);
             storage->warm = evmIteration;
@@ -1589,6 +1575,7 @@ static result_t doCall(context_t *callContext) {
         break;
         case CREATE:
         {
+            CHECK_READONLY;
             data_t input;
             input.size = LOWER(LOWER_P(callContext->top - 1));
             uint64_t src = LOWER(LOWER_P(callContext->top));
@@ -1622,6 +1609,7 @@ static result_t doCall(context_t *callContext) {
         break;
         case CREATE2:
         {
+            CHECK_READONLY;
             data_t input;
             input.size = LOWER(LOWER_P(callContext->top));
             uint64_t src = LOWER(LOWER_P(callContext->top + 1));
@@ -1672,6 +1660,10 @@ static result_t doCall(context_t *callContext) {
             value[0] = UPPER(LOWER_P(callContext->top + 3));
             value[1] = LOWER(LOWER_P(callContext->top + 3)) >> 32;
             value[2] = LOWER(LOWER_P(callContext->top + 3));
+            if (value[0] || value[1] || value[2]) {
+                // CALL is permitted without CALLVALUE
+                CHECK_READONLY;
+            }
             uint64_t outSize = LOWER(LOWER_P(callContext->top - 1));
             if (!ensureMemory(callContext, src + input.size)) {
                 OUT_OF_GAS;
@@ -1822,6 +1814,7 @@ static result_t doCall(context_t *callContext) {
         }
     }
 #undef OUT_OF_GAS
+#undef CHECK_READONLY
 }
 
 static void evmRevertBalanceChange(account_t *account, balanceChange_t *change) {
