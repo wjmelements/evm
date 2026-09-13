@@ -912,13 +912,21 @@ static result_t doCall(context_t *callContext) {
         case PUSH30:
         case PUSH31:
         case PUSH32:
-            ;
+        {
             uint8_t pushSize = op - PUSH0;
-            bzero(buffer, 32 - pushSize);
-            memcpy(buffer + 32 - pushSize, callContext->code.content + pc, pushSize);
-            readu256BE(buffer, callContext->top - 1);
+            const uint8_t *src = callContext->code.content + pc;
+            uint64_t words[4] = {0, 0, 0, 0};
+            for (uint8_t i = 0; i < pushSize; i++) {
+                uint8_t byteIndex = 32 - pushSize + i;
+                words[byteIndex >> 3] |= (uint64_t)src[i] << (56 - 8 * (byteIndex & 7));
+            }
+            UPPER(UPPER_P(callContext->top - 1)) = words[0];
+            LOWER(UPPER_P(callContext->top - 1)) = words[1];
+            UPPER(LOWER_P(callContext->top - 1)) = words[2];
+            LOWER(LOWER_P(callContext->top - 1)) = words[3];
             pc += pushSize;
             break;
+        }
         case DUP1:
         case DUP2:
         case DUP3:
