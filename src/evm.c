@@ -840,12 +840,7 @@ static result_t doCall(context_t *callContext) {
                     } \
                     fprintf(stderr, "op %s\n", opString[op]); \
                 } \
-                if ( \
-                    (callContext->top < callContext->bottom + argCount[op]) \
-                    || (op >= DUP1 && op <= DUP16 && callContext->top - (op - PUSH32) < callContext->bottom) \
-                    || (op >= SWAP1 && op <= SWAP16 && callContext->top - (op - DUP15) < callContext->bottom) \
-                ) { \
-                    /* stack underflow */ \
+                if (callContext->top - callContext->bottom < minStackHeight[op]) { \
                     fprintf(stderr, "Stack underflow at pc %" PRIu64 " op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom); \
                     FAIL_INVALID; \
                 } \

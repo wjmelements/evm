@@ -18,6 +18,25 @@ const uint64_t gasCost[NUM_OPCODES] = {
     #undef OP
 };
 
+// argCount gives the DUPn/SWAPn stack delta (1/2), not the depth they actually reach (n/n+1);
+// minStackHeight corrects that so the underflow check needs no opcode-range special cases.
+#pragma GCC diagnostic push
+#ifdef __clang__
+#pragma GCC diagnostic ignored "-Winitializer-overrides"
+#else
+#pragma GCC diagnostic ignored "-Woverride-init"
+#endif
+const uint8_t minStackHeight[NUM_OPCODES] = {
+    #define OP(index,name,in,out,gas) [name] = in,
+    OPS
+    #undef OP
+    [DUP1] = 1, [DUP2] = 2, [DUP3] = 3, [DUP4] = 4, [DUP5] = 5, [DUP6] = 6, [DUP7] = 7, [DUP8] = 8,
+    [DUP9] = 9, [DUP10] = 10, [DUP11] = 11, [DUP12] = 12, [DUP13] = 13, [DUP14] = 14, [DUP15] = 15, [DUP16] = 16,
+    [SWAP1] = 2, [SWAP2] = 3, [SWAP3] = 4, [SWAP4] = 5, [SWAP5] = 6, [SWAP6] = 7, [SWAP7] = 8, [SWAP8] = 9,
+    [SWAP9] = 10, [SWAP10] = 11, [SWAP11] = 12, [SWAP12] = 13, [SWAP13] = 14, [SWAP14] = 15, [SWAP15] = 16, [SWAP16] = 17,
+};
+#pragma GCC diagnostic pop
+
 const char *opString[NUM_OPCODES] = {
         #define OP(index,name,in,out,gas) #name,
     OPS

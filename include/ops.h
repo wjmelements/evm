@@ -273,6 +273,7 @@ extern const char *opString[NUM_OPCODES];
 extern const op_t argCount[NUM_OPCODES];
 extern const op_t retCount[NUM_OPCODES];
 extern const uint64_t gasCost[NUM_OPCODES];
+extern const op_t minStackHeight[NUM_OPCODES];
 op_t parseOp(const char *start, const char **endOut);
 
 #endif // OPS
