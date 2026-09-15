@@ -2213,7 +2213,6 @@ void test_createOutOfGas() {
         assert(!stateChanges->codeChanges->prev);
         assert(!stateChanges->codeChanges->prev);
         assert(stateChanges->codeChanges->before.size == 0);
-        assert(stateChanges->codeChanges->before.content == NULL);
         assert(DataEqual(&stateChanges->codeChanges->after, &input));
     }
 

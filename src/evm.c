@@ -416,6 +416,7 @@ static account_t *getAccount(const address_t address) {
         emptyAccount++;
         AddressCopy(result->address, address);
         result->code.size = 0;
+        result->code.content = allocPaddedCode(0);
         result->nonce = 0;
         result->balance[0] = 0;
         result->balance[1] = 0;
@@ -482,7 +483,7 @@ void evmMockBalance(address_t from, const val_t balance) {
 }
 
 void evmMockCode(address_t to, data_t code) {
-    getAccount(to)->code = code;
+    getAccount(to)->code = copyPaddedCode(code);
 }
 
 void evmMockNonce(address_t to, uint64_t nonce) {
@@ -820,11 +821,7 @@ static result_t doCall(context_t *callContext) {
             }
     #define DISPATCH() \
             do { \
-                if (pc < callContext->code.size) { \
-                    op = callContext->code.content[pc++]; \
-                } else { \
-                    op = STOP; \
-                } \
+                op = callContext->code.content[pc++]; \
                 if (SHOW_STACK) { \
                     dumpStack(callContext); \
                 } \
@@ -2124,7 +2121,7 @@ static result_t _evmConstruct(account_t *fromAccount, account_t *to, uint64_t ga
     callContext->account = to;
     callContext->account->nonce = 1;
     callContext->account->warm = evmIteration;
-    callContext->code = input;
+    callContext->code = copyPaddedCode(input);
     callContext->callData.size = 0;
     // TODO revert to the true prior nonce once CREATE checks that the target account is empty; assumed 0 until then.
     trackNonceChange(&callContext->stateChanges, callContext->account, 0);
@@ -2166,7 +2163,7 @@ static result_t _evmConstruct(account_t *fromAccount, account_t *to, uint64_t ga
             codeChanges_t *change = malloc(sizeof(codeChanges_t));
             change->before = callContext->account->code;
             callContext->account->code.size = result.returnData.size;
-            callContext->account->code.content = malloc(result.returnData.size);
+            callContext->account->code.content = allocPaddedCode(result.returnData.size);
             memcpy(callContext->account->code.content, result.returnData.content, result.returnData.size);
             change->after = callContext->account->code;
             stateChanges_t *changes = getCurrentAccountStateChanges(&result, callContext);
