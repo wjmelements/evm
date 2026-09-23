@@ -400,6 +400,9 @@ static account_t *getAccount(const address_t address) {
         if (PrecompileIsKnownPrecompile(address)) {
             account_t *precompile = knownPrecompiles + address.address[19];
             AddressCopy(precompile->address, address);
+            if (precompile->code.content == NULL) {
+                precompile->code.content = allocPaddedCode(0);
+            }
             precompile->warm = evmIteration;
             return precompile;
         } else {
@@ -2036,7 +2039,12 @@ static result_t evmDelegateCall(uint64_t gas, account_t *codeSource, data_t inpu
     callContext->readonly = parent->readonly;
     BalanceCopy(callContext->callValue, parent->callValue);
     AddressCopy(callContext->caller, parent->caller);
-    callContext->account = parent->account;
+    if (AddressIsPrecompile(codeSource->address)) {
+        // precompiles ignore the calling context
+        callContext->account = codeSource;
+    } else {
+        callContext->account = parent->account;
+    }
     callContext->code = codeSource->code;
     callContext->callData = input;
     return _evmCall(callContext);

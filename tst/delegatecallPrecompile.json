@@ -1,0 +1,11 @@
+[
+    {
+        "construct": "tst/in/delegatecallPrecompile.evm",
+        "tests": [
+            {
+                "gasUsed": "0x5eeb",
+                "output": "0x41726f756e642074686520776f726c640a41726f756e642074686520776f726c640a02"
+            }
+        ]
+    }
+]
