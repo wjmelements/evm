@@ -33,11 +33,25 @@ static uint32_t programCounter;
 static bool inDataSection;
 static uint32_t lineNumber;
 
+// Bytes of the current data section item, emitted by scanNextOp before
+// anything else. Kept off the scanstack so large items need no copying.
+static const uint8_t *pendingData;
+static size_t pendingDataSize;
+static uint8_t *pendingDataOwned;
+
 void scanInit() {
     programCounter = (uint32_t)-1;
     inDataSection = false;
     lineNumber = 1;
+    pendingData = NULL;
+    pendingDataSize = 0;
+    free(pendingDataOwned);
+    pendingDataOwned = NULL;
     labelQueueInit();
+}
+
+static inline bool scanIdle() {
+    return scanstackEmpty() && !pendingDataSize;
 }
 
 static int isHexConstantPrefix(const char *iter) {
@@ -486,16 +500,20 @@ static void scanDataSection(const char **iter) {
         exit(1);
     }
     scanSlice(iter, &value);
-    if (value.size) {
-        scanstackPushData(&value);
-        scanstackPushLabel(start, end - start, CODECOPY);
-    } else {
-        // Empty item: contributes no bytes, so there is no CODECOPY marker for
-        // scanNextOp to turn into a label. Register it directly, pointing at
-        // where the next byte would land.
-        registerDataLabel(start, end - start, programCounter + 1, 0);
+    if (value.size > UINT16_MAX) {
+        fprintf(stderr, "Data section item of %zu bytes exceeds maximum of %u at line %u\n", value.size, UINT16_MAX, lineNumber);
+        exit(1);
     }
-    free(owned);
+    // Data items are only scanned while idle (see scanValid), so the item's
+    // first byte lands at the next programCounter.
+    registerDataLabel(start, end - start, programCounter + 1, value.size);
+    if (value.size) {
+        pendingData = value.content;
+        pendingDataSize = value.size;
+        pendingDataOwned = owned;
+    } else {
+        free(owned);
+    }
     scanWaste(iter);
     if (**iter == '}') {
         inDataSection = false;
@@ -613,22 +631,31 @@ static void scanOp(const char **iter) {
 
 
 int scanValid(const char **iter) {
-    // A data item that emits no bytes (e.g. `x: 0x`) is consumed here rather
-    // than by scanNextOp, which must always yield one op. Consuming it now lets
-    // the scan finish cleanly when only such items remain.
-    while (scanstackEmpty()) {
+    // Data items are consumed here rather than by scanNextOp, which must always
+    // yield one op. A data item that emits no bytes (e.g. `x: 0x`) yields
+    // none, so consuming it now lets the scan finish cleanly when only such
+    // items remain.
+    while (scanIdle()) {
         scanWaste(iter);
         if (**iter != '{' && !(inDataSection && **iter == ',')) {
             break;
         }
         scanOp(iter);
     }
-    return **iter || !scanstackEmpty();
+    return **iter || !scanIdle();
 }
 
 op_t scanNextOp(const char **iter) {
     jump_t jump;
     programCounter++;
+    if (pendingDataSize) {
+        op_t byte = *pendingData++;
+        if (!--pendingDataSize) {
+            free(pendingDataOwned);
+            pendingDataOwned = NULL;
+        }
+        return byte;
+    }
     jump.programCounter = programCounter;
     if (scanstackEmpty()) {
         scanOp(iter);
@@ -639,11 +666,6 @@ op_t scanNextOp(const char **iter) {
             jump.dataSize = 1;
             registerLabel(jump);
             return type;
-        } else if (type == CODECOPY) {
-            // because we can one data entry at a time, the stack size is the dataSize
-            jump.dataSize = scanstackIndex;
-            registerLabel(jump);
-            return scanstackPop();
         } else if (type == CODESIZE) {
             jump.len = 1;
             labelQueuePush(jump, type);
