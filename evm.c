@@ -183,7 +183,7 @@ static void execute(const char *contents) {
             fputs("odd-lengthed input", stderr);
             exit(1);
         }
-        if (hexLen > 2 && hexData[0] == '0' && hexData[1] == 'x') {
+        if (hexLen >= 2 && hexData[0] == '0' && hexData[1] == 'x') {
             hexLen -= 2;
             hexData += 2;
         }
