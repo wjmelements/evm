@@ -238,7 +238,7 @@ static void execute(const char *contents) {
     fflush(stdout);
 }
 
-#define USAGE fputs("usage: evm [ [-w json-file [-u] ] [-x [-n] [-gls] [-D flags] ] [-t] [-T trace-file] | [-c | -C] [-j] | -d ] [-o input] [file...]\n", stderr)
+#define USAGE fputs("usage: evm [ [-w json-file [-u] ] [-x [-n] [-gls] ] [-D flags | -t] [-T trace-file] | [-c | -C] [-j] | -d ] [-o input] [file...]\n", stderr)
 
 static const struct option long_options[] = {
     {"version", no_argument, NULL, 'v'},
@@ -366,8 +366,8 @@ int main(int argc, char *const argv[]) {
         USAGE;
         return 1;
     }
-    if (debugFlags && !runtime) {
-        fputs("-D requires -x\n", stderr);
+    if (debugFlags && !runtime && !configFile) {
+        fputs("-D requires -x or -w\n", stderr);
         USAGE;
         return 1;
     }
