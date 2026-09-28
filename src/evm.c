@@ -406,12 +406,19 @@ void evmSetDebugFile(FILE *file) {
 
 // EIP-3155: a step is buffered until its gasCost is known,
 // which is at the next step, the start of a subcall, or the end of the frame
-static char *traceStep = NULL;
+static FILE *traceLine = NULL;
+static char *traceStep;
 static size_t traceStepSize;
+static bool traceStepPending = false;
 static uint64_t traceStepGas;
 
 static void traceStepBegin(context_t *callContext, uint64_t pc, op_t op) {
-    FILE *line = open_memstream(&traceStep, &traceStepSize);
+    if (traceLine == NULL) {
+        traceLine = open_memstream(&traceStep, &traceStepSize);
+    } else {
+        rewind(traceLine);
+    }
+    FILE *line = traceLine;
     fprintf(line, "{\"pc\":%" PRIu64 ",\"op\":%u,\"gas\":\"0x%" PRIx64 "\",\"stack\":[", pc, op, callContext->gas);
     for (uint256_t *pos = callContext->bottom; pos < callContext->top; pos++) {
         if (pos != callContext->bottom) {
@@ -425,12 +432,13 @@ static void traceStepBegin(context_t *callContext, uint64_t pc, op_t op) {
     fprintData(line, callContext->returnData);
     fprintf(line, "\",\"refund\":%" PRIu64 ",\"memSize\":%" PRIu64 ",\"opName\":\"%s\"",
             refundCounter, (uint64_t)callContext->memory.num_uint8s, opString[op]);
-    fclose(line);
+    fflush(line);
+    traceStepPending = true;
     traceStepGas = callContext->gas;
 }
 
 static void traceStepEndCost(uint64_t gasCost, const char *error) {
-    if (traceStep == NULL) {
+    if (!traceStepPending) {
         return;
     }
     fwrite(traceStep, 1, traceStepSize, DEBUG_OUT);
@@ -439,8 +447,7 @@ static void traceStepEndCost(uint64_t gasCost, const char *error) {
         fprintf(DEBUG_OUT, ",\"error\":\"%s\"", error);
     }
     fputs("}\n", DEBUG_OUT);
-    free(traceStep);
-    traceStep = NULL;
+    traceStepPending = false;
 }
 
 static void traceStepEnd(uint64_t gasRemaining, const char *error) {
