@@ -406,33 +406,93 @@ void evmSetDebugFile(FILE *file) {
 
 // EIP-3155: a step is buffered until its gasCost is known,
 // which is at the next step, the start of a subcall, or the end of the frame
-static FILE *traceLine = NULL;
-static char *traceStep;
-static size_t traceStepSize;
+typedef char char_t;
+VECTOR(char, traceLine);
+static traceLine_t traceStep;
 static bool traceStepPending = false;
 static uint64_t traceStepGas;
 
-static void traceStepBegin(context_t *callContext, uint64_t pc, op_t op) {
-    if (traceLine == NULL) {
-        traceLine = open_memstream(&traceStep, &traceStepSize);
-    } else {
-        rewind(traceLine);
+#define TRACE_APPEND(literal) traceLine_extend(&traceStep, literal, sizeof(literal) - 1)
+
+static const char hexDigits[] = "0123456789abcdef";
+
+// at least minDigits, zero-padded
+static void traceAppendHex(uint64_t value, int minDigits) {
+    char digits[16];
+    int start = 16;
+    do {
+        digits[--start] = hexDigits[value & 0xf];
+        value >>= 4;
+    } while (value || 16 - start < minDigits);
+    traceLine_extend(&traceStep, digits + start, 16 - start);
+}
+
+static void traceAppendDecimal(uint64_t value) {
+    char digits[20];
+    int start = 20;
+    do {
+        digits[--start] = '0' + value % 10;
+        value /= 10;
+    } while (value);
+    traceLine_extend(&traceStep, digits + start, 20 - start);
+}
+
+static void traceAppendCompact256(const uint256_t *number) {
+    uint64_t words[4] = {
+        UPPER_P(&UPPER_P(number)), LOWER_P(&UPPER_P(number)),
+        UPPER_P(&LOWER_P(number)), LOWER_P(&LOWER_P(number)),
+    };
+    bool started = false;
+    for (int i = 0; i < 4; i++) {
+        if (started) {
+            traceAppendHex(words[i], 16);
+        } else if (words[i]) {
+            TRACE_APPEND("0x");
+            traceAppendHex(words[i], 0);
+            started = true;
+        }
     }
-    FILE *line = traceLine;
-    fprintf(line, "{\"pc\":%" PRIu64 ",\"op\":%u,\"gas\":\"0x%" PRIx64 "\",\"stack\":[", pc, op, callContext->gas);
+    if (!started) {
+        TRACE_APPEND("0x0");
+    }
+}
+
+static void traceAppendData(data_t data) {
+    traceLine_grow(&traceStep, traceStep.num_chars + 2 * data.size);
+    for (size_t i = 0; i < data.size; i++) {
+        traceStep.chars[traceStep.num_chars++] = hexDigits[data.content[i] >> 4];
+        traceStep.chars[traceStep.num_chars++] = hexDigits[data.content[i] & 0xf];
+    }
+}
+
+static void traceStepBegin(context_t *callContext, uint64_t pc, op_t op) {
+    traceStep.num_chars = 0;
+    TRACE_APPEND("{\"pc\":");
+    traceAppendDecimal(pc);
+    TRACE_APPEND(",\"op\":");
+    traceAppendDecimal(op);
+    TRACE_APPEND(",\"gas\":\"0x");
+    traceAppendHex(callContext->gas, 0);
+    TRACE_APPEND("\",\"stack\":[");
     for (uint256_t *pos = callContext->bottom; pos < callContext->top; pos++) {
         if (pos != callContext->bottom) {
-            fputc(',', line);
+            traceLine_append(&traceStep, ',');
         }
-        fputc('"', line);
-        fprintCompact256(line, pos);
-        fputc('"', line);
+        traceLine_append(&traceStep, '"');
+        traceAppendCompact256(pos);
+        traceLine_append(&traceStep, '"');
     }
-    fprintf(line, "],\"depth\":%u,\"returnData\":\"0x", depthOf(callContext) + 1);
-    fprintData(line, callContext->returnData);
-    fprintf(line, "\",\"refund\":%" PRIu64 ",\"memSize\":%" PRIu64 ",\"opName\":\"%s\"",
-            refundCounter, (uint64_t)callContext->memory.num_uint8s, opString[op]);
-    fflush(line);
+    TRACE_APPEND("],\"depth\":");
+    traceAppendDecimal(depthOf(callContext) + 1);
+    TRACE_APPEND(",\"returnData\":\"0x");
+    traceAppendData(callContext->returnData);
+    TRACE_APPEND("\",\"refund\":");
+    traceAppendDecimal(refundCounter);
+    TRACE_APPEND(",\"memSize\":");
+    traceAppendDecimal(callContext->memory.num_uint8s);
+    TRACE_APPEND(",\"opName\":\"");
+    traceLine_extend(&traceStep, opString[op], strlen(opString[op]));
+    traceLine_append(&traceStep, '"');
     traceStepPending = true;
     traceStepGas = callContext->gas;
 }
@@ -441,12 +501,16 @@ static void traceStepEndCost(uint64_t gasCost, const char *error) {
     if (!traceStepPending) {
         return;
     }
-    fwrite(traceStep, 1, traceStepSize, DEBUG_OUT);
-    fprintf(DEBUG_OUT, ",\"gasCost\":\"0x%" PRIx64 "\"", gasCost);
+    TRACE_APPEND(",\"gasCost\":\"0x");
+    traceAppendHex(gasCost, 0);
+    traceLine_append(&traceStep, '"');
     if (error) {
-        fprintf(DEBUG_OUT, ",\"error\":\"%s\"", error);
+        TRACE_APPEND(",\"error\":\"");
+        traceLine_extend(&traceStep, error, strlen(error));
+        traceLine_append(&traceStep, '"');
     }
-    fputs("}\n", DEBUG_OUT);
+    TRACE_APPEND("}\n");
+    fwrite(traceStep.chars, 1, traceStep.num_chars, DEBUG_OUT);
     traceStepPending = false;
 }
 
