@@ -378,6 +378,7 @@ int main(int argc, char *const argv[]) {
     }
     evmSetTrace(trace);
     evmSetDebug(debugFlags);
+    setConfigDebug(debugFlags);
     if (configCount) {
         evmInit();
         for (int i = 0; i < configCount; i++) {
@@ -385,6 +386,7 @@ int main(int argc, char *const argv[]) {
         }
     }
     free(configFiles);
+    evmSetDebug(debugFlags);
     void (*subprogram)(const char*);
     if (inverse) {
         subprogram = disassemble;

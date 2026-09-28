@@ -248,7 +248,7 @@ The current `debug` flags:
 | 0x20 | Calls |
 | 0x40 | Logs |
 
-These flags can also be set with `-D`.
+These flags can also be set with `-D`, which are or'd with the `debug` flags of each test.
 
 ##### Update Config
 A `gasUsed` test field can be supplied (or updated) in-place with `-u`

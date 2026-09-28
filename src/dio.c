@@ -281,9 +281,15 @@ static void reportResult(testEntry_t *test, result_t *result, uint64_t gas, cons
     }
 }
 
+static uint64_t configDebug = 0;
+
+void setConfigDebug(uint64_t flags) {
+    configDebug = flags;
+}
+
 // tracing supersedes human-readable debug
 static void setDebug(uint64_t debug) {
-    evmSetDebug(evmTraceEnabled() ? 0 : debug);
+    evmSetDebug(evmTraceEnabled() ? 0 : debug | configDebug);
 }
 
 static void runConstructTest(const entry_t *entry, testEntry_t *test, result_t *result, uint64_t gas) {
