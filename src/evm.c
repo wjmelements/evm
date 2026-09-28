@@ -990,6 +990,11 @@ static result_t doCall(context_t *callContext) {
     uint64_t pc = 0;
     uint8_t buffer[32];
     op_t op;
+    // the trace reports these as the step's error
+    #define STEP_WARNING(...) \
+            if (!traceEnabled) { \
+                fprintf(stderr, __VA_ARGS__); \
+            }
     #define FAIL_INVALID(error) \
             if (traceEnabled) { \
                 traceStepEnd(callContext->gas, error); \
@@ -998,7 +1003,7 @@ static result_t doCall(context_t *callContext) {
             result.returnData.size = 0; \
             return result
     #define OUT_OF_GAS \
-            fprintf(stderr, "Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]); \
+            STEP_WARNING("Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]); \
             FAIL_INVALID("out of gas")
     #define FAIL_UNCHARGED(error) \
             if (traceEnabled) { \
@@ -1007,7 +1012,7 @@ static result_t doCall(context_t *callContext) {
             FAIL_INVALID(error)
     #define CHECK_READONLY \
             if (callContext->readonly) { \
-                fprintf(stderr, "Attempted %s inside STATICCALL\n", opString[op]); \
+                STEP_WARNING("Attempted %s inside STATICCALL\n", opString[op]); \
                 FAIL_INVALID("write protection"); \
             }
     #define DISPATCH() \
@@ -1033,17 +1038,17 @@ static result_t doCall(context_t *callContext) {
                     fprintf(DEBUG_OUT, "op %s\n", opString[op]); \
                 } \
                 if (callContext->top - callContext->bottom < minStackHeight[op]) { \
-                    fprintf(stderr, "Stack underflow at pc %" PRIu64 " op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom); \
+                    STEP_WARNING("Stack underflow at pc %" PRIu64 " op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom); \
                     FAIL_UNCHARGED("stack underflow"); \
                 } \
                 if (callContext->gas < gasCost[op]) { \
-                    fprintf(stderr, "Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]); \
+                    STEP_WARNING("Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]); \
                     FAIL_UNCHARGED("out of gas"); \
                 } \
                 callContext->gas -= gasCost[op]; \
                 callContext->top += retCount[op] - argCount[op]; \
                 if (callContext->top >= callContext->bottom + 1024) { \
-                    fprintf(stderr, "Stack overflow at pc %" PRIu64 " op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom); \
+                    STEP_WARNING("Stack overflow at pc %" PRIu64 " op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom); \
                     FAIL_INVALID("stack overflow"); \
                 } \
                 goto *dispatchTable[op]; \
@@ -1376,17 +1381,17 @@ op_JUMP:
     {
         uint256_t *dst = callContext->top + (op - JUMP);
         if (UPPER(UPPER_P(dst)) || UPPER(LOWER_P(dst)) || LOWER(UPPER_P(dst))) {
-            fprintf(stderr, "%s destination has upper bits set\n", opString[op]);
+            STEP_WARNING("%s destination has upper bits set\n", opString[op]);
             FAIL_INVALID("invalid jump destination");
         }
         pc = LOWER(LOWER_P(dst));
     }
     if (pc >= callContext->code.size) {
-        fprintf(stderr, "%s out of bounds %" PRIu64 " >= %lu\n", opString[op], pc, callContext->code.size);
+        STEP_WARNING("%s out of bounds %" PRIu64 " >= %lu\n", opString[op], pc, callContext->code.size);
         FAIL_INVALID("invalid jump destination");
     }
     if (callContext->code.content[pc] != JUMPDEST) {
-        fprintf(stderr, "%s to invalid destination %" PRIu64 " (%s)\n", opString[op], pc, opString[callContext->code.content[pc]]);
+        STEP_WARNING("%s to invalid destination %" PRIu64 " (%s)\n", opString[op], pc, opString[callContext->code.content[pc]]);
         FAIL_INVALID("invalid jump destination");
     }
     // Verify the JUMPDEST byte is a real instruction, not PUSH data.
@@ -1409,7 +1414,7 @@ op_JUMP:
                 if (cb >= PUSH1 && cb <= PUSH32) {
                     uint8_t n = cb - PUSH0;
                     if (fpc + n >= pc) {
-                        fprintf(stderr, "%s to JUMPDEST inside PUSH%u data at %" PRIu64 "\n", opString[op], n, pc);
+                        STEP_WARNING("%s to JUMPDEST inside PUSH%u data at %" PRIu64 "\n", opString[op], n, pc);
                         FAIL_INVALID("invalid jump destination");
                     }
                     fpc += 1 + n;
@@ -1540,7 +1545,7 @@ op_ASSERT_0xfb:
 op_ASSERT_0xfc:
 op_INVALID:
 op_default:
-    fprintf(stderr, "Unsupported opcode %u (%s)\n", op, opString[op]);
+    STEP_WARNING("Unsupported opcode %u (%s)\n", op, opString[op]);
     FAIL_INVALID("invalid opcode");
 op_STOP:
     LOWER(LOWER(result.status)) = 1;
