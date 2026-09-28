@@ -429,18 +429,22 @@ static void traceStepBegin(context_t *callContext, uint64_t pc, op_t op) {
     traceStepGas = callContext->gas;
 }
 
-static void traceStepEnd(uint64_t gasRemaining, const char *error) {
+static void traceStepEndCost(uint64_t gasCost, const char *error) {
     if (traceStep == NULL) {
         return;
     }
     fwrite(traceStep, 1, traceStepSize, DEBUG_OUT);
-    fprintf(DEBUG_OUT, ",\"gasCost\":\"0x%" PRIx64 "\"", traceStepGas - gasRemaining);
+    fprintf(DEBUG_OUT, ",\"gasCost\":\"0x%" PRIx64 "\"", gasCost);
     if (error) {
         fprintf(DEBUG_OUT, ",\"error\":\"%s\"", error);
     }
     fputs("}\n", DEBUG_OUT);
     free(traceStep);
     traceStep = NULL;
+}
+
+static void traceStepEnd(uint64_t gasRemaining, const char *error) {
+    traceStepEndCost(traceStepGas - gasRemaining, error);
 }
 
 static void traceSummary(const result_t *result, uint64_t gasUsed) {
@@ -887,6 +891,11 @@ static result_t doCall(context_t *callContext) {
     #define OUT_OF_GAS \
             fprintf(stderr, "Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]); \
             FAIL_INVALID("out of gas")
+    #define FAIL_UNCHARGED(error) \
+            if (traceEnabled) { \
+                traceStepEndCost(gasCost[op], error); \
+            } \
+            FAIL_INVALID(error)
     #define CHECK_READONLY \
             if (callContext->readonly) { \
                 fprintf(stderr, "Attempted %s inside STATICCALL\n", opString[op]); \
@@ -916,10 +925,11 @@ static result_t doCall(context_t *callContext) {
                 } \
                 if (callContext->top - callContext->bottom < minStackHeight[op]) { \
                     fprintf(stderr, "Stack underflow at pc %" PRIu64 " op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom); \
-                    FAIL_INVALID("stack underflow"); \
+                    FAIL_UNCHARGED("stack underflow"); \
                 } \
                 if (callContext->gas < gasCost[op]) { \
-                    OUT_OF_GAS; \
+                    fprintf(stderr, "Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]); \
+                    FAIL_UNCHARGED("out of gas"); \
                 } \
                 callContext->gas -= gasCost[op]; \
                 callContext->top += retCount[op] - argCount[op]; \
