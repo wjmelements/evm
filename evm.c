@@ -32,6 +32,7 @@ static const char *configFile = NULL;
 static int updateConfigFile = 0;
 static int networkMode = 0;
 static int trace = 0;
+static const char *traceFileName = NULL;
 static uint64_t debugFlags = 0;
 
 static void assemble(const char *contents) {
@@ -296,15 +297,9 @@ int main(int argc, char *const argv[]) {
         case 't':
             trace = 1;
             break;
-        case 'T': {
-            FILE *traceFile = fopen(optarg, "a");
-            if (traceFile == NULL) {
-                perror(optarg);
-                return 1;
-            }
-            evmSetDebugFile(traceFile);
+        case 'T':
+            traceFileName = optarg;
             break;
-        }
         case 'u':
             updateConfigFile = 1;
             break;
@@ -375,6 +370,14 @@ int main(int argc, char *const argv[]) {
         fputs("-t requires -x or -w\n", stderr);
         USAGE;
         return 1;
+    }
+    if (traceFileName) {
+        FILE *traceFile = fopen(traceFileName, "a");
+        if (traceFile == NULL) {
+            perror(traceFileName);
+            return 1;
+        }
+        evmSetDebugFile(traceFile);
     }
     evmSetTrace(trace);
     evmSetDebug(debugFlags);
