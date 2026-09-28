@@ -130,6 +130,11 @@ uint64_t evmGetBlockNumber(void);
 #define EVM_DEBUG_CALLS 32
 #define EVM_DEBUG_LOGS 64
 void evmSetDebug(uint64_t flags);
+// EIP-3155 JSON trace; mutually exclusive with human-readable debug
+void evmSetTrace(bool enabled);
+bool evmTraceEnabled(void);
+// destination for debug and trace output; defaults to stderr
+void evmSetDebugFile(FILE *file);
 void evmSetBlockNumber(uint64_t blockNumber);
 void evmSetTimestamp(uint64_t timestamp);
 

@@ -281,6 +281,11 @@ static void reportResult(testEntry_t *test, result_t *result, uint64_t gas, cons
     }
 }
 
+// tracing supersedes human-readable debug
+static void setDebug(uint64_t debug) {
+    evmSetDebug(evmTraceEnabled() ? 0 : debug);
+}
+
 static void runConstructTest(const entry_t *entry, testEntry_t *test, result_t *result, uint64_t gas) {
     printEntryHeader(entry);
     reportResult(test, result, gas, "constructor", false);
@@ -295,7 +300,7 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test, bool headerPri
         printEntryHeader(entry);
     }
 
-    evmSetDebug(test->debug);
+    setDebug(test->debug);
     if (test->blockNumber) {
         evmSetBlockNumber(*test->blockNumber);
         free(test->blockNumber);
@@ -367,7 +372,7 @@ static void applyEntry(entry_t *entry) {
             if (entry->constructTest->gas) {
                 gas = entry->constructTest->gas;
             }
-            evmSetDebug(entry->constructTest->debug);
+            setDebug(entry->constructTest->debug);
             if (entry->constructTest->blockNumber) {
                 evmSetBlockNumber(*entry->constructTest->blockNumber);
                 free(entry->constructTest->blockNumber);

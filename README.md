@@ -248,6 +248,8 @@ The current `debug` flags:
 | 0x20 | Calls |
 | 0x40 | Logs |
 
+These flags can also be set with `-D`.
+
 ##### Update Config
 A `gasUsed` test field can be supplied (or updated) in-place with `-u`
 ```sh
@@ -274,6 +276,25 @@ The JSON will always contain the returndata but other outputs can be specified.
 * `-g`: gasUsed
 * `-l`: logs
 * `-s`: status
+#### Tracing
+`-t` emits an [EIP-3155](https://eips.ethereum.org/EIPS/eip-3155) JSON trace for `-x` and `-w`: one line per step, then a summary line per transaction.
+```sh
+evm -txo 385952593df3 2>&1 >/dev/null
+```
+```jsonl
+{"pc":0,"op":56,"gas":"0xffffffffffff3095","stack":[],"depth":1,"returnData":"0x","refund":0,"memSize":0,"opName":"CODESIZE","gasCost":"0x2"}
+{"pc":1,"op":89,"gas":"0xffffffffffff3093","stack":["0x6"],"depth":1,"returnData":"0x","refund":0,"memSize":0,"opName":"MSIZE","gasCost":"0x2"}
+{"pc":2,"op":82,"gas":"0xffffffffffff3091","stack":["0x6","0x0"],"depth":1,"returnData":"0x","refund":0,"memSize":0,"opName":"MSTORE","gasCost":"0x6"}
+{"pc":3,"op":89,"gas":"0xffffffffffff308b","stack":[],"depth":1,"returnData":"0x","refund":0,"memSize":32,"opName":"MSIZE","gasCost":"0x2"}
+{"pc":4,"op":61,"gas":"0xffffffffffff3089","stack":["0x20"],"depth":1,"returnData":"0x","refund":0,"memSize":32,"opName":"RETURNDATASIZE","gasCost":"0x2"}
+{"pc":5,"op":243,"gas":"0xffffffffffff3087","stack":["0x20","0x0"],"depth":1,"returnData":"0x","refund":0,"memSize":32,"opName":"RETURN","gasCost":"0x0"}
+{"output":"0x0000000000000000000000000000000000000000000000000000000000000006","gasUsed":"0xe878","pass":true}
+```
+The `gasCost` of a `CALL` or `CREATE` step includes the gas it forwards.
+The summary line omits `stateRoot`.
+`-t` overrides any `debug` flags from `-w` `tests`, or `-D`.
+
+Trace and debug both append to the file specified by `-T`, else `stderr`.
 #### Network mode (`-nx`)
 `evm -nx` executes against **live chain state**.
 Rather than declaring every touched account and storage slot up front with `-w`, the interpreter fetches them on demand.

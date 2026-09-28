@@ -1,0 +1,3 @@
+Stack underflow at pc 0 op JUMP stack depth 0
+{"pc":0,"op":86,"gas":"0xffffffffffff30e5","stack":[],"depth":1,"returnData":"0x","refund":0,"memSize":0,"opName":"JUMP","gasCost":"0x0","error":"stack underflow"}
+{"output":"0x","gasUsed":"0xffffffffffffffff","pass":false}
