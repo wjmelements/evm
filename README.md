@@ -292,7 +292,7 @@ evm -txo 385952593df3 2>&1 >/dev/null
 ```
 The `gasCost` of a `CALL` or `CREATE` step includes the gas it forwards.
 The summary line omits `stateRoot`.
-`-t` overrides any `debug` flags from `-w` `tests`, or `-D`.
+`-t` overrides any `debug` flags from `-w` `tests`, and cannot be combined with `-D`.
 
 Trace and debug both append to the file specified by `-T`, else `stderr`.
 #### Network mode (`-nx`)
