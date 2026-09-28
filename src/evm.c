@@ -895,7 +895,7 @@ static result_t doCall(context_t *callContext) {
     #define DISPATCH() \
             do { \
                 op = callContext->code.content[pc++]; \
-                if (traceEnabled) { \
+                if (traceEnabled && pc <= callContext->code.size) { \
                     traceStepEnd(callContext->gas, NULL); \
                     traceStepBegin(callContext, pc - 1, op); \
                 } \
