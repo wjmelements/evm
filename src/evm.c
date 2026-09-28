@@ -2,11 +2,13 @@
 #include "vector.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <unistd.h>
 
 
 uint16_t fprintLog(FILE *file, const logChanges_t *log, int showLogIndex) {
@@ -252,8 +254,23 @@ static void trackNonceChange(stateChanges_t **stateChanges, account_t *account, 
     entry->nonce.after = account->nonce;
 }
 
+static int debugFd = STDERR_FILENO;
 static FILE *debugFile = NULL;
 #define DEBUG_OUT (debugFile ? debugFile : stderr)
+
+static void writeAll(int fd, const char *buf, size_t size) {
+    while (size) {
+        ssize_t written = write(fd, buf, size);
+        if (written < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return;
+        }
+        buf += written;
+        size -= written;
+    }
+}
 
 // for debugging
 static inline void dumpStack(context_t *context) {
@@ -400,8 +417,9 @@ bool evmTraceEnabled(void) {
     return traceEnabled;
 }
 
-void evmSetDebugFile(FILE *file) {
-    debugFile = file;
+void evmSetDebugFile(int fd) {
+    debugFd = fd;
+    debugFile = fdopen(fd, "a");
 }
 
 // EIP-3155: a step is buffered until its gasCost is known,
@@ -410,7 +428,18 @@ typedef char char_t;
 VECTOR(char, traceLine);
 static traceLine_t traceStep;
 static bool traceStepPending = false;
+static size_t traceStepStart;
 static uint64_t traceStepGas;
+
+#define TRACE_BATCH 65536
+
+// writes completed lines, keeping any pending step
+static void traceFlush(void) {
+    size_t complete = traceStepPending ? traceStepStart : traceStep.num_chars;
+    writeAll(debugFd, traceStep.chars, complete);
+    traceLine_trimTo(&traceStep, complete);
+    traceStepStart = 0;
+}
 
 #define TRACE_APPEND(literal) traceLine_extend(&traceStep, literal, sizeof(literal) - 1)
 
@@ -466,7 +495,7 @@ static void traceAppendData(data_t data) {
 }
 
 static void traceStepBegin(context_t *callContext, uint64_t pc, op_t op) {
-    traceStep.num_chars = 0;
+    traceStepStart = traceStep.num_chars;
     TRACE_APPEND("{\"pc\":");
     traceAppendDecimal(pc);
     TRACE_APPEND(",\"op\":");
@@ -510,8 +539,10 @@ static void traceStepEndCost(uint64_t gasCost, const char *error) {
         traceLine_append(&traceStep, '"');
     }
     TRACE_APPEND("}\n");
-    fwrite(traceStep.chars, 1, traceStep.num_chars, DEBUG_OUT);
     traceStepPending = false;
+    if (debugFile == NULL || traceStep.num_chars >= TRACE_BATCH) {
+        traceFlush();
+    }
 }
 
 static void traceStepEnd(uint64_t gasRemaining, const char *error) {
@@ -519,6 +550,7 @@ static void traceStepEnd(uint64_t gasRemaining, const char *error) {
 }
 
 static void traceSummary(const result_t *result, uint64_t gasUsed) {
+    traceFlush();
     fputs("{\"output\":\"0x", DEBUG_OUT);
     fprintData(DEBUG_OUT, result->returnData);
     fprintf(DEBUG_OUT, "\",\"gasUsed\":\"0x%" PRIx64 "\",\"pass\":%s}\n", gasUsed, zero256(&result->status) ? "false" : "true");
@@ -564,6 +596,9 @@ static account_t *getAccount(const address_t address) {
         result->balance[2] = 0;
         result->local = false;
         if (accountFetch) {
+            if (traceEnabled) {
+                traceFlush();
+            }
             accountFetch(address);
         }
     }
@@ -724,6 +759,9 @@ static storage_t *getAccountStorage(account_t *account, const uint256_t *key) {
     *storage = calloc(1, sizeof(storage_t));
     copy256(&(*storage)->key, key);
     if (storageFetch && !account->local) {
+        if (traceEnabled) {
+            traceFlush();
+        }
         storageFetch(account->address, key, &(*storage)->value);
     }
     return *storage;

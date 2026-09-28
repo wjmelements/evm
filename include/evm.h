@@ -134,7 +134,7 @@ void evmSetDebug(uint64_t flags);
 void evmSetTrace(bool enabled);
 bool evmTraceEnabled(void);
 // destination for debug and trace output; defaults to stderr
-void evmSetDebugFile(FILE *file);
+void evmSetDebugFile(int fd);
 void evmSetBlockNumber(uint64_t blockNumber);
 void evmSetTimestamp(uint64_t timestamp);
 

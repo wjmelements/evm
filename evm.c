@@ -372,12 +372,12 @@ int main(int argc, char *const argv[]) {
         return 1;
     }
     if (traceFileName) {
-        FILE *traceFile = fopen(traceFileName, "a");
-        if (traceFile == NULL) {
+        int traceFd = open(traceFileName, O_WRONLY | O_CREAT | O_APPEND, 0666);
+        if (traceFd < 0) {
             perror(traceFileName);
             return 1;
         }
-        evmSetDebugFile(traceFile);
+        evmSetDebugFile(traceFd);
     }
     evmSetTrace(trace);
     evmSetDebug(debugFlags);
