@@ -44,7 +44,7 @@ static void jsonScanChar(const char **iter, char expected) {
             }
         } else {
             fprintf(stderr, "Config: when seeking '%c' found unexpected character '%c' on line %" PRIu64 "\n", expected, ch, lineNumber);
-            _exit(1);
+            exit(1);
         }
     }
     (*iter)++;
@@ -52,7 +52,7 @@ static void jsonScanChar(const char **iter, char expected) {
 
 static void jsonFailExpectingChar(char expected, char actual) {
     fprintf(stderr, "Config: expecting '%c', found '%c' on line %" PRIu64 "\n", expected, actual, lineNumber);
-    _exit(1);
+    exit(1);
 }
 
 static void jsonSkipExpectedChar(const char **iter, char expected) {
@@ -339,7 +339,7 @@ static void verifyConstructResult(result_t *constructResult, entry_t *entry) {
             fputs("\nexpected:\n", stderr);
             fprintData(stderr, entry->code);
             fputc('\n', stderr);
-            _exit(-1);
+            exit(-1);
         }
     }
 }
@@ -371,7 +371,7 @@ static void applyEntry(entry_t *entry) {
             if (!AddressZero(&entry->constructTest->from)) {
                 if (entry->creator && !AddressEqual(&entry->constructTest->from, entry->creator)) {
                     fputs("constructTest.from conflicts with creator\n", stderr);
-                    _exit(1);
+                    exit(1);
                 }
                 AddressCopy(from, entry->constructTest->from);
             }
@@ -515,7 +515,7 @@ static void jsonScanLog(const char **iter, logChanges_t **prev) {
                     fputc(logHeading[i], stderr);
                 }
                 fputc('\n', stderr);
-                _exit(1);
+                exit(1);
             }
             jsonScanWaste(iter);
             if (**iter == ',') {
@@ -569,7 +569,7 @@ static void jsonScanAccountLogs(const char **iter, logsEntry_t **prev) {
 static address_t addressFromHexDigits(const char *hex, size_t length) {
     if (length > 40) {
         fprintf(stderr, "Config: address too long (%zu) on line %" PRIu64 "\n", length, lineNumber);
-        _exit(1);
+        exit(1);
     }
     char padded[40];
     size_t pad = 40 - length;
@@ -622,7 +622,7 @@ static testEntry_t *jsonScanTestEntry(const char **iter) {
                         size_t accessListAccountLen = *iter - accessListAccount - 1;
                         if (accessListAccountLen != 42) {
                             fprintf(stderr, "Unexpected address length %zu\n", accessListAccountLen);
-                            _exit(1);
+                            exit(1);
                         }
                         accessList->address = AddressFromHex42(accessListAccount);
 
@@ -1073,7 +1073,7 @@ void applyConfig(const char *json) {
     } while (1);
     jsonScanChar(&json, ']');
     if (anyTestFailure) {
-        _exit(1);
+        exit(1);
     }
 }
 
@@ -1142,14 +1142,14 @@ void loadConfig(const char *_configFile, int updateConfigFile) {
         int fd = open(_configFile, O_RDONLY);
         if (fd == -1) {
             perror(_configFile);
-            _exit(1);
+            exit(1);
         }
 
         struct stat fstatus;
         int fstatSuccess = fstat(fd, &fstatus);
         if (fstatSuccess == -1) {
             perror(_configFile);
-            _exit(1);
+            exit(1);
         }
         char *configContents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
         {
