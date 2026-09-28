@@ -62,22 +62,22 @@ distcheck dist-check:
 	@printf "$<: "
 	@$<\
 		&& echo -e "\033[0;32mpass\033[0m" && touch $@\
-		|| echo -e "\033[0;31mfail\033[0m"
+		|| { echo -e "\033[0;31mfail\033[0m"; exit 1; }
 .pass/tst/in/%: bin/evm tst/in/% | .pass/tst/in
 	@printf "$(patsubst .pass/tst/in/%,tst/in/%,$@): "
 	@bin/evm $(patsubst .pass/tst/in/%,tst/in/%,$@) | diff $(patsubst .pass/tst/in/%.evm,tst/out/%.out, $@) - \
 		&& echo -e "\033[0;32mpass\033[0m" && touch $@\
-		|| echo -e "\033[0;31mfail\033[0m"
+		|| { echo -e "\033[0;31mfail\033[0m"; exit 1; }
 .pass/tst/trace/%: bin/evm tst/trace/%.evm tst/trace/%.out | .pass/tst/trace
 	@printf "tst/trace/$*.evm: "
 	@bin/evm tst/trace/$*.evm | bin/evm -xt 2>&1 >/dev/null | diff tst/trace/$*.out - \
 		&& echo -e "\033[0;32mpass\033[0m" && touch $@\
-		|| echo -e "\033[0;31mfail\033[0m"
+		|| { echo -e "\033[0;31mfail\033[0m"; exit 1; }
 .pass/tst/fail/%.json: bin/evm tst/fail/%.json | .pass/tst/fail
 	@printf "tst/fail/$*.json: "
 	@rm -f $@.log; ! bin/evm -w tst/fail/$*.json -T $@.log 2>/dev/null && [ -s $@.log ] \
 		&& echo -e "\033[0;32mpass\033[0m" && touch $@\
-		|| echo -e "\033[0;31mfail\033[0m"
+		|| { echo -e "\033[0;31mfail\033[0m"; exit 1; }
 .pass/tst/diotst/%.json: bin/evm tst/%.json | .pass/tst/diotst
 	@echo [$(patsubst .pass/tst/diotst/%,tst/%,$@)]
 	@$(subst $(eval ) , -w ,$^) && touch $@
