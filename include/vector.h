@@ -38,7 +38,7 @@
             memcpy(vector->type ## s + vector->num_ ## type ## s, items, count * sizeof(type ## _t)); \
             vector->num_ ## type ## s += count; \
         } \
-        static inline void vector ## _trimTo(vector ## _t *vector, uint16_t index) { \
+        static inline void vector ## _trimTo(vector ## _t *vector, size_t index) { \
             memmove(&vector->type ## s[0], &vector->type ## s[index], (vector->num_ ## type ## s - index) * sizeof(type ## _t)); \
             vector->num_ ## type ## s -= index; \
         } \
