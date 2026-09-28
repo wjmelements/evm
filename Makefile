@@ -6,7 +6,7 @@ CXXSTD=-std=gnu++11
 CFLAGS=-O3 -fdiagnostics-color=auto -Wno-multichar -pthread -g $(CCSTD)
 CXXFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) $(CXXSTD) -fno-exceptions -Wno-write-strings -Wno-pointer-arith
 OCFLAGS=$(filter-out $(CCSTD), $(CFLAGS)) -fmodules
-MKDIRS=lib bin tst/bin .pass .pass/tst/bin .make .make/bin .make/tst/bin .make/lib .pass/tst/in .pass/tst/diotst .pass/tst/dio tst/dio/out
+MKDIRS=lib bin tst/bin .pass .pass/tst/bin .make .make/bin .make/tst/bin .make/lib .pass/tst/in .pass/tst/diotst .pass/tst/dio .pass/tst/trace .pass/tst/fail tst/dio/out
 DIO_RPC=$(or $(ETH_RPC_URL),https://mainnet.gateway.tenderly.co)
 DIOTESTS=$(wildcard tst/dio/*.json)
 SECP256K1=secp256k1/.libs/libsecp256k1.a
@@ -16,7 +16,7 @@ EXECS=$(patsubst %.c, bin/%, $(wildcard *.c)) $(patsubst %.py, bin/%, $(wildcard
 TESTS=$(patsubst tst/%.c, tst/bin/%, $(wildcard tst/*.c))
 SRC=$(wildcard src/*.cpp) $(wildcard src/*.m) $(wildcard src/%.c)
 LIBS=$(patsubst src/%.cpp, lib/%.o, $(wildcard src/*.cpp)) $(patsubst src/%.m, lib/%.o, $(wildcard src/*.m)) $(patsubst src/%.c, lib/%.o, $(wildcard src/*.c))
-INTEGRATIONS=$(addprefix tst/in/,$(shell ls tst/in)) $(addprefix tst/dio,$(shell ls tst/*.json))
+INTEGRATIONS=$(wildcard tst/in/*) $(addprefix tst/dio,$(wildcard tst/*.json)) $(patsubst %.evm,%,$(wildcard tst/trace/*.evm)) $(wildcard tst/fail/*.json)
 
 
 .PHONY: default all clean again check distcheck dist-check force-version fmt
@@ -62,12 +62,22 @@ distcheck dist-check:
 	@printf "$<: "
 	@$<\
 		&& echo -e "\033[0;32mpass\033[0m" && touch $@\
-		|| echo -e "\033[0;31mfail\033[0m"
+		|| { echo -e "\033[0;31mfail\033[0m"; exit 1; }
 .pass/tst/in/%: bin/evm tst/in/% | .pass/tst/in
 	@printf "$(patsubst .pass/tst/in/%,tst/in/%,$@): "
 	@bin/evm $(patsubst .pass/tst/in/%,tst/in/%,$@) | diff $(patsubst .pass/tst/in/%.evm,tst/out/%.out, $@) - \
 		&& echo -e "\033[0;32mpass\033[0m" && touch $@\
-		|| echo -e "\033[0;31mfail\033[0m"
+		|| { echo -e "\033[0;31mfail\033[0m"; exit 1; }
+.pass/tst/trace/%: bin/evm tst/trace/%.evm tst/trace/%.out | .pass/tst/trace
+	@printf "tst/trace/$*.evm: "
+	@bin/evm tst/trace/$*.evm | bin/evm -xt 2>&1 >/dev/null | diff tst/trace/$*.out - \
+		&& echo -e "\033[0;32mpass\033[0m" && touch $@\
+		|| { echo -e "\033[0;31mfail\033[0m"; exit 1; }
+.pass/tst/fail/%.json: bin/evm tst/fail/%.json | .pass/tst/fail
+	@printf "tst/fail/$*.json: "
+	@rm -f $@.log; ! bin/evm -w tst/fail/$*.json -T $@.log 2>/dev/null && [ -s $@.log ] \
+		&& echo -e "\033[0;32mpass\033[0m" && touch $@\
+		|| { echo -e "\033[0;31mfail\033[0m"; exit 1; }
 .pass/tst/diotst/%.json: bin/evm tst/%.json | .pass/tst/diotst
 	@echo [$(patsubst .pass/tst/diotst/%,tst/%,$@)]
 	@$(subst $(eval ) , -w ,$^) && touch $@

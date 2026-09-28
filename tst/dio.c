@@ -261,7 +261,7 @@ void test_applyConfig_from_short() {
         "            ]"
         "    }"
         "]";
-    // applyConfig calls _exit(1) if the test's expected output does not match.
+    // applyConfig calls exit(1) if the test's expected output does not match.
     applyConfig(config);
 
     evmFinalize();
@@ -289,11 +289,11 @@ void test_applyConfig_from_long() {
 
     int rw[2];
     assert(pipe(rw) == 0);
+    fflush(stderr);
     pid_t pid = fork();
     assert(pid >= 0);
     if (pid == 0) {
         dup2(rw[1], 2);
-        clearerr(stderr);  // main() closed fd 2; drop the stale error flag
         close(rw[0]);
         close(rw[1]);
         evmInit();
@@ -321,7 +321,7 @@ int main() {
     test_applyConfig_balance();
     test_applyConfig_construct();
 
-    close(2);
+    freopen("/dev/null", "w", stderr);
     test_applyConfig_constructTest();
     test_applyConfig_tests();
     test_applyConfig_from_short();

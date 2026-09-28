@@ -31,6 +31,9 @@ static int includeLogs = 0;
 static const char *configFile = NULL;
 static int updateConfigFile = 0;
 static int networkMode = 0;
+static int trace = 0;
+static const char *traceFileName = NULL;
+static uint64_t debugFlags = 0;
 
 static void assemble(const char *contents) {
     op_t *programStart = &ops[CONSTRUCTOR_OFFSET];
@@ -236,7 +239,7 @@ static void execute(const char *contents) {
     fflush(stdout);
 }
 
-#define USAGE fputs("usage: evm [ [-w json-file [-u] ] [-x [-n] [-gs] ] | [-c | -C] [-j] | -d ] [-o input] [file...]\n", stderr)
+#define USAGE fputs("usage: evm [ [-w json-file [-u] ] [-x [-n] [-gls] ] [-D flags | -t] [-T trace-file] | [-c | -C] [-j] | -d ] [-o input] [file...]\n", stderr)
 
 static const struct option long_options[] = {
     {"version", no_argument, NULL, 'v'},
@@ -248,7 +251,9 @@ int main(int argc, char *const argv[]) {
 
     int option;
     char *contents = NULL;
-    while ((option = getopt_long(argc, argv, "cCdgjlo:nsuvw:x", long_options, NULL)) != -1) {
+    const char **configFiles = calloc(argc - 1, sizeof(char *));
+    int configCount = 0;
+    while ((option = getopt_long(argc, argv, "cCdD:gjlo:nstT:uvw:x", long_options, NULL)) != -1) {
         switch (option) {
         case 'c':
             wrapMinConstructor = 1;
@@ -259,6 +264,15 @@ int main(int argc, char *const argv[]) {
         case 'd':
             inverse = 1;
             break;
+        case 'D': {
+            char *end;
+            debugFlags = strtoull(optarg, &end, 16);
+            if (*end || end == optarg) {
+                fprintf(stderr, "evm: malformed debug flags %s\n", optarg);
+                return 1;
+            }
+            break;
+        }
         case 'j':
             labelJumpdests = 1;
             break;
@@ -280,6 +294,12 @@ int main(int argc, char *const argv[]) {
         case 'l':
             includeLogs = 1;
             break;
+        case 't':
+            trace = 1;
+            break;
+        case 'T':
+            traceFileName = optarg;
+            break;
         case 'u':
             updateConfigFile = 1;
             break;
@@ -287,11 +307,8 @@ int main(int argc, char *const argv[]) {
             puts(evm_build_version);
             return 0;
         case 'w':
-            if (configFile == NULL) {
-                evmInit();
-            }
             configFile = optarg;
-            loadConfig(configFile, updateConfigFile);
+            configFiles[configCount++] = optarg;
             break;
         case '?':
         default:
@@ -339,6 +356,40 @@ int main(int argc, char *const argv[]) {
         USAGE;
         return 1;
     }
+    if (trace && debugFlags) {
+        fputs("-D cannot be used with -t\n", stderr);
+        USAGE;
+        return 1;
+    }
+    if (debugFlags && !runtime && !configFile) {
+        fputs("-D requires -x or -w\n", stderr);
+        USAGE;
+        return 1;
+    }
+    if (trace && !runtime && !configFile) {
+        fputs("-t requires -x or -w\n", stderr);
+        USAGE;
+        return 1;
+    }
+    if (traceFileName) {
+        int traceFd = open(traceFileName, O_WRONLY | O_CREAT | O_APPEND, 0666);
+        if (traceFd < 0) {
+            perror(traceFileName);
+            return 1;
+        }
+        evmSetDebugFile(traceFd);
+    }
+    evmSetTrace(trace);
+    evmSetDebug(debugFlags);
+    setConfigDebug(debugFlags);
+    if (configCount) {
+        evmInit();
+        for (int i = 0; i < configCount; i++) {
+            loadConfig(configFiles[i], updateConfigFile);
+        }
+    }
+    free(configFiles);
+    evmSetDebug(debugFlags);
     void (*subprogram)(const char*);
     if (inverse) {
         subprogram = disassemble;

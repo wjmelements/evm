@@ -2,11 +2,13 @@
 #include "vector.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <unistd.h>
 
 
 uint16_t fprintLog(FILE *file, const logChanges_t *log, int showLogIndex) {
@@ -252,37 +254,55 @@ static void trackNonceChange(stateChanges_t **stateChanges, account_t *account, 
     entry->nonce.after = account->nonce;
 }
 
+static int debugFd = STDERR_FILENO;
+static FILE *debugFile = NULL;
+#define DEBUG_OUT (debugFile ? debugFile : stderr)
+
+static void writeAll(int fd, const char *buf, size_t size) {
+    while (size) {
+        ssize_t written = write(fd, buf, size);
+        if (written < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return;
+        }
+        buf += written;
+        size -= written;
+    }
+}
+
 // for debugging
 static inline void dumpStack(context_t *context) {
     uint256_t *pos = context->top;
     char buf[67];
     while (--pos >= context->bottom) {
         tostring256(pos, 16, buf, 67);
-        fprintf(stderr, "%lu: %s\n", pos - context->bottom, buf);
+        fprintf(DEBUG_OUT, "%lu: %s\n", pos - context->bottom, buf);
     }
 }
 
 static inline void dumpCallData(context_t *context) {
     for (uint32_t i = 0; i < context->callData.size; i++) {
-        fprintf(stderr, "%02x", context->callData.content[i]);
+        fprintf(DEBUG_OUT, "%02x", context->callData.content[i]);
     }
-    fputc('\n', stderr);
+    fputc('\n', DEBUG_OUT);
 }
 
 static inline void dumpMemory(memory_t *memory) {
     for (uint32_t i = 0; i < memory->num_uint8s; i++) {
-        fprintf(stderr, "%02x", memory->uint8s[i]);
+        fprintf(DEBUG_OUT, "%02x", memory->uint8s[i]);
         if (i % 32 == 31) {
-            fputc('\n', stderr);
+            fputc('\n', DEBUG_OUT);
         }
     }
     if (memory->num_uint8s % 32 == 0) {
         return;
     }
     for (uint32_t i = 32 - memory->num_uint8s % 32; i--> 0;) {
-        fputs("00", stderr);
+        fputs("00", DEBUG_OUT);
     }
-    fputc('\n', stderr);
+    fputc('\n', DEBUG_OUT);
 }
 
 static const uint64_t OVERFLOW_WORDS = 3109888487392;
@@ -359,7 +379,7 @@ void fRepeat(FILE *file, const char *str, uint16_t times) {
     fRepeat(file, str, times - 1);
 }
 
-#define INDENT fRepeat(stderr, "\t", depthOf(callContext))
+#define INDENT fRepeat(DEBUG_OUT, "\t", depthOf(callContext))
 
 void evmSetBlockNumber(uint64_t _blockNumber) {
     blockNumber = _blockNumber;
@@ -385,6 +405,156 @@ void evmSetTimestamp(uint64_t _timestamp) {
 
 void evmSetDebug(uint64_t flags) {
     debugFlags = flags;
+}
+
+static bool traceEnabled = false;
+
+void evmSetTrace(bool enabled) {
+    traceEnabled = enabled;
+}
+
+bool evmTraceEnabled(void) {
+    return traceEnabled;
+}
+
+void evmSetDebugFile(int fd) {
+    debugFd = fd;
+    debugFile = fdopen(fd, "a");
+}
+
+// EIP-3155: a step is buffered until its gasCost is known,
+// which is at the next step, the start of a subcall, or the end of the frame
+typedef char char_t;
+VECTOR(char, traceLine);
+static traceLine_t traceStep;
+static bool traceStepPending = false;
+static size_t traceStepStart;
+static uint64_t traceStepGas;
+
+#define TRACE_BATCH 65536
+
+// writes completed lines, keeping any pending step
+static void traceFlush(void) {
+    size_t complete = traceStepPending ? traceStepStart : traceStep.num_chars;
+    writeAll(debugFd, traceStep.chars, complete);
+    traceLine_trimTo(&traceStep, complete);
+    traceStepStart = 0;
+}
+
+#define TRACE_APPEND(literal) traceLine_extend(&traceStep, literal, sizeof(literal) - 1)
+
+static const char hexDigits[] = "0123456789abcdef";
+
+// at least minDigits, zero-padded
+static void traceAppendHex(uint64_t value, int minDigits) {
+    char digits[16];
+    int start = 16;
+    do {
+        digits[--start] = hexDigits[value & 0xf];
+        value >>= 4;
+    } while (value || 16 - start < minDigits);
+    traceLine_extend(&traceStep, digits + start, 16 - start);
+}
+
+static void traceAppendDecimal(uint64_t value) {
+    char digits[20];
+    int start = 20;
+    do {
+        digits[--start] = '0' + value % 10;
+        value /= 10;
+    } while (value);
+    traceLine_extend(&traceStep, digits + start, 20 - start);
+}
+
+static void traceAppendCompact256(const uint256_t *number) {
+    uint64_t words[4] = {
+        UPPER_P(&UPPER_P(number)), LOWER_P(&UPPER_P(number)),
+        UPPER_P(&LOWER_P(number)), LOWER_P(&LOWER_P(number)),
+    };
+    bool started = false;
+    for (int i = 0; i < 4; i++) {
+        if (started) {
+            traceAppendHex(words[i], 16);
+        } else if (words[i]) {
+            TRACE_APPEND("0x");
+            traceAppendHex(words[i], 0);
+            started = true;
+        }
+    }
+    if (!started) {
+        TRACE_APPEND("0x0");
+    }
+}
+
+static void traceAppendData(data_t data) {
+    traceLine_grow(&traceStep, traceStep.num_chars + 2 * data.size);
+    for (size_t i = 0; i < data.size; i++) {
+        traceStep.chars[traceStep.num_chars++] = hexDigits[data.content[i] >> 4];
+        traceStep.chars[traceStep.num_chars++] = hexDigits[data.content[i] & 0xf];
+    }
+}
+
+static void traceStepBegin(context_t *callContext, uint64_t pc, op_t op) {
+    traceStepStart = traceStep.num_chars;
+    TRACE_APPEND("{\"pc\":");
+    traceAppendDecimal(pc);
+    TRACE_APPEND(",\"op\":");
+    traceAppendDecimal(op);
+    TRACE_APPEND(",\"gas\":\"0x");
+    traceAppendHex(callContext->gas, 0);
+    TRACE_APPEND("\",\"stack\":[");
+    for (uint256_t *pos = callContext->bottom; pos < callContext->top; pos++) {
+        if (pos != callContext->bottom) {
+            traceLine_append(&traceStep, ',');
+        }
+        traceLine_append(&traceStep, '"');
+        traceAppendCompact256(pos);
+        traceLine_append(&traceStep, '"');
+    }
+    TRACE_APPEND("],\"depth\":");
+    traceAppendDecimal(depthOf(callContext) + 1);
+    TRACE_APPEND(",\"returnData\":\"0x");
+    traceAppendData(callContext->returnData);
+    TRACE_APPEND("\",\"refund\":");
+    traceAppendDecimal(refundCounter);
+    TRACE_APPEND(",\"memSize\":");
+    traceAppendDecimal(callContext->memory.num_uint8s);
+    TRACE_APPEND(",\"opName\":\"");
+    traceLine_extend(&traceStep, opString[op], strlen(opString[op]));
+    traceLine_append(&traceStep, '"');
+    traceStepPending = true;
+    traceStepGas = callContext->gas;
+}
+
+static void traceStepEndCost(uint64_t gasCost, const char *error) {
+    if (!traceStepPending) {
+        return;
+    }
+    TRACE_APPEND(",\"gasCost\":\"0x");
+    traceAppendHex(gasCost, 0);
+    traceLine_append(&traceStep, '"');
+    if (error) {
+        TRACE_APPEND(",\"error\":\"");
+        traceLine_extend(&traceStep, error, strlen(error));
+        traceLine_append(&traceStep, '"');
+    }
+    TRACE_APPEND("}\n");
+    traceStepPending = false;
+    if (debugFile == NULL || traceStep.num_chars >= TRACE_BATCH) {
+        traceFlush();
+    }
+}
+
+static void traceStepEnd(uint64_t gasRemaining, const char *error) {
+    traceStepEndCost(traceStepGas - gasRemaining, error);
+}
+
+static void traceSummary(const result_t *result, uint64_t gasUsed) {
+    traceFlush();
+    fputs("{\"output\":\"0x", DEBUG_OUT);
+    fprintData(DEBUG_OUT, result->returnData);
+    fprintf(DEBUG_OUT, "\",\"gasUsed\":\"0x%" PRIx64 "\",\"pass\":%s}\n", gasUsed, zero256(&result->status) ? "false" : "true");
+    fflush(DEBUG_OUT);
 }
 
 #define SHOW_STACK (debugFlags & EVM_DEBUG_STACK)
@@ -426,6 +596,9 @@ static account_t *getAccount(const address_t address) {
         result->balance[2] = 0;
         result->local = false;
         if (accountFetch) {
+            if (traceEnabled) {
+                traceFlush();
+            }
             accountFetch(address);
         }
     }
@@ -586,6 +759,9 @@ static storage_t *getAccountStorage(account_t *account, const uint256_t *key) {
     *storage = calloc(1, sizeof(storage_t));
     copy256(&(*storage)->key, key);
     if (storageFetch && !account->local) {
+        if (traceEnabled) {
+            traceFlush();
+        }
         storageFetch(account->address, key, &(*storage)->value);
     }
     return *storage;
@@ -767,27 +943,31 @@ static result_t evmCreate(account_t *fromAccount, uint64_t gas, val_t value, dat
 static result_t evmCreate2(account_t *fromAccount, uint64_t gas, val_t value, data_t input, const uint256_t *salt);
 
 static result_t doCall(context_t *callContext) {
+    if (traceEnabled && callContext != callstack.bottom) {
+        // the parent's CALL or CREATE step costs whatever it has handed over
+        traceStepEnd(callContext[-1].gas, NULL);
+    }
     if (SHOW_CALLS) {
         INDENT;
-        fputs("from: ", stderr);
-        fprintAddress(stderr, callContext->caller);
-        fputc('\n', stderr);
+        fputs("from: ", DEBUG_OUT);
+        fprintAddress(DEBUG_OUT, callContext->caller);
+        fputc('\n', DEBUG_OUT);
 
         if (callContext->account) {
             INDENT;
-            fputs("to: ", stderr);
-            fprintAddress(stderr, callContext->account->address);
-            fputc('\n', stderr);
+            fputs("to: ", DEBUG_OUT);
+            fprintAddress(DEBUG_OUT, callContext->account->address);
+            fputc('\n', DEBUG_OUT);
         }
         if (!ValueIsZero(callContext->callValue)) {
             INDENT;
-            fputs("value: ", stderr);
-            fprintVal(stderr, callContext->callValue);
-            fputc('\n', stderr);
+            fputs("value: ", DEBUG_OUT);
+            fprintVal(DEBUG_OUT, callContext->callValue);
+            fputc('\n', DEBUG_OUT);
         }
 
         INDENT;
-        fputs("input: ", stderr);
+        fputs("input: ", DEBUG_OUT);
 
         dumpCallData(callContext);
     }
@@ -810,21 +990,38 @@ static result_t doCall(context_t *callContext) {
     uint64_t pc = 0;
     uint8_t buffer[32];
     op_t op;
-    #define FAIL_INVALID \
+    // the trace reports these as the step's error
+    #define STEP_WARNING(...) \
+            if (!traceEnabled) { \
+                fprintf(stderr, __VA_ARGS__); \
+            }
+    #define FAIL_INVALID(error) \
+            if (traceEnabled) { \
+                traceStepEnd(callContext->gas, error); \
+            } \
             callContext->gas = 0; \
             result.returnData.size = 0; \
             return result
     #define OUT_OF_GAS \
-            fprintf(stderr, "Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]); \
-            FAIL_INVALID
+            STEP_WARNING("Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]); \
+            FAIL_INVALID("out of gas")
+    #define FAIL_UNCHARGED(error) \
+            if (traceEnabled) { \
+                traceStepEndCost(gasCost[op], error); \
+            } \
+            FAIL_INVALID(error)
     #define CHECK_READONLY \
             if (callContext->readonly) { \
-                fprintf(stderr, "Attempted %s inside STATICCALL\n", opString[op]); \
-                FAIL_INVALID; \
+                STEP_WARNING("Attempted %s inside STATICCALL\n", opString[op]); \
+                FAIL_INVALID("write protection"); \
             }
     #define DISPATCH() \
             do { \
                 op = callContext->code.content[pc++]; \
+                if (traceEnabled && pc <= callContext->code.size) { \
+                    traceStepEnd(callContext->gas, NULL); \
+                    traceStepBegin(callContext, pc - 1, op); \
+                } \
                 if (SHOW_STACK) { \
                     dumpStack(callContext); \
                 } \
@@ -833,25 +1030,26 @@ static result_t doCall(context_t *callContext) {
                 } \
                 if (SHOW_OPS) { \
                     if (SHOW_PC) { \
-                        fprintf(stderr, "%" PRIu64 ": ", pc - 1); \
+                        fprintf(DEBUG_OUT, "%" PRIu64 ": ", pc - 1); \
                     } \
                     if (SHOW_GAS) { \
-                        fprintf(stderr, "gas %" PRIu64 " ", callContext->gas); \
+                        fprintf(DEBUG_OUT, "gas %" PRIu64 " ", callContext->gas); \
                     } \
-                    fprintf(stderr, "op %s\n", opString[op]); \
+                    fprintf(DEBUG_OUT, "op %s\n", opString[op]); \
                 } \
                 if (callContext->top - callContext->bottom < minStackHeight[op]) { \
-                    fprintf(stderr, "Stack underflow at pc %" PRIu64 " op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom); \
-                    FAIL_INVALID; \
+                    STEP_WARNING("Stack underflow at pc %" PRIu64 " op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom); \
+                    FAIL_UNCHARGED("stack underflow"); \
                 } \
                 if (callContext->gas < gasCost[op]) { \
-                    OUT_OF_GAS; \
+                    STEP_WARNING("Out of gas at pc %" PRIu64 " op %s\n", pc - 1, opString[op]); \
+                    FAIL_UNCHARGED("out of gas"); \
                 } \
                 callContext->gas -= gasCost[op]; \
                 callContext->top += retCount[op] - argCount[op]; \
                 if (callContext->top >= callContext->bottom + 1024) { \
-                    fprintf(stderr, "Stack overflow at pc %" PRIu64 " op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom); \
-                    FAIL_INVALID; \
+                    STEP_WARNING("Stack overflow at pc %" PRIu64 " op %s stack depth %lu\n", pc - 1, opString[op], callContext->top - callContext->bottom); \
+                    FAIL_INVALID("stack overflow"); \
                 } \
                 goto *dispatchTable[op]; \
             } while (0)
@@ -1183,18 +1381,18 @@ op_JUMP:
     {
         uint256_t *dst = callContext->top + (op - JUMP);
         if (UPPER(UPPER_P(dst)) || UPPER(LOWER_P(dst)) || LOWER(UPPER_P(dst))) {
-            fprintf(stderr, "%s destination has upper bits set\n", opString[op]);
-            FAIL_INVALID;
+            STEP_WARNING("%s destination has upper bits set\n", opString[op]);
+            FAIL_INVALID("invalid jump destination");
         }
         pc = LOWER(LOWER_P(dst));
     }
     if (pc >= callContext->code.size) {
-        fprintf(stderr, "%s out of bounds %" PRIu64 " >= %lu\n", opString[op], pc, callContext->code.size);
-        FAIL_INVALID;
+        STEP_WARNING("%s out of bounds %" PRIu64 " >= %lu\n", opString[op], pc, callContext->code.size);
+        FAIL_INVALID("invalid jump destination");
     }
     if (callContext->code.content[pc] != JUMPDEST) {
-        fprintf(stderr, "%s to invalid destination %" PRIu64 " (%s)\n", opString[op], pc, opString[callContext->code.content[pc]]);
-        FAIL_INVALID;
+        STEP_WARNING("%s to invalid destination %" PRIu64 " (%s)\n", opString[op], pc, opString[callContext->code.content[pc]]);
+        FAIL_INVALID("invalid jump destination");
     }
     // Verify the JUMPDEST byte is a real instruction, not PUSH data.
     // Backward scan: PUSH_n covers at most n <= 32 data bytes ahead.
@@ -1216,8 +1414,8 @@ op_JUMP:
                 if (cb >= PUSH1 && cb <= PUSH32) {
                     uint8_t n = cb - PUSH0;
                     if (fpc + n >= pc) {
-                        fprintf(stderr, "%s to JUMPDEST inside PUSH%u data at %" PRIu64 "\n", opString[op], n, pc);
-                        FAIL_INVALID;
+                        STEP_WARNING("%s to JUMPDEST inside PUSH%u data at %" PRIu64 "\n", opString[op], n, pc);
+                        FAIL_INVALID("invalid jump destination");
                     }
                     fpc += 1 + n;
                 } else {
@@ -1347,8 +1545,8 @@ op_ASSERT_0xfb:
 op_ASSERT_0xfc:
 op_INVALID:
 op_default:
-    fprintf(stderr, "Unsupported opcode %u (%s)\n", op, opString[op]);
-    FAIL_INVALID;
+    STEP_WARNING("Unsupported opcode %u (%s)\n", op, opString[op]);
+    FAIL_INVALID("invalid opcode");
 op_STOP:
     LOWER(LOWER(result.status)) = 1;
     result.returnData.size = 0;
@@ -1470,9 +1668,9 @@ op_LOG4:
 
         stateChanges_t *stateChanges = getCurrentAccountStateChanges(&result, callContext);
         if (SHOW_LOGS) {
-            fputs("\033[94m", stderr);
-            fprintLog(stderr, log, true);
-            fputs("\033[0m\n", stderr);
+            fputs("\033[94m", DEBUG_OUT);
+            fprintLog(DEBUG_OUT, log, true);
+            fputs("\033[0m\n", DEBUG_OUT);
         }
         log->prev = stateChanges->logChanges;
         stateChanges->logChanges = log;
@@ -1505,7 +1703,7 @@ op_CODECOPY:
             if (
                 UPPER(LOWER_P(callContext->top + 1)) || LOWER(UPPER_P(callContext->top + 1)) || UPPER(UPPER_P(callContext->top + 1))
                 || start + size > code->size) {
-                FAIL_INVALID;
+                FAIL_INVALID("return data out of bounds");
             }
             break;
         case MCOPY:
@@ -1919,13 +2117,13 @@ op_REVERT:
     if (SHOW_CALLS) {
         INDENT;
         if (zero256(&result.status)) {
-            fputs("\033[0;31m", stderr);
+            fputs("\033[0;31m", DEBUG_OUT);
         }
-        fputs("output: ", stderr);
-        fprintData(stderr, result.returnData);
-        fputc('\n', stderr);
+        fputs("output: ", DEBUG_OUT);
+        fprintData(DEBUG_OUT, result.returnData);
+        fputc('\n', DEBUG_OUT);
         if (zero256(&result.status)) {
-            fputs("\033[0m", stderr);
+            fputs("\033[0m", DEBUG_OUT);
         }
     }
     return result;
@@ -2013,15 +2211,18 @@ static result_t _evmCall(context_t *callContext) {
     callstack.next += 1;
     result_t result = doCall(callContext);
     callstack.next -= 1;
+    if (traceEnabled) {
+        traceStepEnd(callContext->gas, NULL);
+    }
 
     result.gasRemaining = callContext->gas;
     if (SHOW_CALLS) {
         INDENT;
-        fprintf(stderr, "gasUsed: %" PRIu64, startGas - callContext->gas);
+        fprintf(DEBUG_OUT, "gasUsed: %" PRIu64, startGas - callContext->gas);
         if (startGas < 600000000) {
-            fprintf(stderr, " / %" PRIu64, startGas);
+            fprintf(DEBUG_OUT, " / %" PRIu64, startGas);
         }
-        fputc('\n', stderr);
+        fputc('\n', DEBUG_OUT);
     }
 
     if (zero256(&result.status)) {
@@ -2197,7 +2398,11 @@ static result_t _evmConstruct(account_t *fromAccount, account_t *to, uint64_t ga
 }
 
 result_t evmConstruct(address_t from, address_t to, uint64_t gas, val_t value, data_t input) {
-    return _evmConstruct(getAccount(from), getAccount(to), gas, value, input);
+    result_t result = _evmConstruct(getAccount(from), getAccount(to), gas, value, input);
+    if (traceEnabled) {
+        traceSummary(&result, gas - result.gasRemaining);
+    }
+    return result;
 }
 
 result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t input, const accessList_t *accessList) {
@@ -2225,6 +2430,9 @@ result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t 
         clear256(&result.status);
         result.returnData.size = 0;
         evmIteration++;
+        if (traceEnabled) {
+            traceSummary(&result, gas);
+        }
         return result;
     }
     uint64_t originalGas = gas;
@@ -2244,6 +2452,9 @@ result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t 
 
     evmIteration++;
     fromAccount->nonce++;
+    if (traceEnabled) {
+        traceSummary(&result, originalGas - result.gasRemaining);
+    }
     return result;
 }
 
@@ -2262,5 +2473,8 @@ result_t txCreate(address_t from, uint64_t gas, val_t value, data_t input) {
     coinbaseAccount->warm = evmIteration;
     result_t result = evmCreate(fromAccount, gas, value, input);
     evmIteration++;
+    if (traceEnabled) {
+        traceSummary(&result, gas - result.gasRemaining);
+    }
     return result;
 }
