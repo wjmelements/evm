@@ -1,6 +1,3 @@
-#ifndef _BLOCK_H_
-#define _BLOCK_H_
-
 #include <stdint.h>
 #include <stdio.h>
 
@@ -54,5 +51,3 @@ void fprintBlockField(FILE *file, const block_t *block, uint8_t index);
 // Returns the index of the field whose key in keys matches, or BLOCK_FIELD_COUNT
 uint8_t blockKeyIndex(const char *const keys[BLOCK_FIELD_COUNT], const char *key, size_t len);
 void blockDefaults(block_t *block);
-
-#endif /* _BLOCK_H_ */

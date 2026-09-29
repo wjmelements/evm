@@ -2,7 +2,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "address.h"
 #include "block.h"
 #include "data.h"
 #include "keccak.h"

@@ -1,6 +1,3 @@
-#ifndef _ADDRESS_H_
-#define _ADDRESS_H_
-
 #include "hex.h"
 #include "precompiles.h"
 #include "uint256.h"
@@ -144,5 +141,3 @@ static inline precompile_t AddressToPrecompile(const address_t address) {
 static inline int PrecompileIsKnownPrecompile(const address_t address) {
     return address.address[19] < KNOWN_PRECOMPILES;
 }
-
-#endif /* _ADDRESS_H_ */
