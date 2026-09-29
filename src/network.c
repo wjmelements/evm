@@ -79,13 +79,10 @@ static void fetchBlockHeader(block_t *block) {
     const char *key, *val;
     size_t klen;
     for (const char *end = header; (end = jNextKeyVal(end, &key, &klen, &val)); ) {
-        for (uint8_t index = 0; index < BLOCK_FIELD_COUNT; index++) {
-            const char *headerKey = blockHeaderKey[index];
-            if (headerKey && strlen(headerKey) == klen && !memcmp(headerKey, key, klen) && *val == '"') {
-                blockParseField(block, index, val + 1, end - val - 2);
-                found |= (blockFields_t)1 << index;
-                break;
-            }
+        uint8_t index = blockKeyIndex(blockHeaderKey, key, klen);
+        if (index < BLOCK_FIELD_COUNT && *val == '"') {
+            blockParseField(block, index, val + 1, end - val - 2);
+            found |= (blockFields_t)1 << index;
         }
     }
     if (!(found & BLOCK_BIT(baseFee))) {

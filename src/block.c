@@ -15,6 +15,12 @@ const char *const blockHeaderKey[BLOCK_FIELD_COUNT] = {
 #undef BLOCK_FIELD
 };
 
+const char *const blockConfigKey[BLOCK_FIELD_COUNT] = {
+#define BLOCK_FIELD(name, type, overrideKey, headerKey, configKey, ...) configKey,
+    BLOCK_FIELDS
+#undef BLOCK_FIELD
+};
+
 static void parse_u64(uint64_t *field, const char *hex, size_t len) {
     *field = 0;
     for (size_t i = 0; i < len; i++) {
@@ -68,10 +74,10 @@ void fprintBlockField(FILE *file, const block_t *block, uint8_t index) {
     fputc('"', file);
 }
 
-uint8_t blockOverrideIndex(const char *key, size_t len) {
+uint8_t blockKeyIndex(const char *const keys[BLOCK_FIELD_COUNT], const char *key, size_t len) {
     uint8_t index = 0;
     for (; index < BLOCK_FIELD_COUNT; index++) {
-        if (strlen(blockOverrideKey[index]) == len && memcmp(blockOverrideKey[index], key, len) == 0) {
+        if (keys[index] && strlen(keys[index]) == len && memcmp(keys[index], key, len) == 0) {
             break;
         }
     }
@@ -79,7 +85,7 @@ uint8_t blockOverrideIndex(const char *key, size_t len) {
 }
 
 void blockDefaults(block_t *block) {
-#define BLOCK_FIELD(name, type, overrideKey, headerKey, value) \
+#define BLOCK_FIELD(name, type, overrideKey, headerKey, configKey, value) \
     blockParseField(block, BLOCK_ ## name ## _INDEX, value, sizeof(value) - 1);
     BLOCK_FIELDS
 #undef BLOCK_FIELD

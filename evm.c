@@ -200,7 +200,7 @@ static void execute(const char *contents) {
                     const char *okey, *oval;
                     size_t oklen;
                     for (const char *oend = val; (oend = jNextKeyVal(oend, &okey, &oklen, &oval)); ) {
-                        uint8_t index = blockOverrideIndex(okey, oklen);
+                        uint8_t index = blockKeyIndex(blockOverrideKey, okey, oklen);
                         if (index == BLOCK_FIELD_COUNT || index == BLOCK_chainId_INDEX) {
                             fprintf(stderr, "evm: unsupported blockOverrides key \"%.*s\"\n", (int)oklen, okey);
                             exit(1);
