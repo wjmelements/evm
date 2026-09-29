@@ -372,7 +372,6 @@ static blockFields_t blockOverridden;
 static blockFields_t blockPending;
 static blockFields_t blockUsed;
 static block_fetch_t blockFetch = NULL;
-static account_t *coinbaseAccount;
 static uint64_t debugFlags = 0;
 static account_t knownPrecompiles[KNOWN_PRECOMPILES];
 static account_fetch_t accountFetch = NULL;
@@ -394,9 +393,9 @@ void fRepeat(FILE *file, const char *str, uint16_t times) {
 
 static void copyBlockFields(block_t *dst, const block_t *src, blockFields_t fields) {
 #define BLOCK_FIELD(name, ...) \
-    if (fields & BLOCK_BIT(name)) { \
-        dst->name = src->name; \
-    }
+        if (fields & BLOCK_BIT(name)) { \
+            dst->name = src->name; \
+        }
     BLOCK_FIELDS
 #undef BLOCK_FIELD
 }
@@ -405,19 +404,16 @@ static void blockBaseChanged(blockFields_t fields) {
     blockBaseKnown |= fields;
     blockBaseSet |= fields;
     blockKnown |= fields & ~blockOverridden;
-    if (fields & BLOCK_BIT(coinbase)) {
-        coinbaseAccount = NULL;
-    }
 }
 
 #define BLOCK_SET(name, value) \
-    do { \
-        blockBase.name = (value); \
-        if (!(blockOverridden & BLOCK_BIT(name))) { \
-            block.name = blockBase.name; \
-        } \
-        blockBaseChanged(BLOCK_BIT(name)); \
-    } while (0)
+        do { \
+            blockBase.name = (value); \
+            if (!(blockOverridden & BLOCK_BIT(name))) { \
+                block.name = blockBase.name; \
+            } \
+            blockBaseChanged(BLOCK_BIT(name)); \
+        } while (0)
 
 void evmSetBlock(const block_t *values, blockFields_t fields) {
     copyBlockFields(&blockBase, values, fields);
@@ -438,7 +434,6 @@ static void blockRevert(void) {
         block = blockBase;
         blockKnown = blockBaseKnown;
         blockOverridden = 0;
-        coinbaseAccount = NULL;
     }
 }
 
@@ -451,7 +446,6 @@ void evmOverrideBlock(const block_t *values, blockFields_t fields) {
         blockKnown &= ~(BLOCK_HEADER & ~fields);
     }
     blockOverridden = fields;
-    coinbaseAccount = NULL;
 }
 
 void evmSetBlockFetch(block_fetch_t fetch) {
@@ -716,10 +710,12 @@ void evmInit() {
     blockKnown = blockBaseKnown;
     blockUsed = 0;
     blockUsedValues = &block;
-    coinbaseAccount = getAccount(block.coinbase);
-    coinbaseAccount->balance[0] = 0x1;
-    coinbaseAccount->balance[1] = 0xd82f5899;
-    coinbaseAccount->balance[2] = 0x461084bd;
+    if (!accountFetch) {
+        account_t *coinbaseAccount = getAccount(block.coinbase);
+        coinbaseAccount->balance[0] = 0x1;
+        coinbaseAccount->balance[1] = 0xd82f5899;
+        coinbaseAccount->balance[2] = 0x461084bd;
+    }
 }
 
 void evmFinalize() {
@@ -787,13 +783,6 @@ static account_t *createNewAccount2(account_t *from, const uint256_t *salt, cons
     return createLocalAccount(hashResult.bottom160);
 }
 
-static void warmCoinbase(void) {
-    if (!coinbaseAccount) {
-        coinbaseAccount = getAccount(block.coinbase);
-    }
-    coinbaseAccount->warm = evmIteration;
-}
-
 static void blockFetchFields(blockFields_t fields) {
     if (fields & BLOCK_HEADER) {
         fields = BLOCK_HEADER;
@@ -812,11 +801,6 @@ static void blockFetchFields(blockFields_t fields) {
     if (fields == BLOCK_BIT(chainId) || !(blockOverridden & BLOCK_BIT(number))) {
         copyBlockFields(&blockBase, &fetched, fields);
         blockBaseKnown |= fields;
-    }
-    if (fields & ~blockOverridden & BLOCK_BIT(coinbase)) {
-        // EIP-3651: the coinbase is warm from the start of the transaction
-        coinbaseAccount = NULL;
-        warmCoinbase();
     }
 }
 
@@ -865,11 +849,14 @@ static void blockEnd(void) {
 static account_t *warmAccount(context_t *callContext, const address_t address) {
     account_t *account = getAccount(address);
     if (account->warm != evmIteration) {
-        uint64_t gasCost = G_COLD_ACCOUNT - G_ACCESS;
-        if (callContext->gas < gasCost) {
-            return NULL;
+        // EIP-3651: the coinbase is warm, once known
+        if (!(blockKnown & BLOCK_BIT(coinbase)) || !AddressEqual(&account->address, &block.coinbase)) {
+            uint64_t gasCost = G_COLD_ACCOUNT - G_ACCESS;
+            if (callContext->gas < gasCost) {
+                return NULL;
+            }
+            callContext->gas -= gasCost;
         }
-        callContext->gas -= gasCost;
         account->warm = evmIteration;
     }
     return account;
@@ -1979,7 +1966,7 @@ op_TSTORE:
             BLOCK_READ(name); \
             copy256(callContext->top - 1, &block.name); \
             DISPATCH()
-op_COINBASE:
+    op_COINBASE :
     BLOCK_READ(coinbase);
     AddressToUint256(callContext->top - 1, &block.coinbase);
     DISPATCH();
@@ -2544,9 +2531,6 @@ result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t 
     account_t *fromAccount = getAccount(from);
     fromAccount->warm = evmIteration;
     blockBegin();
-    if (blockKnown & BLOCK_BIT(coinbase)) {
-        warmCoinbase();
-    }
     uint64_t intrinsicGas = G_TX + calldataGas(&input);
     while (accessList) {
         intrinsicGas += G_ACCESSLIST_ACCOUNT;
@@ -2609,9 +2593,6 @@ result_t txCreate(address_t from, uint64_t gas, val_t value, data_t input) {
     account_t *fromAccount = getAccount(from);
     fromAccount->warm = evmIteration;
     blockBegin();
-    if (blockKnown & BLOCK_BIT(coinbase)) {
-        warmCoinbase();
-    }
     result_t result = evmCreate(fromAccount, gas, value, input);
     evmIteration++;
     blockEnd();

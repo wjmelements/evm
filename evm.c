@@ -465,10 +465,10 @@ int main(int argc, char *const argv[]) {
         subprogram = assemble;
     }
     if (runtime && configFile == NULL) {
-        evmInit();
         if (networkMode) {
             evmSetNetworkFetch();
         }
+        evmInit();
     }
     if (contents != NULL) {
         // input is from the command line

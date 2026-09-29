@@ -67,9 +67,9 @@ static void batch_response(FILE *rsp, const char *code_hex, const char *balance_
 // Contract: PUSH0 SLOAD PUSH0 MSTORE MSIZE PUSH0 RETURN
 // Loads slot 0 from network and returns it as 32 bytes.
 static void child_storage(void) {
+    evmSetNetworkFetch();
     evmInit();
     evmSetBlockNumber(0x100);
-    evmSetNetworkFetch();
 
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     address_t addr = AddressFromHex42("0x1111000000000000000000000000000000000001");
@@ -139,9 +139,9 @@ void test_networkFetchStorageRpcError(void) {
 // Contract: PUSH20 <target> BALANCE PUSH0 MSTORE MSIZE PUSH0 RETURN
 // target = 0x2222000000000000000000000000000000000002 (fetched from network)
 static void child_account(void) {
+    evmSetNetworkFetch();
     evmInit();
     evmSetBlockNumber(0x100);
-    evmSetNetworkFetch();
 
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     address_t addr = AddressFromHex42("0x1111000000000000000000000000000000000001");
@@ -199,10 +199,11 @@ static const char *expectedHeaderNumber;
 static int chainIdRequests;
 static int blockNumberRequests;
 static int headerRequests;
+static int minerRequests;
 
 static void parent_block(FILE *req, FILE *rsp) {
     char buf[8192];
-    chainIdRequests = blockNumberRequests = headerRequests = 0;
+    chainIdRequests = blockNumberRequests = headerRequests = minerRequests = 0;
     while (fgets(buf, sizeof(buf), req)) {
         const char *id = strstr(buf, "\"id\":");
         assert(id != NULL);
@@ -227,6 +228,9 @@ static void parent_block(FILE *req, FILE *rsp) {
                     requestId, expectedHeaderNumber);
         } else {
             assert(strstr(buf, expectedStateTag) != NULL);
+            if (strstr(buf, "0x2222222222222222222222222222222222222222")) {
+                minerRequests++;
+            }
             if (strstr(buf, "0x1111000000000000000000000000000000000001")) {
                 batch_response(rsp, blockContractCode, "0x0");
             } else {
@@ -260,8 +264,8 @@ static uint64_t returnWord(const result_t *result, int word) {
 // --- test_networkChainId ---
 // MSTORE(0, CHAINID) RETURN(0, MSIZE)
 static void child_chainId(void) {
-    evmInit();
     evmSetNetworkFetch();
+    evmInit();
     block_t used;
 
     result_t result = callBlockContract();
@@ -289,8 +293,8 @@ void test_networkChainId(void) {
 // --- test_networkNoBlockFetch ---
 // PUSH0 PUSH0 RETURN reads nothing from the block
 static void child_noBlockFetch(void) {
-    evmInit();
     evmSetNetworkFetch();
+    evmInit();
     callBlockContract();
     block_t used;
     assert(evmBlockUsed(&used) == 0);
@@ -308,8 +312,8 @@ void test_networkNoBlockFetch(void) {
 // --- test_networkHeader ---
 // MSTORE(0, TIMESTAMP) GAS POP(BALANCE(COINBASE)) GAS SWAP1 SUB 32 MSTORE MSTORE(64, BASEFEE) RETURN(0, MSIZE)
 static void child_header(void) {
-    evmInit();
     evmSetNetworkFetch();
+    evmInit();
 
     result_t result = callBlockContract();
     assert(returnWord(&result, 0) == 0x6700);
@@ -335,13 +339,33 @@ void test_networkHeader(void) {
     with_mock_rpc(child_header, parent_block, 0, "");
     assert(blockNumberRequests == 1);
     assert(headerRequests == 1);
+    assert(minerRequests == 1);
+}
+
+// --- test_networkHeaderSkipsMiner ---
+// MSTORE(0, TIMESTAMP) RETURN(0, MSIZE) fetches the header but not the miner's account
+static void child_timestamp(void) {
+    evmSetNetworkFetch();
+    evmInit();
+    result_t result = callBlockContract();
+    assert(returnWord(&result, 0) == 0x6700);
+    evmFinalize();
+}
+
+void test_networkHeaderSkipsMiner(void) {
+    blockContractCode = "0x425f52595ff3";
+    expectedStateTag = "\"0x100\"";
+    expectedHeaderNumber = "0x100";
+    with_mock_rpc(child_timestamp, parent_block, 0, "");
+    assert(headerRequests == 1);
+    assert(minerRequests == 0);
 }
 
 // --- test_networkNumberOverride ---
 // Overriding number to N fetches state at N - 1 and the header of N, for that request only.
 static void child_numberOverride(void) {
-    evmInit();
     evmSetNetworkFetch();
+    evmInit();
     block_t overrides;
     overrides.number = 0x200;
     evmOverrideBlock(&overrides, BLOCK_BIT(number));
@@ -369,6 +393,7 @@ int main(void) {
     test_networkChainId();
     test_networkNoBlockFetch();
     test_networkHeader();
+    test_networkHeaderSkipsMiner();
     test_networkNumberOverride();
     return 0;
 }
