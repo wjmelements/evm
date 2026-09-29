@@ -78,7 +78,7 @@
         OP(0x47,SELFBALANCE,0,1,G_LOW) \
         OP(0x48,BASEFEE,0,1,G_BASE) \
         OP(0x49,BLOBHASH,0,1,G_ZERO) \
-        OP(0x4a,BLOBBASEFEE,0,1,G_ZERO) \
+        OP(0x4a,BLOBBASEFEE,0,1,G_BASE) \
         OP(0x4b,ASSERT_0x4b,0,1,G_ZERO) \
         OP(0x4c,ASSERT_0x4c,0,1,G_ZERO) \
         OP(0x4d,ASSERT_0x4d,0,1,G_ZERO) \

@@ -382,13 +382,13 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | COINBASE | ✅ |✅ |
 | TIMESTAMP | ✅ |❓ |
 | NUMBER | ✅ |❓ |
-| PREVRANDAO | ✅ | ❌ |
-| GASLIMIT | ✅ | ❌ |
+| PREVRANDAO | ✅ |❓ |
+| GASLIMIT | ✅ |❓ |
 | CHAINID | ✅ |❓ |
 | SELFBALANCE | ✅ |✅ |
-| BASEFEE | ✅ | ❌ |
+| BASEFEE | ✅ |❓ |
 | BLOBHASH | ✅ | ❌ |
-| BLOBBASEFEE | ✅ | ❌ |
+| BLOBBASEFEE | ✅ |❓ |
 | POP | ✅ |❓ |
 | MLOAD | ✅ |✅ |
 | MSTORE | ✅ |✅ |

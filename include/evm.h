@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "address.h"
+#include "block.h"
 #include "data.h"
 #include "keccak.h"
 #include "ops.h"
@@ -135,8 +136,17 @@ void evmSetTrace(bool enabled);
 bool evmTraceEnabled(void);
 // destination for debug and trace output; defaults to stderr
 void evmSetDebugFile(int fd);
+// Persistent block values
 void evmSetBlockNumber(uint64_t blockNumber);
 void evmSetTimestamp(uint64_t timestamp);
+void evmSetBlock(const block_t *values, blockFields_t fields);
+// Block values for the next transaction only
+void evmOverrideBlock(const block_t *values, blockFields_t fields);
+// Fields read by the last transaction, and their values; only tracked with a block fetch
+blockFields_t evmBlockUsed(block_t *values);
+// Fetch unknown fields: BLOCK_BIT(number), BLOCK_BIT(chainId), or BLOCK_HEADER for block->number
+typedef void (*block_fetch_t)(blockFields_t fields, block_t *block);
+void evmSetBlockFetch(block_fetch_t);
 
 void evmMockBalance(address_t to, const val_t balance);
 void evmMockCall(address_t to, val_t value, data_t inputData, result_t result);
