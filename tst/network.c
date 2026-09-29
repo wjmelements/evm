@@ -129,7 +129,7 @@ static void parent_storage_rpc_error(FILE *req, FILE *rsp) {
 }
 
 void test_networkFetchStorageRpcError(void) {
-    with_mock_rpc(child_storage, parent_storage_rpc_error, 1, "evm: network: bad eth_getStorageAt response\n");
+    with_mock_rpc(child_storage, parent_storage_rpc_error, 1, "evm: network: bad eth_getStorageAt response: {\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32000,\"message\":\"missing trie node\"}}\n");
 }
 
 // --- test_networkFetchAccount ---

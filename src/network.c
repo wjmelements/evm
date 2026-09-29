@@ -38,6 +38,14 @@ static const char *nextResultHex(const char **p) {
     return *p;
 }
 
+static void badResponse(const char *method) {
+    fprintf(stderr, "evm: network: bad %s response: %s", method, rpcBuf);
+    if (!strchr(rpcBuf, '\n')) {
+        fputc('\n', stderr);
+    }
+    _exit(1);
+}
+
 static void ensureNetworkBlock(void) {
     if (evmBlockNumberIsSet()) {
         snprintf(networkBlockHex, sizeof(networkBlockHex), "0x%" PRIx64, evmGetBlockNumber());
@@ -52,8 +60,7 @@ static void ensureNetworkBlock(void) {
     const char *p = rpcBuf;
     const char *hex = nextResultHex(&p);
     if (!hex) {
-        fputs("evm: network: bad eth_blockNumber response\n", stderr);
-        _exit(1);
+        badResponse("eth_blockNumber");
     }
     uint64_t block = 0;
     while (*p != '"' && *p) {
@@ -89,8 +96,7 @@ static void networkFetchAccount(address_t address) {
     // code
     const char *hex = nextResultHex(&p);
     if (!hex) {
-        fputs("evm: network: bad eth_getCode response\n", stderr);
-        _exit(1);
+        badResponse("eth_getCode");
     }
     const char *codeStart = p;
     while (*p != '"' && *p) {
@@ -110,8 +116,7 @@ static void networkFetchAccount(address_t address) {
     // nonce
     hex = nextResultHex(&p);
     if (!hex) {
-        fputs("evm: network: bad eth_getTransactionCount response\n", stderr);
-        _exit(1);
+        badResponse("eth_getTransactionCount");
     }
     uint64_t nonce = 0;
     while (*p != '"' && *p) {
@@ -125,8 +130,7 @@ static void networkFetchAccount(address_t address) {
     // balance
     hex = nextResultHex(&p);
     if (!hex) {
-        fputs("evm: network: bad eth_getBalance response\n", stderr);
-        _exit(1);
+        badResponse("eth_getBalance");
     }
     val_t balance = {0, 0, 0};
     while (*p != '"' && *p) {
@@ -153,8 +157,7 @@ static void networkFetchStorage(address_t address, const uint256_t *key, uint256
     const char *p = rpcBuf;
     nextResultHex(&p);
     if (!p) {
-        fputs("evm: network: bad eth_getStorageAt response\n", stderr);
-        _exit(1);
+        badResponse("eth_getStorageAt");
     }
     clear256(value_out);
     while (*p != '"' && *p) {
