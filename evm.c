@@ -3,6 +3,7 @@
 #include "path.h"
 #include "scan.h"
 #include "disassemble.h"
+#include "json.h"
 #include "version.h"
 
 #include <sys/stat.h>
@@ -110,38 +111,29 @@ static void disassemble(const char *contents) {
     disassembleFinalize();
 }
 
-// Scan json for "key":"<value>". Strips leading "0x" if present.
-// Returns pointer into json at start of hex chars, sets *len to char count.
-// Returns NULL if the key is not found.
-static const char *jsonStrVal(const char *json, const char *key, size_t *len) {
-    size_t klen = strlen(key);
-    const char *p = json;
-    for (;;) {
-        p = strchr(p, '"');
-        if (!p) {
-            return NULL;
-        }
-        if (strncmp(p + 1, key, klen) == 0 && p[1 + klen] == '"') {
-            p += 1 + klen + 1;
-            while (*p == ' ' || *p == ':') {
-                p++;
-            }
-            if (*p != '"') {
-                return NULL;
-            }
-            p++;
-            if (p[0] == '0' && p[1] == 'x') {
-                p += 2;
-            }
-            const char *start = p;
-            while (*p && *p != '"') {
-                p++;
-            }
-            *len = (size_t)(p - start);
-            return start;
-        }
-        p++;
+// The hex chars of the JSON string from val to end (just past its closing quote), without "0x"
+static const char *jsonHex(const char *val, const char *end, const char *key, size_t *len) {
+    if (*val != '"' || end[-1] != '"') {
+        fprintf(stderr, "evm: \"%s\" must be a string\n", key);
+        exit(1);
     }
+    val++;
+    end--;
+    if (val[0] == '0' && val[1] == 'x') {
+        val += 2;
+    }
+    *len = end - val;
+    return val;
+}
+
+static address_t jsonAddress(const char *val, const char *end, const char *key) {
+    size_t len;
+    const char *hex = jsonHex(val, end, key, &len);
+    if (len != 40) {
+        fprintf(stderr, "evm: malformed \"%s\" address\n", key);
+        exit(1);
+    }
+    return AddressFromHex40(hex);
 }
 
 static void execute(const char *contents) {
@@ -150,36 +142,81 @@ static void execute(const char *contents) {
     int hasTo = 0;
     const char *hexData = contents;
     size_t hexLen;
+    val_t value = {0, 0, 0};
+    bool hasNonce = false;
+    uint64_t nonce = 0;
+    block_t overrides;
+    blockFields_t overridden = 0;
 
     if (contents[0] == '{') {
-        size_t flen;
-        const char *p = jsonStrVal(contents, "to", &flen);
-        if (p) {
-            if (flen != 40) {
-                fputs("evm: malformed \"to\" address\n", stderr);
-                exit(1);
+        hexData = "";
+        hexLen = 0;
+        const char *key, *val;
+        size_t klen;
+        for (const char *end = contents; (end = jNextKeyVal(end, &key, &klen, &val)); ) {
+            const char *hex;
+            size_t len;
+            switch (klen) {
+            case 2:
+                if (!memcmp(key, "to", 2)) {
+                    hasTo = 1;
+                    to = jsonAddress(val, end, "to");
+                }
+                break;
+            case 4:
+                if (!memcmp(key, "from", 4)) {
+                    from = jsonAddress(val, end, "from");
+                } else if (!memcmp(key, "data", 4)) {
+                    hexData = jsonHex(val, end, "data", &hexLen);
+                }
+                break;
+            case 5:
+                if (!memcmp(key, "input", 5)) {
+                    hexData = jsonHex(val, end, "input", &hexLen);
+                } else if (!memcmp(key, "value", 5)) {
+                    hex = jsonHex(val, end, "value", &len);
+                    for (size_t i = 0; i < len; i++) {
+                        value[0] = (value[0] << 4) | (value[1] >> 28);
+                        value[1] = (value[1] << 4) | (value[2] >> 28);
+                        value[2] = (value[2] << 4) | hexString8ToUint8(hex[i]);
+                    }
+                } else if (!memcmp(key, "nonce", 5)) {
+                    hex = jsonHex(val, end, "nonce", &len);
+                    hasNonce = true;
+                    for (size_t i = 0; i < len; i++) {
+                        nonce = (nonce << 4) | hexString8ToUint8(hex[i]);
+                    }
+                }
+                break;
+            case 7:
+                if (!memcmp(key, "chainId", 7)) {
+                    hex = jsonHex(val, end, "chainId", &len);
+                    blockParseField(&overrides, BLOCK_chainId_INDEX, hex, len);
+                    overridden |= BLOCK_BIT(chainId);
+                }
+                break;
+            case 14:
+                if (!memcmp(key, "blockOverrides", 14)) {
+                    const char *okey, *oval;
+                    size_t oklen;
+                    for (const char *oend = val; (oend = jNextKeyVal(oend, &okey, &oklen, &oval)); ) {
+                        uint8_t index = blockOverrideIndex(okey, oklen);
+                        if (index == BLOCK_FIELD_COUNT || index == BLOCK_chainId_INDEX) {
+                            fprintf(stderr, "evm: unsupported blockOverrides key \"%.*s\"\n", (int)oklen, okey);
+                            exit(1);
+                        }
+                        hex = jsonHex(oval, oend, blockOverrideKey[index], &len);
+                        blockParseField(&overrides, index, hex, len);
+                        overridden |= (blockFields_t)1 << index;
+                    }
+                }
+                break;
             }
-            hasTo = 1;
-            to = AddressFromHex40(p);
         }
-        p = jsonStrVal(contents, "from", &flen);
-        if (p) {
-            if (flen != 40) {
-                fputs("evm: malformed \"from\" address\n", stderr);
-                exit(1);
-            }
-            from = AddressFromHex40(p);
-        }
-        p = jsonStrVal(contents, "data", &flen);
-        if (!p) {
-            p = jsonStrVal(contents, "input", &flen);
-        }
-        if (p && (flen & 1)) {
+        if (hexLen & 1) {
             fputs("evm: odd-lengthed input\n", stderr);
             exit(1);
         }
-        hexData = p ? p : "";
-        hexLen = p ? flen : 0;
     } else {
         hexLen = strlen(contents);
         if (hexLen & 1 && contents[hexLen - 1] != '\n') {
@@ -198,8 +235,14 @@ static void execute(const char *contents) {
         input.content[i] = hexString16ToUint8(hexData + i * 2);
     }
 
+    if (overridden) {
+        evmOverrideBlock(&overrides, overridden);
+    }
+    if (hasNonce) {
+        evmMockNonce(from, nonce);
+    }
+
     uint64_t gas = 0xffffffffffffffff;
-    val_t value = {0, 0, 0};
     result_t result;
     if (hasTo) {
         result = txCall(from, gas, to, value, input, NULL);
