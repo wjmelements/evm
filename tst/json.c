@@ -157,6 +157,26 @@ void test_jValDup() {
     assert(strcmp(v, "[1,2,3]") == 0);
     free(v);
 
+    // escaped quote
+    v = jValDup("\"a\\\"b\" rest");
+    assert(strcmp(v, "\"a\\\"b\"") == 0);
+    free(v);
+
+    // escaped backslash before the closing quote
+    v = jValDup("\"a\\\\\" rest\"");
+    assert(strcmp(v, "\"a\\\\\"") == 0);
+    free(v);
+
+    // escaped quote and brace inside an object string
+    v = jValDup("{\"a\":\"\\\"}\"},rest");
+    assert(strcmp(v, "{\"a\":\"\\\"}\"}") == 0);
+    free(v);
+
+    // unterminated string
+    v = jValDup("\"abc");
+    assert(strcmp(v, "\"abc") == 0);
+    free(v);
+
     // NULL
     v = jValDup(NULL);
     assert(v == NULL);
