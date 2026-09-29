@@ -23,3 +23,6 @@ jobs:
 
       - name: make check
         run: make check
+        env:
+          # empty when unset (e.g. fork PRs), so the Makefile falls back to its default RPC
+          ETH_RPC_URL: ${{ secrets.ETH_RPC_URL }}
