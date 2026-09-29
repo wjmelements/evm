@@ -593,8 +593,8 @@ static void run(
     size_t klen;
     for (const char *p = callJson; (p = jNextKeyVal(p, &key, &klen, &val)); ) {
         if ((klen == 5 && !memcmp(key, "nonce", 5))
-                || (klen == 7 && !memcmp(key, "chainId", 7))
-                || (klen == 14 && !memcmp(key, "blockOverrides", 14))) {
+            || (klen == 7 && !memcmp(key, "chainId", 7))
+            || (klen == 14 && !memcmp(key, "blockOverrides", 14))) {
             sbAppend(&overrides, ",\"", 2);
             sbAppend(&overrides, key, klen);
             sbAppend(&overrides, "\":", 2);

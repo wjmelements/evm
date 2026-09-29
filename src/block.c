@@ -49,10 +49,10 @@ void blockParseField(block_t *block, uint8_t index, const char *hex, size_t len)
     }
     switch (index) {
 #define BLOCK_FIELD(name, type, ...) \
-    case BLOCK_ ## name ## _INDEX: \
-        parse_ ## type(&block->name, hex, len); \
-        break;
-        BLOCK_FIELDS
+        case BLOCK_ ## name ## _INDEX: \
+            parse_ ## type(&block->name, hex, len); \
+            break;
+    BLOCK_FIELDS
 #undef BLOCK_FIELD
     }
 }
@@ -65,10 +65,10 @@ void fprintBlockField(FILE *file, const block_t *block, uint8_t index) {
     fputc('"', file);
     switch (index) {
 #define BLOCK_FIELD(name, type, ...) \
-    case BLOCK_ ## name ## _INDEX: \
-        BLOCK_PRINT_ ## type(file, block->name); \
-        break;
-        BLOCK_FIELDS
+        case BLOCK_ ## name ## _INDEX: \
+            BLOCK_PRINT_ ## type(file, block->name); \
+            break;
+    BLOCK_FIELDS
 #undef BLOCK_FIELD
     }
     fputc('"', file);
@@ -86,7 +86,7 @@ uint8_t blockKeyIndex(const char *const keys[BLOCK_FIELD_COUNT], const char *key
 
 void blockDefaults(block_t *block) {
 #define BLOCK_FIELD(name, type, overrideKey, headerKey, configKey, value) \
-    blockParseField(block, BLOCK_ ## name ## _INDEX, value, sizeof(value) - 1);
+        blockParseField(block, BLOCK_ ## name ## _INDEX, value, sizeof(value) - 1);
     BLOCK_FIELDS
 #undef BLOCK_FIELD
 }

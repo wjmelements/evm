@@ -15,14 +15,14 @@ typedef address_t block_address_t;
 // The override key is geth's blockOverrides key, except chainId, which is a top-level request key.
 // Header fields are fetched together by eth_getBlockByNumber; number by eth_blockNumber; chainId by eth_chainId.
 #define BLOCK_FIELDS \
-    BLOCK_FIELD(number, u64, "number", NULL, "blockNumber", "0x13a2228") \
-    BLOCK_FIELD(timestamp, u64, "time", "timestamp", "timestamp", "0x65712600") \
-    BLOCK_FIELD(gasLimit, u64, "gasLimit", "gasLimit", "gasLimit", "0x1c9c380") \
-    BLOCK_FIELD(chainId, u64, "chainId", NULL, "chainId", "0x1") \
-    BLOCK_FIELD(baseFee, u256, "baseFeePerGas", "baseFeePerGas", "baseFee", "0x7") \
-    BLOCK_FIELD(blobBaseFee, u256, "blobBaseFee", NULL, "blobBaseFee", "0x1") \
-    BLOCK_FIELD(prevRandao, u256, "prevRandao", "mixHash", "prevRandao", "0x0") \
-    BLOCK_FIELD(coinbase, address, "feeRecipient", "miner", "coinbase", "0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97")
+        BLOCK_FIELD(number, u64, "number", NULL, "blockNumber", "0x13a2228") \
+        BLOCK_FIELD(timestamp, u64, "time", "timestamp", "timestamp", "0x65712600") \
+        BLOCK_FIELD(gasLimit, u64, "gasLimit", "gasLimit", "gasLimit", "0x1c9c380") \
+        BLOCK_FIELD(chainId, u64, "chainId", NULL, "chainId", "0x1") \
+        BLOCK_FIELD(baseFee, u256, "baseFeePerGas", "baseFeePerGas", "baseFee", "0x7") \
+        BLOCK_FIELD(blobBaseFee, u256, "blobBaseFee", NULL, "blobBaseFee", "0x1") \
+        BLOCK_FIELD(prevRandao, u256, "prevRandao", "mixHash", "prevRandao", "0x0") \
+        BLOCK_FIELD(coinbase, address, "feeRecipient", "miner", "coinbase", "0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97")
 
 typedef struct block {
 #define BLOCK_FIELD(name, type, ...) block_ ## type ## _t name;
