@@ -2096,6 +2096,50 @@ void test_create() {
     evmFinalize();
 }
 
+// CREATE address is keccak256(rlp([sender, nonce]))[12:]; expected values from go-ethereum's crypto.CreateAddress
+void test_createNonce() {
+    struct {
+        uint64_t nonce;
+        const char *expected;
+    } cases[] = {
+        {0x0, "0x80d9b122Dc3a16FdC41f96cF010FFE7e38d227C3"},
+        {0x7f, "0xFAad13a83E78bee1C47CD5e18A4Df60203B11Ee4"},
+        {0x80, "0x2ddBE7B2a8FC167F58838934dC7d1a1acF90d3Ce"},
+        {0xff, "0xFD147C19F24C389f7EaF15C37bf6a16A4E062546"},
+        {0x100, "0x45753f55e24FcBeDf89b85E489D65f4E0D22b9c7"},
+        {0xffff, "0x07742663146F828E1E777A5b436465e7Fd7ad02d"},
+        {0x10000, "0x88fDDda1aA9Ae94C17e2fAb7b9C3742fD0C5a1e5"},
+        {0xffffff, "0x50A2f89FFE007A560bF3e2aaC6DfC9b6F043611E"},
+        {0x1000000, "0x788882B2efDEf898A57a9E2AD6BEB19Cb7C0471F"},
+        {0xffffffff, "0x335224EF2F61490aAAb4a32b54953975f855acc6"},
+        {0x100000000, "0xd8D7686D442F7F1056D1129e08DADc6Ccba97ec6"},
+        {0xffffffffff, "0x60c188006e427Ef1c9a92DcFaF0A3F304A8F3eee"},
+        {0x10000000000, "0x65af999aFA0476C12e27C016B2313209aaA181c3"},
+        {0xffffffffffff, "0xBb54eF43099E48481689F3dc0DEfd8eA8674112d"},
+        {0x1000000000000, "0xbB3A03c613DF3E798961dA7071d9F321294b8A9B"},
+        {0xffffffffffffff, "0x3Bf414262c305C6BECE82736C482AE61006c6c82"},
+        {0x100000000000000, "0xcd0f5417c54dF463242a8ab39710BC8F78A9b740"},
+        {0xfffffffffffffffe, "0x1237AebCC1fae89e8583ec5Caf6e9e8f5c4e6b29"},
+    };
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    val_t value = {0, 0, 0};
+    op_t program[] = {
+        STOP,
+    };
+    data_t input;
+    input.size = sizeof(program);
+    input.content = program;
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        evmInit();
+        evmMockNonce(from, cases[i].nonce);
+        result_t result = txCreate(from, 53006, value, input);
+        address_t expected = AddressFromHex42(cases[i].expected);
+        address_t actual = AddressFromUint256(&result.status);
+        assert(AddressEqual(&expected, &actual));
+        evmFinalize();
+    }
+}
+
 // Verify that code deployed by an inner CREATE is rolled back when the outer call REVERTs.
 void test_createRevertRollback() {
     evmInit();
@@ -2718,6 +2762,7 @@ int main() {
     test_sha3();
     test_delegateCall();
     test_create();
+    test_createNonce();
     test_createRevertRollback();
     test_returnDataCopyOOB();
     test_stackUnderflow();

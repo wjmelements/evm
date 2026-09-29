@@ -677,49 +677,27 @@ typedef struct hashResult {
 
 static account_t *createNewAccount(account_t *from) {
     uint64_t nonce = from->nonce++;
-    uint8_t inputBuffer[28];
-    if (nonce < 1) {
-        // d6 94 address20 80
-        inputBuffer[0] = 0xd6;
-        inputBuffer[22] = 0x80;
-    } else if (nonce < 0x80) {
-        // d6 94 address20 nonce1
-        inputBuffer[0] = 0xd6;
-        inputBuffer[22] = nonce;
-    } else if (nonce < 0x100) {
-        // d7 94 address20 81 nonce1
-        inputBuffer[0] = 0xd7;
-        inputBuffer[22] = 0x81;
-        inputBuffer[23] = nonce;
-    } else if (nonce < 0x10000) {
-        // d8 94 address20 82 nonce2
-        inputBuffer[0] = 0xd8;
-        inputBuffer[22] = 0x82;
-        inputBuffer[23] = nonce >> 8;
-        inputBuffer[24] = nonce;
-    } else if (nonce < 0x1000000) {
-        // d9 94 address20 83 nonce3
-        inputBuffer[0] = 0xd9;
-        inputBuffer[22] = 0x83;
-        inputBuffer[23] = nonce >> 16;
-        inputBuffer[24] = nonce >> 8;
-        inputBuffer[25] = nonce;
-    } else if (nonce < 0x100000000) {
-        // da 94 address20 84 nonce4
-        inputBuffer[0] = 0xda;
-        inputBuffer[22] = 0x84;
-        inputBuffer[23] = nonce >> 24;
-        inputBuffer[24] = nonce >> 16;
-        inputBuffer[25] = nonce >> 8;
-        inputBuffer[26] = nonce;
-    } else {
-        fprintf(stderr, "Unsupported nonce %" PRIu64 "\n", nonce);
-        return NULL;
-    }
+    // rlp([address, nonce]): c0+length 94 address20 nonce
+    // nonce is itself when in [1, 0x80), else 80+n followed by its n big-endian bytes
+    uint8_t inputBuffer[31];
     inputBuffer[1] = 0x94;
     memcpy(inputBuffer + 2, from->address.address, 20);
+    uint8_t length = 22;
+    if (nonce && nonce < 0x80) {
+        inputBuffer[length++] = nonce;
+    } else {
+        uint8_t nonceBytes = 0;
+        for (uint64_t rest = nonce; rest; rest >>= 8) {
+            nonceBytes++;
+        }
+        inputBuffer[length++] = 0x80 + nonceBytes;
+        while (nonceBytes--) {
+            inputBuffer[length++] = nonce >> (8 * nonceBytes);
+        }
+    }
+    inputBuffer[0] = 0xbf + length;
     addressHashResult_t hashResult;
-    keccak_256((uint8_t *)&hashResult, sizeof(hashResult), inputBuffer, inputBuffer[0] - 0xbf);
+    keccak_256((uint8_t *)&hashResult, sizeof(hashResult), inputBuffer, length);
     return createLocalAccount(hashResult.bottom160);
 }
 
