@@ -6,7 +6,6 @@
 #include "data.h"
 #include "keccak.h"
 #include "ops.h"
-#include "uint256.h"
 
 typedef uint32_t val_t[3];
 

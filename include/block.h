@@ -2,7 +2,6 @@
 #include <stdio.h>
 
 #include "address.h"
-#include "uint256.h"
 
 typedef uint64_t block_u64_t;
 typedef uint256_t block_u256_t;
