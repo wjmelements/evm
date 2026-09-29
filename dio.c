@@ -781,6 +781,7 @@ static const char usage[] =
     "    [{\"to\": \"0x...\"}, {\"to\": \"0x...\"}]\n"
     "\n"
     "Only \"to\" is required.  \"block\" defaults to \"latest\".\n"
+    "\"nonce\", \"chainId\", and \"blockOverrides\" are passed to evm -nx.\n"
     "The generated config is written to outfile, or stdout if omitted.\n"
     "\n"
     "Options:\n"
