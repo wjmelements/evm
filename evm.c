@@ -270,6 +270,26 @@ static void execute(const char *contents) {
             }
             fputs("\",\"", stdout);
         }
+        block_t used;
+        blockFields_t usedFields = evmBlockUsed(&used);
+        if (usedFields & BLOCK_BIT(chainId)) {
+            fputs("chainId\":", stdout);
+            fprintBlockField(stdout, &used, BLOCK_chainId_INDEX);
+            fputs(",\"", stdout);
+            usedFields &= ~BLOCK_BIT(chainId);
+        }
+        if (usedFields) {
+            fputs("blockOverrides\":{", stdout);
+            const char *separator = "\"";
+            for (uint8_t index = 0; index < BLOCK_FIELD_COUNT; index++) {
+                if (usedFields & ((blockFields_t)1 << index)) {
+                    printf("%s%s\":", separator, blockOverrideKey[index]);
+                    fprintBlockField(stdout, &used, index);
+                    separator = ",\"";
+                }
+            }
+            fputs("},\"", stdout);
+        }
         fputs("returnData\":\"0x", stdout);
     }
     for (; result.returnData.size--;) {

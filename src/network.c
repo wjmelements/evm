@@ -8,7 +8,8 @@
 #include <unistd.h>
 
 static uint32_t rpcId = 0;
-static char rpcBuf[131072];
+static char *rpcBuf;
+static size_t rpcCap;
 static char networkBlockHex[20];
 
 // Scan forward in *p to the next "result":"0x<hex>" value.
@@ -46,28 +47,73 @@ static void badResponse(const char *method) {
     _exit(1);
 }
 
-static void ensureNetworkBlock(void) {
-    if (evmBlockNumberIsSet()) {
-        snprintf(networkBlockHex, sizeof(networkBlockHex), "0x%" PRIx64, evmGetBlockNumber());
-        return;
-    }
-    printf("{\"jsonrpc\":\"2.0\",\"id\":%u,\"method\":\"eth_blockNumber\",\"params\":[]}\n", ++rpcId);
-    fflush(stdout);
-    if (!fgets(rpcBuf, sizeof(rpcBuf), stdin)) {
-        fputs("evm: network: no response for eth_blockNumber\n", stderr);
+static void readResponse(const char *what) {
+    if (getline(&rpcBuf, &rpcCap, stdin) == -1) {
+        fprintf(stderr, "evm: network: no response for %s\n", what);
         _exit(1);
     }
+}
+
+static uint64_t readResultU64(const char *method) {
+    readResponse(method);
     const char *p = rpcBuf;
-    const char *hex = nextResultHex(&p);
-    if (!hex) {
-        badResponse("eth_blockNumber");
+    if (!nextResultHex(&p)) {
+        badResponse(method);
     }
-    uint64_t block = 0;
+    uint64_t result = 0;
     while (*p != '"' && *p) {
-        block = (block << 4) | hexString8ToUint8(*p++);
+        result = (result << 4) | hexString8ToUint8(*p++);
     }
-    snprintf(networkBlockHex, sizeof(networkBlockHex), "0x%" PRIx64, block);
-    evmSetBlockNumber(block);
+    return result;
+}
+
+static void fetchBlockHeader(block_t *block) {
+    printf("{\"jsonrpc\":\"2.0\",\"id\":%u,\"method\":\"eth_getBlockByNumber\",\"params\":[\"0x%" PRIx64 "\",false]}\n", ++rpcId, block->number);
+    fflush(stdout);
+    readResponse("eth_getBlockByNumber");
+    const char *header = jFind(rpcBuf, "result");
+    if (!header || *header != '{') {
+        badResponse("eth_getBlockByNumber");
+    }
+    blockFields_t found = 0;
+    const char *key, *val;
+    size_t klen;
+    for (const char *end = header; (end = jNextKeyVal(end, &key, &klen, &val)); ) {
+        for (uint8_t index = 0; index < BLOCK_FIELD_COUNT; index++) {
+            const char *headerKey = blockHeaderKey[index];
+            if (headerKey && strlen(headerKey) == klen && !memcmp(headerKey, key, klen) && *val == '"') {
+                blockParseField(block, index, val + 1, end - val - 2);
+                found |= (blockFields_t)1 << index;
+                break;
+            }
+        }
+    }
+    if (!(found & BLOCK_BIT(baseFee))) {
+        // before London
+        clear256(&block->baseFee);
+        found |= BLOCK_BIT(baseFee);
+    }
+    if (found != BLOCK_HEADER) {
+        badResponse("eth_getBlockByNumber");
+    }
+}
+
+static void networkFetchBlock(blockFields_t fields, block_t *block) {
+    if (fields == BLOCK_BIT(number)) {
+        printf("{\"jsonrpc\":\"2.0\",\"id\":%u,\"method\":\"eth_blockNumber\",\"params\":[]}\n", ++rpcId);
+        fflush(stdout);
+        block->number = readResultU64("eth_blockNumber");
+    } else if (fields == BLOCK_BIT(chainId)) {
+        printf("{\"jsonrpc\":\"2.0\",\"id\":%u,\"method\":\"eth_chainId\",\"params\":[]}\n", ++rpcId);
+        fflush(stdout);
+        block->chainId = readResultU64("eth_chainId");
+    } else {
+        fetchBlockHeader(block);
+    }
+}
+
+static void ensureNetworkBlock(void) {
+    snprintf(networkBlockHex, sizeof(networkBlockHex), "0x%" PRIx64, evmStateBlockNumber());
 }
 
 static void networkFetchAccount(address_t address) {
@@ -87,10 +133,7 @@ static void networkFetchAccount(address_t address) {
     puts("]");
     fflush(stdout);
 
-    if (!fgets(rpcBuf, sizeof(rpcBuf), stdin)) {
-        fputs("evm: network: no response for account fetch\n", stderr);
-        _exit(1);
-    }
+    readResponse("account fetch");
     const char *p = rpcBuf;
 
     // code
@@ -150,10 +193,7 @@ static void networkFetchStorage(address_t address, const uint256_t *key, uint256
     printf("\",\"%s\"]}\n", networkBlockHex);
     fflush(stdout);
 
-    if (!fgets(rpcBuf, sizeof(rpcBuf), stdin)) {
-        fputs("evm: network: no response for storage fetch\n", stderr);
-        _exit(1);
-    }
+    readResponse("storage fetch");
     const char *p = rpcBuf;
     nextResultHex(&p);
     if (!p) {
@@ -168,4 +208,5 @@ static void networkFetchStorage(address_t address, const uint256_t *key, uint256
 
 void evmSetNetworkFetch(void) {
     evmSetFetch(networkFetchAccount, networkFetchStorage);
+    evmSetBlockFetch(networkFetchBlock);
 }

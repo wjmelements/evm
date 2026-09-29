@@ -465,14 +465,6 @@ blockFields_t evmBlockUsed(block_t *values) {
     return blockUsed;
 }
 
-bool evmBlockNumberIsSet(void) {
-    return blockBaseSet & BLOCK_BIT(number);
-}
-
-uint64_t evmGetBlockNumber(void) {
-    return block.number;
-}
-
 void evmSetFetch(account_fetch_t af, storage_fetch_t sf) {
     accountFetch = af;
     storageFetch = sf;
@@ -843,6 +835,16 @@ static void __attribute__((noinline, cold)) blockResolve(blockFields_t field) {
     }
     blockPending &= ~field;
     blockUsed |= field;
+}
+
+uint64_t evmStateBlockNumber(void) {
+    if (blockOverridden & BLOCK_BIT(number)) {
+        return block.number - 1;
+    }
+    if (blockFetch && !(blockKnown & BLOCK_BIT(number))) {
+        blockFetchFields(BLOCK_BIT(number));
+    }
+    return block.number;
 }
 
 static void blockBegin(void) {

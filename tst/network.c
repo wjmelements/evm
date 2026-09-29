@@ -41,13 +41,16 @@ static void with_mock_rpc(void (*child)(void), void (*parent)(FILE *req, FILE *r
     fclose(req);
     int status;
     waitpid(pid, &status, 0);
-    assert(WIFEXITED(status) && WEXITSTATUS(status) == expectedStatus);
 
     char errBuf[4096];
     ssize_t errLen = read(err_pipe[0], errBuf, sizeof(errBuf) - 1);
     assert(errLen >= 0);
     errBuf[errLen] = 0;
     close(err_pipe[0]);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != expectedStatus || strcmp(errBuf, expectedStderr)) {
+        fputs(errBuf, stderr);
+    }
+    assert(WIFEXITED(status) && WEXITSTATUS(status) == expectedStatus);
     assert(strcmp(errBuf, expectedStderr) == 0);
 }
 
@@ -188,9 +191,184 @@ void test_networkFetchAccount(void) {
     with_mock_rpc(child_account, parent_account, 0, "");
 }
 
+// --- block fetches ---
+// The parent serves contract code, eth_chainId, eth_blockNumber, and a block header, counting requests.
+static const char *blockContractCode;
+static const char *expectedStateTag;
+static const char *expectedHeaderNumber;
+static int chainIdRequests;
+static int blockNumberRequests;
+static int headerRequests;
+
+static void parent_block(FILE *req, FILE *rsp) {
+    char buf[8192];
+    chainIdRequests = blockNumberRequests = headerRequests = 0;
+    while (fgets(buf, sizeof(buf), req)) {
+        const char *id = strstr(buf, "\"id\":");
+        assert(id != NULL);
+        int requestId = atoi(id + 5);
+        if (strstr(buf, "eth_chainId")) {
+            chainIdRequests++;
+            fprintf(rsp, "{\"jsonrpc\":\"2.0\",\"id\":%d,\"result\":\"0x13a\"}\n", requestId);
+        } else if (strstr(buf, "eth_blockNumber")) {
+            blockNumberRequests++;
+            fprintf(rsp, "{\"jsonrpc\":\"2.0\",\"id\":%d,\"result\":\"0x100\"}\n", requestId);
+        } else if (strstr(buf, "eth_getBlockByNumber")) {
+            headerRequests++;
+            char quoted[24];
+            snprintf(quoted, sizeof(quoted), "\"%s\"", expectedHeaderNumber);
+            assert(strstr(buf, quoted) != NULL);
+            fprintf(rsp,
+                    "{\"jsonrpc\":\"2.0\",\"id\":%d,\"result\":{\"number\":\"%s\",\"hash\":\"0xabcd\","
+                    "\"miner\":\"0x2222222222222222222222222222222222222222\",\"timestamp\":\"0x6700\","
+                    "\"gasLimit\":\"0x2faf080\",\"baseFeePerGas\":\"0x3b9aca00\","
+                    "\"mixHash\":\"0x0000000000000000000000000000000000000000000000000000000000001234\","
+                    "\"transactions\":[\"0x01\",\"0x02\"]}}\n",
+                    requestId, expectedHeaderNumber);
+        } else {
+            assert(strstr(buf, expectedStateTag) != NULL);
+            if (strstr(buf, "0x1111000000000000000000000000000000000001")) {
+                batch_response(rsp, blockContractCode, "0x0");
+            } else {
+                batch_response(rsp, "0x", "0x0");
+            }
+        }
+        fflush(rsp);
+    }
+}
+
+static result_t callBlockContract(void) {
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    address_t addr = AddressFromHex42("0x1111000000000000000000000000000000000001");
+    val_t val;
+    val[0] = 0;
+    val[1] = 0;
+    val[2] = 0;
+    data_t input;
+    input.size = 0;
+    return txCall(from, 100000, addr, val, input, NULL);
+}
+
+static uint64_t returnWord(const result_t *result, int word) {
+    uint64_t value = 0;
+    for (int i = 24; i < 32; i++) {
+        value = (value << 8) | result->returnData.content[word * 32 + i];
+    }
+    return value;
+}
+
+// --- test_networkChainId ---
+// MSTORE(0, CHAINID) RETURN(0, MSIZE)
+static void child_chainId(void) {
+    evmInit();
+    evmSetNetworkFetch();
+    block_t used;
+
+    result_t result = callBlockContract();
+    assert(returnWord(&result, 0) == 0x13a);
+    assert(evmBlockUsed(&used) == BLOCK_BIT(chainId));
+    assert(used.chainId == 0x13a);
+
+    // cached, but still reported as used
+    result = callBlockContract();
+    assert(returnWord(&result, 0) == 0x13a);
+    assert(evmBlockUsed(&used) == BLOCK_BIT(chainId));
+
+    evmFinalize();
+}
+
+void test_networkChainId(void) {
+    blockContractCode = "0x465f52595ff3";
+    expectedStateTag = "\"0x100\"";
+    with_mock_rpc(child_chainId, parent_block, 0, "");
+    assert(chainIdRequests == 1);
+    assert(blockNumberRequests == 1);
+    assert(headerRequests == 0);
+}
+
+// --- test_networkNoBlockFetch ---
+// PUSH0 PUSH0 RETURN reads nothing from the block
+static void child_noBlockFetch(void) {
+    evmInit();
+    evmSetNetworkFetch();
+    callBlockContract();
+    block_t used;
+    assert(evmBlockUsed(&used) == 0);
+    evmFinalize();
+}
+
+void test_networkNoBlockFetch(void) {
+    blockContractCode = "0x5f5ff3";
+    expectedStateTag = "\"0x100\"";
+    with_mock_rpc(child_noBlockFetch, parent_block, 0, "");
+    assert(chainIdRequests == 0);
+    assert(headerRequests == 0);
+}
+
+// --- test_networkHeader ---
+// MSTORE(0, TIMESTAMP) GAS POP(BALANCE(COINBASE)) GAS SWAP1 SUB 32 MSTORE MSTORE(64, BASEFEE) RETURN(0, MSIZE)
+static void child_header(void) {
+    evmInit();
+    evmSetNetworkFetch();
+
+    result_t result = callBlockContract();
+    assert(returnWord(&result, 0) == 0x6700);
+    // the fetched coinbase is warm: COINBASE BALANCE POP GAS
+    assert(returnWord(&result, 1) == G_BASE + G_ACCESS + G_BASE + G_BASE);
+    assert(returnWord(&result, 2) == 1000000000);
+    block_t used;
+    assert(evmBlockUsed(&used) == (BLOCK_BIT(timestamp) | BLOCK_BIT(coinbase) | BLOCK_BIT(baseFee)));
+    assert(used.timestamp == 0x6700);
+
+    // cached; the coinbase is warm from the start
+    result = callBlockContract();
+    assert(returnWord(&result, 0) == 0x6700);
+    assert(returnWord(&result, 1) == G_BASE + G_ACCESS + G_BASE + G_BASE);
+
+    evmFinalize();
+}
+
+void test_networkHeader(void) {
+    blockContractCode = "0x425f525a4131505a900360205248604052595ff3";
+    expectedStateTag = "\"0x100\"";
+    expectedHeaderNumber = "0x100";
+    with_mock_rpc(child_header, parent_block, 0, "");
+    assert(blockNumberRequests == 1);
+    assert(headerRequests == 1);
+}
+
+// --- test_networkNumberOverride ---
+// Overriding number to N fetches state at N - 1 and the header of N, for that request only.
+static void child_numberOverride(void) {
+    evmInit();
+    evmSetNetworkFetch();
+    block_t overrides;
+    overrides.number = 0x200;
+    evmOverrideBlock(&overrides, BLOCK_BIT(number));
+
+    result_t result = callBlockContract();
+    assert(returnWord(&result, 0) == 0x6700);
+    block_t used;
+    assert(evmBlockUsed(&used) & BLOCK_BIT(timestamp));
+    evmFinalize();
+}
+
+void test_networkNumberOverride(void) {
+    blockContractCode = "0x425f525a4131505a900360205248604052595ff3";
+    expectedStateTag = "\"0x1ff\"";
+    expectedHeaderNumber = "0x200";
+    with_mock_rpc(child_numberOverride, parent_block, 0, "");
+    assert(blockNumberRequests == 0);
+    assert(headerRequests == 1);
+}
+
 int main(void) {
     test_networkFetchStorage();
     test_networkFetchStorageRpcError();
     test_networkFetchAccount();
+    test_networkChainId();
+    test_networkNoBlockFetch();
+    test_networkHeader();
+    test_networkNumberOverride();
     return 0;
 }
