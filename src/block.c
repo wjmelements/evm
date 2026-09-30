@@ -21,14 +21,14 @@ const char *const blockConfigKey[BLOCK_FIELD_COUNT] = {
 #undef BLOCK_FIELD
 };
 
-static void parse_u64(uint64_t *field, const char *hex, size_t len) {
+static void parse_uint64_t(uint64_t *field, const char *hex, size_t len) {
     *field = 0;
     for (size_t i = 0; i < len; i++) {
         *field = (*field << 4) | hexString8ToUint8(hex[i]);
     }
 }
 
-static void parse_u256(uint256_t *field, const char *hex, size_t len) {
+static void parse_uint256_t(uint256_t *field, const char *hex, size_t len) {
     clear256(field);
     for (size_t i = 0; i < len; i++) {
         shiftl256(field, 4, field);
@@ -36,9 +36,9 @@ static void parse_u256(uint256_t *field, const char *hex, size_t len) {
     }
 }
 
-static void parse_address(address_t *field, const char *hex, size_t len) {
+static void parse_address_t(address_t *field, const char *hex, size_t len) {
     uint256_t value;
-    parse_u256(&value, hex, len);
+    parse_uint256_t(&value, hex, len);
     *field = AddressFromUint256(&value);
 }
 
@@ -57,9 +57,9 @@ void blockParseField(block_t *block, uint8_t index, const char *hex, size_t len)
     }
 }
 
-#define BLOCK_PRINT_u64(file, field) fprintf(file, "0x%" PRIx64, field)
-#define BLOCK_PRINT_u256(file, field) fprintCompact256(file, &field)
-#define BLOCK_PRINT_address(file, field) fprintAddress(file, field)
+#define BLOCK_PRINT_uint64_t(file, field) fprintf(file, "0x%" PRIx64, field)
+#define BLOCK_PRINT_uint256_t(file, field) fprintCompact256(file, &field)
+#define BLOCK_PRINT_address_t(file, field) fprintAddress(file, field)
 
 void fprintBlockField(FILE *file, const block_t *block, uint8_t index) {
     fputc('"', file);
