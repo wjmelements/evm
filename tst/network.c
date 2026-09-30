@@ -386,6 +386,62 @@ void test_networkNumberOverride(void) {
     assert(headerRequests == 1);
 }
 
+// --- test_networkCreateTargetNotFetched ---
+// A CREATE target starts empty even when the chain has code there.
+#define CREATED_ADDRESS "0xa0bcb2140dce5cf8dd708c6c2174248b8e4279c0"
+static int createdRequests;
+
+static void parent_create(FILE *req, FILE *rsp) {
+    char buf[8192];
+    createdRequests = 0;
+    while (fgets(buf, sizeof(buf), req)) {
+        if (strstr(buf, CREATED_ADDRESS)) {
+            createdRequests++;
+        }
+        if (strstr(buf, "eth_blockNumber")) {
+            fputs("{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x100\"}\n", rsp);
+        } else if (strstr(buf, "eth_getStorageAt")) {
+            fputs("{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x1\"}\n", rsp);
+        } else if (strstr(buf, CREATED_ADDRESS)) {
+            batch_response(rsp, "0x0102030405060708090a0b", "0x10");
+        } else {
+            batch_response(rsp, "0x", "0x0");
+        }
+        fflush(rsp);
+    }
+}
+
+static void child_create(void) {
+    evmSetNetworkFetch();
+    evmInit();
+    address_t from = AddressFromHex42("0x1111111111111111111111111111111111111111");
+    evmMockNonce(from, 5);
+    op_t initcode[] = {
+        ADDRESS, EXTCODESIZE, PUSH0, MSTORE,
+        PUSH0, SLOAD, PUSH1, 0x20, MSTORE,
+        PUSH1, 0x40, PUSH0, RETURN,
+    };
+    data_t input;
+    input.content = initcode;
+    input.size = sizeof(initcode);
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+    result_t result = txCreate(from, 100000, value, input);
+    address_t created = AddressFromUint256(&result.status);
+    address_t expected = AddressFromHex42(CREATED_ADDRESS);
+    assert(AddressEqual(&expected, &created));
+    assert(result.returnData.size == 64);
+    for (int i = 0; i < 64; i++) {
+        assert(result.returnData.content[i] == 0);
+    }
+    evmFinalize();
+}
+
+void test_networkCreateTargetNotFetched(void) {
+    with_mock_rpc(child_create, parent_create, 0, "");
+    assert(createdRequests == 0);
+}
+
 int main(void) {
     test_networkFetchStorage();
     test_networkFetchStorageRpcError();
@@ -395,5 +451,6 @@ int main(void) {
     test_networkHeader();
     test_networkHeaderSkipsMiner();
     test_networkNumberOverride();
+    test_networkCreateTargetNotFetched();
     return 0;
 }

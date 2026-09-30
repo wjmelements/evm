@@ -626,7 +626,7 @@ static void traceSummary(const result_t *result, uint64_t gasUsed) {
 #define SHOW_CALLS (debugFlags & EVM_DEBUG_CALLS)
 #define SHOW_LOGS (debugFlags & EVM_DEBUG_LOGS)
 
-static account_t *getAccount(const address_t address) {
+static account_t *findAccount(const address_t address, bool fetch) {
     if (AddressIsPrecompile(address)) {
         if (PrecompileIsKnownPrecompile(address)) {
             account_t *precompile = knownPrecompiles + address.address[19];
@@ -656,7 +656,7 @@ static account_t *getAccount(const address_t address) {
         result->balance[1] = 0;
         result->balance[2] = 0;
         result->local = false;
-        if (accountFetch) {
+        if (fetch && accountFetch) {
             if (traceEnabled) {
                 traceFlush();
             }
@@ -666,8 +666,13 @@ static account_t *getAccount(const address_t address) {
     return result;
 }
 
+static account_t *getAccount(const address_t address) {
+    return findAccount(address, true);
+}
+
+// a CREATE target starts empty, as it was just before the deploy
 static account_t *createLocalAccount(const address_t address) {
-    account_t *result = getAccount(address);
+    account_t *result = findAccount(address, false);
     result->local = true;
     return result;
 }
