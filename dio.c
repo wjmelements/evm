@@ -599,6 +599,9 @@ static void run(
             sbAppend(&overrides, key, klen);
             sbAppend(&overrides, "\":", 2);
             sbAppend(&overrides, val, p - val);
+            if (klen == 5) {
+                jStr(val, r->nonce, sizeof(r->nonce));
+            }
             continue;
         }
         switch (klen) {

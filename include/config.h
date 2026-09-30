@@ -30,6 +30,7 @@ struct call_result {
     char from[ADDR_LEN];
     char block[32];
     char value[HEX256_LEN];
+    char nonce[NONCE_LEN];
     char *input;
     char *output;
     char *logs;

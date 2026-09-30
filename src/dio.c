@@ -163,6 +163,8 @@ typedef struct testEntry {
     logsEntry_t *logs;
     block_t block;
     blockFields_t blockFields;
+    uint64_t nonce;
+    bool nonceSpecified;
     uint64_t debug;
     testResult_t result;
 
@@ -308,6 +310,9 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test, bool headerPri
 
     setDebug(test->debug);
     evmSetBlock(&test->block, test->blockFields);
+    if (test->nonceSpecified) {
+        evmMockNonce(test->from, test->nonce);
+    }
     uint64_t gas = 0xffffffffffffffff;
     if (test->gas) {
         gas = test->gas;
@@ -373,6 +378,9 @@ static void applyEntry(entry_t *entry) {
             }
             setDebug(entry->constructTest->debug);
             evmSetBlock(&entry->constructTest->block, entry->constructTest->blockFields);
+            if (entry->constructTest->nonceSpecified) {
+                evmMockNonce(from, entry->constructTest->nonce);
+            }
         }
         val_t value;
         value[0] = 0;
@@ -707,6 +715,16 @@ static testEntry_t *jsonScanTestEntry(const char **iter) {
                     test->name = malloc(testValueLength + 1);
                     strncpy(test->name, testValue, testValueLength);
                     test->name[testValueLength] = '\0';
+                } else if (testHeadingLen == 5 && *testHeading == 'n') {
+                    // nonce
+                    jsonSkipExpectedChar(&testValue, '0');
+                    jsonSkipExpectedChar(&testValue, 'x');
+                    testValueLength -= 2;
+                    test->nonceSpecified = true;
+                    for (size_t i = 0; i < testValueLength; i++) {
+                        test->nonce <<= 4;
+                        test->nonce |= hexString8ToUint8(testValue[i]);
+                    }
                 } else if (testHeadingLen == 5 && *testHeading == 'd') {
                     // debug
                     jsonSkipExpectedChar(&testValue, '0');

@@ -227,6 +227,7 @@ ignores calldata: pass
 | `input` | `msg.data` | `0x313ce567` | `0x` |
 | `value` | `msg.value` | `0x38d7ea4c68000` | `0x0` |
 | `from` | `tx.origin` | `0xd1236a6A111879d9862f8374BA15344b6B233Fbd` | `0x0000000000000000000000000000000000000000` |
+| `nonce` | nonce of `from` before the call | `0x5` | unchanged |
 | `gas` | `tx.gasLimit` | `0x5208` | `0xffffffffffffffff` |
 | `op` | type of call | `STATICCALL` | `CALL` |
 | `to` | account called | `0x83F20F44975D03b1b09e64809B757c47f942BEeA` | account `address` |

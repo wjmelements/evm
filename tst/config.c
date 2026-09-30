@@ -255,6 +255,7 @@ void test_create_failed() {
     call_result_t cr = {
         .to      = "",
         .from    = "0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead",
+        .nonce   = "0x5",
         .block   = "0x1",
         .value   = "",
         .input   = "0x",
@@ -278,6 +279,7 @@ void test_create_failed() {
         "        \"initcode\": \"0x\","
         "\n        \"constructTest\": {"
         "\n            \"from\": \"0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead\","
+        "\n            \"nonce\": \"0x5\","
         "\n            \"blockNumber\": \"0x1\","
         "\n            \"timestamp\": \"0x6700\","
         "\n            \"gasUsed\": \"0x5208\","

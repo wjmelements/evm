@@ -29,6 +29,10 @@ static void writeCallTest(FILE *f, const call_result_t *r, const char *accountAd
         fprintf(f, "%s\"from\": \"%s\"", sep, r->from);
         sep = nextSep;
     }
+    if (r->nonce[0]) {
+        fprintf(f, "%s\"nonce\": \"%s\"", sep, r->nonce);
+        sep = nextSep;
+    }
     if (r->value[0]) {
         fprintf(f, "%s\"value\": \"%s\"", sep, r->value);
         sep = nextSep;
@@ -62,6 +66,10 @@ static void writeConstructTest(FILE *f, const call_result_t *r) {
     const char *nextSep = ",\n            ";
     if (strcmp(r->from, "0x0000000000000000000000000000000000000000") != 0) {
         fprintf(f, "%s\"from\": \"%s\"", ctSep, r->from);
+        ctSep = nextSep;
+    }
+    if (r->nonce[0]) {
+        fprintf(f, "%s\"nonce\": \"%s\"", ctSep, r->nonce);
         ctSep = nextSep;
     }
     if (r->value[0]) {
