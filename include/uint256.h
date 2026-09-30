@@ -17,9 +17,6 @@
 
 // Adapted from https://github.com/calccrypto/uint256_t
 
-#ifndef _UINT256_H_
-#define _UINT256_H_
-
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -94,5 +91,3 @@ bool tostring128(const uint128_t *number, uint32_t base, char *out,
                  uint32_t outLength);
 bool tostring256(const uint256_t *number, uint32_t base, char *out,
                  uint32_t outLength);
-
-#endif /* _UINT256_H_ */

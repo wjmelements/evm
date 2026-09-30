@@ -183,6 +183,9 @@ Each object becomes a `tests` entry (or `constructTest`, for a CREATE) on the ge
 | `data` / `input` | calldata, or initcode when `to` is omitted | `0x` |
 | `value` | wei sent with the call | `0x0` |
 | `block` | `latest`, or a `0x`-prefixed hex block number, to pin state to | `latest` |
+| `nonce`, `chainId`, `blockOverrides` | as in [network mode](#network-mode--nx) | |
+
+Each entry records only the block values its call read, such as `timestamp` or `chainId`.
 
 | dio argument | Meaning |
 | :----------: | ------- |
@@ -224,6 +227,7 @@ ignores calldata: pass
 | `input` | `msg.data` | `0x313ce567` | `0x` |
 | `value` | `msg.value` | `0x38d7ea4c68000` | `0x0` |
 | `from` | `tx.origin` | `0xd1236a6A111879d9862f8374BA15344b6B233Fbd` | `0x0000000000000000000000000000000000000000` |
+| `nonce` | nonce of `from` before the call | `0x5` | unchanged |
 | `gas` | `tx.gasLimit` | `0x5208` | `0xffffffffffffffff` |
 | `op` | type of call | `STATICCALL` | `CALL` |
 | `to` | account called | `0x83F20F44975D03b1b09e64809B757c47f942BEeA` | account `address` |
@@ -234,7 +238,15 @@ ignores calldata: pass
 | `accessList` | [EIP-2929](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-2929.md) | `[{"0x22d8432cc7aa4f8712a655fc4cdfb1baec29fca9":["0x6"]}]` | `{}` |
 | `blockNumber` | `block.number` | `0x1312d00` | `0x13a2228` |
 | `timestamp` | `block.timestamp` | `0x68255820` | `0x65712600` |
+| `gasLimit` | `block.gaslimit` | `0x2faf080` | `0x1c9c380` |
+| `chainId` | `block.chainid` | `0x2105` | `0x1` |
+| `baseFee` | `block.basefee` | `0x3b9aca00` | `0x7` |
+| `blobBaseFee` | `block.blobbasefee` | `0x2` | `0x1` |
+| `prevRandao` | `block.prevrandao` | `0x1234` | `0x0` |
+| `coinbase` | `block.coinbase` | `0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5` | `0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97` |
 | `debug` | debug flags | `0x20` | `0x0` |
+
+Block values set by a test persist to later tests.
 
 The current `debug` flags:
 
@@ -309,14 +321,34 @@ The bytecode input becomes a JSON call object (the `eth_call` shape), one per li
 {"to":"0x6b175474e89094c44da98b954eedeac495271d0f","from":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266","data":"0x18160ddd"}
 ```
 Omit `to` to deploy `data` as initcode.
+Call objects also work with `-x` alone.
+
+| Call Key | Description |
+| :------: | ----------- |
+| `to` | account called; omit to deploy `data` |
+| `from` | `tx.origin` |
+| `data` or `input` | calldata, or initcode |
+| `value` | `msg.value` |
+| `nonce` | the nonce of `from` before this call; it persists |
+| `chainId` | `block.chainid` for this call only |
+| `blockOverrides` | block values for this call only, keyed like geth's `eth_call`: `number`, `time`, `gasLimit`, `baseFeePerGas`, `blobBaseFee`, `prevRandao`, `feeRecipient` |
 
 | Request emitted by `evm` | When |
 | ------------------------ | ---- |
-| `eth_blockNumber` | once, on the first fetch |
+| `eth_blockNumber` | once, on the first fetch or `NUMBER` |
 | `eth_getCode` + `eth_getTransactionCount` + `eth_getBalance` | first touch of an account (sent as one batch array) |
 | `eth_getStorageAt` | first read of a storage slot |
+| `eth_chainId` | once, on the first `CHAINID` |
+| `eth_getBlockByNumber` | once per block, on the first `TIMESTAMP`, `GASLIMIT`, `BASEFEE`, `PREVRANDAO`, or `COINBASE` |
 
 Accounts created during execution are served locally and never fetched.
+Overriding `number` to N fetches the header of block N and state at block N - 1.
+If block N does not exist yet, its header fields fall back to their defaults with a warning.
+Accounts and storage are fetched once per process, so later calls reuse them regardless of `number`.
+`blobBaseFee` is not fetched; override it.
+Until the coinbase is known, accessing it costs the cold surcharge.
+
+With `-n`, JSON output reports the block values each call read, in the same `chainId` and `blockOverrides` keys, so they can be replayed.
 #### Warning
 EVM execution should mostly work but may not implement every opcode and corner-case.
 If you find a bug that disrupts you, please file an issue with its impact to you and code that reproduces it and I may find time to fix it, or alternatively you can submit a pull request.
@@ -353,7 +385,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | EQ | ✅ |❓ |
 | ISZERO | ✅ |✅ |
 | AND | ✅ |❓ |
-| OR | ✅ |✅ |
+| OR | ✅ |❓ |
 | XOR | ✅ |✅ |
 | NOT | ✅ |❓ |
 | BYTE | ✅ |✅ |
@@ -380,15 +412,15 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | EXTCODEHASH | ✅ | ❌ |
 | BLOCKHASH | ✅ | ❌ |
 | COINBASE | ✅ |✅ |
-| TIMESTAMP | ✅ |❓ |
-| NUMBER | ✅ |❓ |
-| PREVRANDAO | ✅ | ❌ |
-| GASLIMIT | ✅ | ❌ |
-| CHAINID | ✅ |❓ |
+| TIMESTAMP | ✅ |✅ |
+| NUMBER | ✅ |✅ |
+| PREVRANDAO | ✅ |✅ |
+| GASLIMIT | ✅ |✅ |
+| CHAINID | ✅ |✅ |
 | SELFBALANCE | ✅ |✅ |
-| BASEFEE | ✅ | ❌ |
+| BASEFEE | ✅ |✅ |
 | BLOBHASH | ✅ | ❌ |
-| BLOBBASEFEE | ✅ | ❌ |
+| BLOBBASEFEE | ✅ |✅ |
 | POP | ✅ |❓ |
 | MLOAD | ✅ |✅ |
 | MSTORE | ✅ |✅ |

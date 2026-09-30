@@ -2,11 +2,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "address.h"
+#include "block.h"
 #include "data.h"
 #include "keccak.h"
 #include "ops.h"
-#include "uint256.h"
 
 typedef uint32_t val_t[3];
 
@@ -119,8 +118,6 @@ void evmFinalize();
 typedef void (*account_fetch_t)(address_t address);
 typedef void (*storage_fetch_t)(address_t address, const uint256_t *key, uint256_t *value_out);
 void evmSetFetch(account_fetch_t, storage_fetch_t);
-bool evmBlockNumberIsSet(void);
-uint64_t evmGetBlockNumber(void);
 
 #define EVM_DEBUG_STACK 1
 #define EVM_DEBUG_MEMORY 2
@@ -135,8 +132,19 @@ void evmSetTrace(bool enabled);
 bool evmTraceEnabled(void);
 // destination for debug and trace output; defaults to stderr
 void evmSetDebugFile(int fd);
+// Persistent block values
 void evmSetBlockNumber(uint64_t blockNumber);
 void evmSetTimestamp(uint64_t timestamp);
+void evmSetBlock(const block_t *values, blockFields_t fields);
+// Block values for the next transaction only
+void evmOverrideBlock(const block_t *values, blockFields_t fields);
+// Fields read by the last transaction, and their values; only tracked with a block fetch
+blockFields_t evmBlockUsed(block_t *values);
+// Fetch unknown fields: BLOCK_BIT(number), BLOCK_BIT(chainId), or BLOCK_HEADER for block->number
+typedef void (*block_fetch_t)(blockFields_t fields, block_t *block);
+void evmSetBlockFetch(block_fetch_t);
+// The block whose state accounts and storage are fetched at: N - 1 when number is overridden to N
+uint64_t evmStateBlockNumber(void);
 
 void evmMockBalance(address_t to, const val_t balance);
 void evmMockCall(address_t to, val_t value, data_t inputData, result_t result);

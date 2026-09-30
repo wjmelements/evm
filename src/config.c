@@ -4,43 +4,95 @@
 #include <string.h>
 #include <unistd.h>
 
+static void writeBlockValues(FILE *f, const call_result_t *r, const char **sep, const char *nextSep) {
+    for (uint8_t index = 0; index < BLOCK_FIELD_COUNT; index++) {
+        if (r->blockValues[index]) {
+            fprintf(f, "%s\"%s\": \"%s\"", *sep, blockConfigKey[index], r->blockValues[index]);
+            *sep = nextSep;
+        }
+    }
+}
+
 /*
  * Write a single call test object at 12-space indent.
  * If accountAddr is non-NULL and matches r->to, the "to" field is omitted.
  */
 static void writeCallTest(FILE *f, const call_result_t *r, const char *accountAddr) {
-    fputs("            {\n", f);
-    const char *sep = "";
+    fputs("            {", f);
+    const char *sep = "\n                ";
+    const char *nextSep = ",\n                ";
     if (!accountAddr || strcmp(accountAddr, r->to) != 0) {
-        fprintf(f, "                \"to\": \"%s\"", r->to);
-        sep = ",\n";
+        fprintf(f, "%s\"to\": \"%s\"", sep, r->to);
+        sep = nextSep;
     }
     if (strcmp(r->from, "0x0000000000000000000000000000000000000000") != 0) {
-        fprintf(f, "%s                \"from\": \"%s\"", sep, r->from);
-        sep = ",\n";
+        fprintf(f, "%s\"from\": \"%s\"", sep, r->from);
+        sep = nextSep;
+    }
+    if (r->nonce[0]) {
+        fprintf(f, "%s\"nonce\": \"%s\"", sep, r->nonce);
+        sep = nextSep;
     }
     if (r->value[0]) {
-        fprintf(f, "%s                \"value\": \"%s\"", sep, r->value);
-        sep = ",\n";
+        fprintf(f, "%s\"value\": \"%s\"", sep, r->value);
+        sep = nextSep;
     }
     if (r->input && strcmp(r->input, "0x") != 0) {
-        fprintf(f, "%s                \"input\": \"%s\"", sep, r->input);
-        sep = ",\n";
+        fprintf(f, "%s\"input\": \"%s\"", sep, r->input);
+        sep = nextSep;
     }
-    fprintf(f, "%s                \"blockNumber\": \"%s\"", sep, r->block);
+    writeBlockValues(f, r, &sep, nextSep);
     if (r->gasUsed) {
-        fprintf(f, ",\n                \"gasUsed\": \"%s\"", r->gasUsed);
+        fprintf(f, "%s\"gasUsed\": \"%s\"", sep, r->gasUsed);
+        sep = nextSep;
     }
     if (r->logs) {
-        fprintf(f, ",\n                \"logs\": %s", r->logs);
+        fprintf(f, "%s\"logs\": %s", sep, r->logs);
+        sep = nextSep;
     }
     if (strcmp(r->status, "0x1") != 0) {
-        fprintf(f, ",\n                \"status\": \"%s\"", r->status);
+        fprintf(f, "%s\"status\": \"%s\"", sep, r->status);
+        sep = nextSep;
     }
     if (r->output) {
-        fprintf(f, ",\n                \"output\": \"%s\"", r->output);
+        fprintf(f, "%s\"output\": \"%s\"", sep, r->output);
     }
     fputs("\n            }", f);
+}
+
+static void writeConstructTest(FILE *f, const call_result_t *r) {
+    fputs(",\n        \"constructTest\": {", f);
+    const char *ctSep = "\n            ";
+    const char *nextSep = ",\n            ";
+    if (strcmp(r->from, "0x0000000000000000000000000000000000000000") != 0) {
+        fprintf(f, "%s\"from\": \"%s\"", ctSep, r->from);
+        ctSep = nextSep;
+    }
+    if (r->nonce[0]) {
+        fprintf(f, "%s\"nonce\": \"%s\"", ctSep, r->nonce);
+        ctSep = nextSep;
+    }
+    if (r->value[0]) {
+        fprintf(f, "%s\"value\": \"%s\"", ctSep, r->value);
+        ctSep = nextSep;
+    }
+    writeBlockValues(f, r, &ctSep, nextSep);
+    if (r->gasUsed) {
+        fprintf(f, "%s\"gasUsed\": \"%s\"", ctSep, r->gasUsed);
+        ctSep = nextSep;
+    }
+    if (r->logs) {
+        fprintf(f, "%s\"logs\": %s", ctSep, r->logs);
+        ctSep = nextSep;
+    }
+    if (strcmp(r->status, "0x0") == 0) {
+        fprintf(f, "%s\"status\": \"0x0\"", ctSep);
+        ctSep = nextSep;
+    }
+    if (r->output) {
+        fprintf(f, "%s\"output\": \"%s\"", ctSep, r->output);
+    }
+    fputs("\n        }", f);
 }
 
 void writeConfig(
@@ -88,32 +140,8 @@ void writeConfig(
             fputs("\n        }", f);
         }
         if (a->constructTest) {
-            call_result_t *r = a->constructTest;
-            fprintf(f, ",\n        \"initcode\": \"%s\"", r->input);
-            fputs(",\n        \"constructTest\": {", f);
-            const char *ctSep = "\n            ";
-            if (strcmp(r->from, "0x0000000000000000000000000000000000000000") != 0) {
-                fprintf(f, "%s\"from\": \"%s\"", ctSep, r->from);
-                ctSep = ",\n            ";
-            }
-            if (r->value[0]) {
-                fprintf(f, "%s\"value\": \"%s\"", ctSep, r->value);
-                ctSep = ",\n            ";
-            }
-            fprintf(f, "%s\"blockNumber\": \"%s\"", ctSep, r->block);
-            if (r->gasUsed) {
-                fprintf(f, ",\n            \"gasUsed\": \"%s\"", r->gasUsed);
-            }
-            if (r->logs) {
-                fprintf(f, ",\n            \"logs\": %s", r->logs);
-            }
-            if (strcmp(r->status, "0x0") == 0) {
-                fprintf(f, ",\n            \"status\": \"0x0\"");
-            }
-            if (r->output) {
-                fprintf(f, ",\n            \"output\": \"%s\"", r->output);
-            }
-            fputs("\n        }", f);
+            fprintf(f, ",\n        \"initcode\": \"%s\"", a->constructTest->input);
+            writeConstructTest(f, a->constructTest);
         }
         if (a->tests) {
             fputs(",\n        \"tests\": [\n", f);
@@ -130,32 +158,9 @@ void writeConfig(
 
     /* Create entries without a linked deployed account */
     for (call_result_t *r = creates; r; r = r->next) {
-        fputs(",\n    {\n", f);
-        fprintf(f, "        \"initcode\": \"%s\"", r->input);
-        fputs(",\n        \"constructTest\": {", f);
-        const char *ctSep = "\n            ";
-        if (strcmp(r->from, "0x0000000000000000000000000000000000000000") != 0) {
-            fprintf(f, "%s\"from\": \"%s\"", ctSep, r->from);
-            ctSep = ",\n            ";
-        }
-        if (r->value[0]) {
-            fprintf(f, "%s\"value\": \"%s\"", ctSep, r->value);
-            ctSep = ",\n            ";
-        }
-        fprintf(f, "%s\"blockNumber\": \"%s\"", ctSep, r->block);
-        if (r->gasUsed) {
-            fprintf(f, ",\n            \"gasUsed\": \"%s\"", r->gasUsed);
-        }
-        if (r->logs) {
-            fprintf(f, ",\n            \"logs\": %s", r->logs);
-        }
-        if (strcmp(r->status, "0x0") == 0) {
-            fprintf(f, ",\n            \"status\": \"0x0\"");
-        }
-        if (r->output) {
-            fprintf(f, ",\n            \"output\": \"%s\"", r->output);
-        }
-        fputs("\n        }\n    }", f);
+        fprintf(f, ",\n    {\n        \"initcode\": \"%s\"", r->input);
+        writeConstructTest(f, r);
+        fputs("\n    }", f);
     }
 
     /* Standalone tests entry — only for calls not co-located with an account */

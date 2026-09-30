@@ -1,5 +1,7 @@
 #include <stdio.h>
 
+#include "block.h"
+
 #define ADDR_LEN    43      /* "0x" + 40 hex + NUL */
 #define HEX256_LEN  68      /* "0x" + 64 hex + NUL */
 #define NONCE_LEN   22      /* "0x" + up to 18 hex + NUL */
@@ -28,11 +30,16 @@ struct call_result {
     char from[ADDR_LEN];
     char block[32];
     char value[HEX256_LEN];
+    char nonce[NONCE_LEN];
     char *input;
     char *output;
     char *logs;
     char *status;
     char *gasUsed;
+    // nonce, chainId, and blockOverrides from the call JSON, as a JSON object tail: ,"key":value...
+    char *overrides;
+    // block values read during the call, by field index
+    char *blockValues[BLOCK_FIELD_COUNT];
     struct call_result *next;
 };
 

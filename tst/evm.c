@@ -2730,6 +2730,100 @@ void test_tstore_tload() {
     evmFinalize();
 }
 
+static void assertBlockWord(const data_t *returnData, int word, uint64_t expected) {
+    for (int i = 0; i < 24; i++) {
+        assert(returnData->content[word * 32 + i] == 0);
+    }
+    for (int i = 0; i < 8; i++) {
+        assert(returnData->content[word * 32 + 31 - i] == (uint8_t)(expected >> (8 * i)));
+    }
+}
+
+static void assertBlockValues(const data_t *returnData, uint64_t number, uint64_t timestamp, uint64_t gasLimit, uint64_t chainId, uint64_t baseFee, uint64_t blobBaseFee, uint64_t prevRandao, const char *coinbase) {
+    assert(returnData->size == 256);
+    assertBlockWord(returnData, 0, number);
+    assertBlockWord(returnData, 1, timestamp);
+    assertBlockWord(returnData, 2, gasLimit);
+    assertBlockWord(returnData, 3, chainId);
+    assertBlockWord(returnData, 4, baseFee);
+    assertBlockWord(returnData, 5, blobBaseFee);
+    assertBlockWord(returnData, 6, prevRandao);
+    address_t expected = AddressFromHex42(coinbase);
+    for (int i = 0; i < 12; i++) {
+        assert(returnData->content[224 + i] == 0);
+    }
+    assert(memcmp(returnData->content + 236, expected.address, 20) == 0);
+}
+
+void test_block() {
+    evmInit();
+
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    address_t to = AddressFromHex42("0xcccccccccccccccccccccccccccccccccccccccc");
+    val_t value;
+    value[0] = value[1] = value[2] = 0;
+
+    op_t code[] = {
+        NUMBER, MSIZE, MSTORE,
+        TIMESTAMP, MSIZE, MSTORE,
+        GASLIMIT, MSIZE, MSTORE,
+        CHAINID, MSIZE, MSTORE,
+        BASEFEE, MSIZE, MSTORE,
+        BLOBBASEFEE, MSIZE, MSTORE,
+        PREVRANDAO, MSIZE, MSTORE,
+        COINBASE, MSIZE, MSTORE,
+        MSIZE, PUSH0, RETURN,
+    };
+    data_t codeData;
+    codeData.content = code;
+    codeData.size = sizeof(code);
+    evmMockCode(to, codeData);
+
+    data_t empty;
+    empty.content = NULL;
+    empty.size = 0;
+
+    // defaults
+    result_t result = txCall(from, 100000, to, value, empty, NULL);
+    assert(LOWER(LOWER(result.status)) == 1);
+    assertBlockValues(&result.returnData, 0x13a2228, 0x65712600, 30000000, 1, 7, 1, 0, "0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97");
+
+    // overrides apply to the next transaction only
+    block_t overrides;
+    overrides.number = 0x10;
+    overrides.timestamp = 0x6700;
+    overrides.gasLimit = 50000000;
+    overrides.chainId = 314;
+    clear256(&overrides.baseFee);
+    LOWER(LOWER(overrides.baseFee)) = 1000000000;
+    clear256(&overrides.blobBaseFee);
+    LOWER(LOWER(overrides.blobBaseFee)) = 2;
+    clear256(&overrides.prevRandao);
+    LOWER(LOWER(overrides.prevRandao)) = 0x1234;
+    overrides.coinbase = AddressFromHex42("0x2222222222222222222222222222222222222222");
+    evmOverrideBlock(&overrides, BLOCK_ALL);
+    result = txCall(from, 100000, to, value, empty, NULL);
+    assert(LOWER(LOWER(result.status)) == 1);
+    assertBlockValues(&result.returnData, 0x10, 0x6700, 50000000, 314, 1000000000, 2, 0x1234, "0x2222222222222222222222222222222222222222");
+
+    result = txCall(from, 100000, to, value, empty, NULL);
+    assertBlockValues(&result.returnData, 0x13a2228, 0x65712600, 30000000, 1, 7, 1, 0, "0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97");
+
+    // set values persist, and overrides revert to them
+    block_t values;
+    values.chainId = 10;
+    evmSetBlock(&values, BLOCK_BIT(chainId));
+    evmSetTimestamp(0x321);
+    evmOverrideBlock(&overrides, BLOCK_BIT(chainId) | BLOCK_BIT(timestamp));
+    result = txCall(from, 100000, to, value, empty, NULL);
+    assertBlockValues(&result.returnData, 0x13a2228, 0x6700, 30000000, 314, 7, 1, 0, "0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97");
+    result = txCall(from, 100000, to, value, empty, NULL);
+    assertBlockValues(&result.returnData, 0x13a2228, 0x321, 30000000, 10, 7, 1, 0, "0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97");
+
+    evmMockCode(to, empty);
+    evmFinalize();
+}
+
 int main() {
     test_stop();
     test_mstoreReturn();
@@ -2777,6 +2871,7 @@ int main() {
     test_createSeesPreexistingBalance();
     test_memoryFreshOnRepeatedCall();
     test_tstore_tload();
+    test_block();
 
     for (op_t PUSHx = PUSH0; PUSHx <= PUSH32; PUSHx++) {
         test_jumpForwardScan(PUSHx);

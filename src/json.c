@@ -9,22 +9,33 @@ static void skipWs(const char **p) {
 }
 
 /*
+ * Skip a JSON string starting at the opening quote *p, advancing *p past the closing quote.
+ */
+static void jSkipString(const char **p) {
+    const char *start = ++(*p);
+    const char *quote = start;
+    while ((quote = strchr(quote, '"'))) {
+        const char *escape = quote;
+        while (escape > start && escape[-1] == '\\') {
+            escape--;
+        }
+        if (!((quote - escape) & 1)) {
+            *p = quote + 1;
+            return;
+        }
+        quote++;
+    }
+    *p = start + strlen(start);
+}
+
+/*
  * Skip a JSON value starting at *p, advancing *p past it.
  * Handles strings, objects, arrays, numbers/literals.
  */
 static void jSkip(const char **p) {
     skipWs(p);
     if (**p == '"') {
-        (*p)++;
-        while (**p && **p != '"') {
-            if (**p == '\\' && (*p)[1]) {
-                (*p)++;
-            }
-            (*p)++;
-        }
-        if (**p == '"') {
-            (*p)++;
-        }
+        jSkipString(p);
         return;
     }
     if (**p == '{' || **p == '[') {
@@ -33,16 +44,7 @@ static void jSkip(const char **p) {
         (*p)++;
         while (**p && depth > 0) {
             if (**p == '"') {
-                (*p)++;
-                while (**p && **p != '"') {
-                    if (**p == '\\' && (*p)[1]) {
-                        (*p)++;
-                    }
-                    (*p)++;
-                }
-                if (**p == '"') {
-                    (*p)++;
-                }
+                jSkipString(p);
             } else if (**p == open) {
                 depth++;
                 (*p)++;

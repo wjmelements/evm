@@ -33,7 +33,6 @@
  * Data structures
  * ========================================================= */
 
-#define LINE_CAP    131072  /* matches evm's rpcBuf */
 
 /* =========================================================
  * Growing string buffer
@@ -356,7 +355,11 @@ static void runViaEvm(
         sbLit("\",\"value\":\"");
         sbStr(r->value);
     }
-    sbLit("\"}");
+    sbLit("\"");
+    if (r->overrides) {
+        sbStr(r->overrides);
+    }
+    sbLit("}");
 #undef sbLit
 #undef sbStr
 
@@ -367,10 +370,11 @@ static void runViaEvm(
 
     FILE *toChild   = sub->toChild;
     FILE *fromChild = sub->fromChild;
-    char *line   = malloc(LINE_CAP);
+    char *line   = NULL;
+    size_t lineCap = 0;
     char *output = NULL;
 
-    while (fgets(line, LINE_CAP, fromChild)) {
+    while (getline(&line, &lineCap, fromChild) != -1) {
         char *nl = line + strlen(line);
         while (nl > line && (nl[-1] == '\n' || nl[-1] == '\r')) {
             *--nl = '\0';
@@ -455,6 +459,19 @@ static void runViaEvm(
                     id, r->block);
             fflush(toChild);
 
+        } else if (strstr(line, "\"eth_chainId\"") || strstr(line, "\"eth_getBlockByNumber\"")) {
+            char *resp = post(line, nl - line, ctx);
+            if (!resp) {
+                rpcFailed(line);
+            }
+            const char *errField = jFind(resp, "error");
+            if (errField) {
+                rpcError(line, errField);
+            }
+            fprintf(toChild, "%s\n", resp);
+            fflush(toChild);
+            free(resp);
+
         } else if (strstr(line, "\"eth_getStorageAt\"")) {
             const char *params = jFind(line, "params");
             char addr[ADDR_LEN], rawKey[HEX256_LEN];
@@ -509,6 +526,20 @@ static void runViaEvm(
                 case 7:
                     if (!memcmp(key, "gasUsed", 7)) {
                         r->gasUsed = jStrDup(val);
+                    } else if (!memcmp(key, "chainId", 7)) {
+                        r->blockValues[BLOCK_chainId_INDEX] = jStrDup(val);
+                    }
+                    break;
+                case 14:
+                    if (!memcmp(key, "blockOverrides", 14)) {
+                        const char *okey, *oval;
+                        size_t oklen;
+                        for (const char *o = val; (o = jNextKeyVal(o, &okey, &oklen, &oval)); ) {
+                            uint8_t index = blockKeyIndex(blockOverrideKey, okey, oklen);
+                            if (index < BLOCK_FIELD_COUNT) {
+                                r->blockValues[index] = jStrDup(oval);
+                            }
+                        }
                     }
                     break;
                 case 10:
@@ -549,7 +580,7 @@ static void run(
     call_result_t **calls,
     subprocess_t  *sub)
 {
-    call_result_t *r = malloc(sizeof(call_result_t));
+    call_result_t *r = calloc(1, sizeof(call_result_t));
     r->to[0]   = '\0';
     strcpy(r->from,  "0x0000000000000000000000000000000000000000");
     strcpy(r->block, "latest");
@@ -557,9 +588,22 @@ static void run(
 
     char tmp[ADDR_LEN + 2];
     const char *dataField = NULL;
+    strbuf_t overrides = {0};
     const char *key, *val;
     size_t klen;
     for (const char *p = callJson; (p = jNextKeyVal(p, &key, &klen, &val)); ) {
+        if ((klen == 5 && !memcmp(key, "nonce", 5))
+            || (klen == 7 && !memcmp(key, "chainId", 7))
+            || (klen == 14 && !memcmp(key, "blockOverrides", 14))) {
+            sbAppend(&overrides, ",\"", 2);
+            sbAppend(&overrides, key, klen);
+            sbAppend(&overrides, "\":", 2);
+            sbAppend(&overrides, val, p - val);
+            if (klen == 5) {
+                jStr(val, r->nonce, sizeof(r->nonce));
+            }
+            continue;
+        }
         switch (klen) {
         case 2:
             if (!memcmp(key, "to",    2)) {
@@ -591,6 +635,7 @@ static void run(
             break;
         }
     }
+    r->overrides = overrides.buf;
     r->input = jStrDup(dataField);
     if (r->input[0] != '0' || r->input[1] != 'x') {
         size_t ilen = strlen(r->input);
@@ -739,6 +784,7 @@ static const char usage[] =
     "    [{\"to\": \"0x...\"}, {\"to\": \"0x...\"}]\n"
     "\n"
     "Only \"to\" is required.  \"block\" defaults to \"latest\".\n"
+    "\"nonce\", \"chainId\", and \"blockOverrides\" are passed to evm -nx.\n"
     "The generated config is written to outfile, or stdout if omitted.\n"
     "\n"
     "Options:\n"

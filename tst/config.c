@@ -236,7 +236,6 @@ void test_create_entry() {
         "\n    {\n"
         "        \"initcode\": \"0x6001\","
         "\n        \"constructTest\": {"
-        "\n            \"blockNumber\": \"latest\""
         "\n        }\n    }"
         "\n]\n";
     assert(strcmp(out, expected) == 0);
@@ -256,6 +255,7 @@ void test_create_failed() {
     call_result_t cr = {
         .to      = "",
         .from    = "0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead",
+        .nonce   = "0x5",
         .block   = "0x1",
         .value   = "",
         .input   = "0x",
@@ -263,6 +263,10 @@ void test_create_failed() {
         .logs    = NULL,
         .status  = "0x0",
         .gasUsed = "0x5208",
+        .blockValues = {
+            [BLOCK_number_INDEX] = "0x1",
+            [BLOCK_timestamp_INDEX] = "0x6700",
+        },
         .next    = NULL,
     };
     char *out = captureWriteConfig(&acct, &cr, NULL);
@@ -275,7 +279,9 @@ void test_create_failed() {
         "        \"initcode\": \"0x\","
         "\n        \"constructTest\": {"
         "\n            \"from\": \"0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead\","
+        "\n            \"nonce\": \"0x5\","
         "\n            \"blockNumber\": \"0x1\","
+        "\n            \"timestamp\": \"0x6700\","
         "\n            \"gasUsed\": \"0x5208\","
         "\n            \"status\": \"0x0\""
         "\n        }\n    }"
@@ -313,8 +319,7 @@ void test_call_entry() {
         "\n    },"
         "\n    {\n        \"tests\": [\n"
         "            {\n"
-        "                \"to\": \"0x1234567890123456789012345678901234567890\","
-        "\n                \"blockNumber\": \"latest\""
+        "                \"to\": \"0x1234567890123456789012345678901234567890\""
         "\n            }"
         "\n        ]\n    }"
         "\n]\n";
@@ -341,6 +346,10 @@ void test_call_with_from_input_gasused_status_output() {
         .logs    = NULL,
         .status  = "0x1",
         .gasUsed = "0x5208",
+        .blockValues = {
+            [BLOCK_number_INDEX] = "0xa",
+            [BLOCK_coinbase_INDEX] = "0x2222222222222222222222222222222222222222",
+        },
         .next    = NULL,
     };
     char *out = captureWriteConfig(&acct, NULL, &call);
@@ -355,6 +364,7 @@ void test_call_with_from_input_gasused_status_output() {
         "\n                \"from\": \"0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead\","
         "\n                \"input\": \"0xdeadbeef\","
         "\n                \"blockNumber\": \"0xa\","
+        "\n                \"coinbase\": \"0x2222222222222222222222222222222222222222\","
         "\n                \"gasUsed\": \"0x5208\","
         "\n                \"output\": \"0xcafe\""
         "\n            }"
@@ -405,12 +415,10 @@ void test_two_calls() {
         "\n    },"
         "\n    {\n        \"tests\": [\n"
         "            {\n"
-        "                \"to\": \"0x1111111111111111111111111111111111111111\","
-        "\n                \"blockNumber\": \"latest\""
+        "                \"to\": \"0x1111111111111111111111111111111111111111\""
         "\n            },"
         "\n            {\n"
-        "                \"to\": \"0x2222222222222222222222222222222222222222\","
-        "\n                \"blockNumber\": \"latest\""
+        "                \"to\": \"0x2222222222222222222222222222222222222222\""
         "\n            }"
         "\n        ]\n    }"
         "\n]\n";
@@ -429,6 +437,9 @@ void test_call_colocated() {
         .logs    = NULL,
         .status  = "0x1",
         .gasUsed = NULL,
+        .blockValues = {
+            [BLOCK_number_INDEX] = "0x1",
+        },
         .next    = NULL,
     };
     account_t acct = {

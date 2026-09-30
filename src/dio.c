@@ -161,8 +161,10 @@ typedef struct testEntry {
     uint256_t status;
     uint64_t gasUsed;
     logsEntry_t *logs;
-    uint64_t *blockNumber;
-    uint64_t *timestamp;
+    block_t block;
+    blockFields_t blockFields;
+    uint64_t nonce;
+    bool nonceSpecified;
     uint64_t debug;
     testResult_t result;
 
@@ -307,13 +309,9 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test, bool headerPri
     }
 
     setDebug(test->debug);
-    if (test->blockNumber) {
-        evmSetBlockNumber(*test->blockNumber);
-        free(test->blockNumber);
-    }
-    if (test->timestamp) {
-        evmSetTimestamp(*test->timestamp);
-        free(test->timestamp);
+    evmSetBlock(&test->block, test->blockFields);
+    if (test->nonceSpecified) {
+        evmMockNonce(test->from, test->nonce);
     }
     uint64_t gas = 0xffffffffffffffff;
     if (test->gas) {
@@ -379,13 +377,9 @@ static void applyEntry(entry_t *entry) {
                 gas = entry->constructTest->gas;
             }
             setDebug(entry->constructTest->debug);
-            if (entry->constructTest->blockNumber) {
-                evmSetBlockNumber(*entry->constructTest->blockNumber);
-                free(entry->constructTest->blockNumber);
-            }
-            if (entry->constructTest->timestamp) {
-                evmSetTimestamp(*entry->constructTest->timestamp);
-                free(entry->constructTest->timestamp);
+            evmSetBlock(&entry->constructTest->block, entry->constructTest->blockFields);
+            if (entry->constructTest->nonceSpecified) {
+                evmMockNonce(from, entry->constructTest->nonce);
             }
         }
         val_t value;
@@ -691,7 +685,11 @@ static testEntry_t *jsonScanTestEntry(const char **iter) {
             } else {
                 const char *testValue = jsonScanStr(iter);
                 size_t testValueLength = *iter - testValue - 1;
-                if (testHeadingLen == 5 && *testHeading == 'i') {
+                uint8_t blockIndex = blockKeyIndex(blockConfigKey, testHeading, testHeadingLen);
+                if (blockIndex < BLOCK_FIELD_COUNT) {
+                    blockParseField(&test->block, blockIndex, testValue, testValueLength);
+                    test->blockFields |= (blockFields_t)1 << blockIndex;
+                } else if (testHeadingLen == 5 && *testHeading == 'i') {
                     // input
                     jsonSkipExpectedChar(&testValue, '0');
                     jsonSkipExpectedChar(&testValue, 'x');
@@ -717,6 +715,16 @@ static testEntry_t *jsonScanTestEntry(const char **iter) {
                     test->name = malloc(testValueLength + 1);
                     strncpy(test->name, testValue, testValueLength);
                     test->name[testValueLength] = '\0';
+                } else if (testHeadingLen == 5 && *testHeading == 'n') {
+                    // nonce
+                    jsonSkipExpectedChar(&testValue, '0');
+                    jsonSkipExpectedChar(&testValue, 'x');
+                    testValueLength -= 2;
+                    test->nonceSpecified = true;
+                    for (size_t i = 0; i < testValueLength; i++) {
+                        test->nonce <<= 4;
+                        test->nonce |= hexString8ToUint8(testValue[i]);
+                    }
                 } else if (testHeadingLen == 5 && *testHeading == 'd') {
                     // debug
                     jsonSkipExpectedChar(&testValue, '0');
@@ -725,28 +733,6 @@ static testEntry_t *jsonScanTestEntry(const char **iter) {
                     for (size_t i = 0; i < testValueLength; i++) {
                         test->debug <<= 4;
                         test->debug |= hexString8ToUint8(testValue[i]);
-                    }
-                } else if (testHeadingLen == 11 && *testHeading == 'b') {
-                    // blockNumber
-                    test->blockNumber = malloc(8);
-                    *test->blockNumber = 0;
-                    jsonSkipExpectedChar(&testValue, '0');
-                    jsonSkipExpectedChar(&testValue, 'x');
-                    testValueLength -= 2;
-                    for (size_t i = 0; i < testValueLength; i++) {
-                        *test->blockNumber <<= 4;
-                        *test->blockNumber |= hexString8ToUint8(testValue[i]);
-                    }
-                } else if (testHeadingLen == 9 && *testHeading == 't') {
-                    // timestamp
-                    test->timestamp = malloc(8);
-                    *test->timestamp = 0;
-                    jsonSkipExpectedChar(&testValue, '0');
-                    jsonSkipExpectedChar(&testValue, 'x');
-                    testValueLength -= 2;
-                    for (size_t i = 0; i < testValueLength; i++) {
-                        *test->timestamp <<= 4;
-                        *test->timestamp |= hexString8ToUint8(testValue[i]);
                     }
                 } else if (testHeadingLen == 6 && *testHeading == 'o') {
                     // output
