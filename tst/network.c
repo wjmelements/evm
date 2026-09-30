@@ -200,6 +200,7 @@ static int chainIdRequests;
 static int blockNumberRequests;
 static int headerRequests;
 static int minerRequests;
+static bool headerMissing;
 
 static void parent_block(FILE *req, FILE *rsp) {
     char buf[8192];
@@ -219,13 +220,17 @@ static void parent_block(FILE *req, FILE *rsp) {
             char quoted[24];
             snprintf(quoted, sizeof(quoted), "\"%s\"", expectedHeaderNumber);
             assert(strstr(buf, quoted) != NULL);
-            fprintf(rsp,
-                    "{\"jsonrpc\":\"2.0\",\"id\":%d,\"result\":{\"number\":\"%s\",\"hash\":\"0xabcd\","
-                    "\"miner\":\"0x2222222222222222222222222222222222222222\",\"timestamp\":\"0x6700\","
-                    "\"gasLimit\":\"0x2faf080\",\"baseFeePerGas\":\"0x3b9aca00\","
-                    "\"mixHash\":\"0x0000000000000000000000000000000000000000000000000000000000001234\","
-                    "\"transactions\":[\"0x01\",\"0x02\"]}}\n",
-                    requestId, expectedHeaderNumber);
+            if (headerMissing) {
+                fprintf(rsp, "{\"jsonrpc\":\"2.0\",\"id\":%d,\"result\":null}\n", requestId);
+            } else {
+                fprintf(rsp,
+                        "{\"jsonrpc\":\"2.0\",\"id\":%d,\"result\":{\"number\":\"%s\",\"hash\":\"0xabcd\","
+                        "\"miner\":\"0x2222222222222222222222222222222222222222\",\"timestamp\":\"0x6700\","
+                        "\"gasLimit\":\"0x2faf080\",\"baseFeePerGas\":\"0x3b9aca00\","
+                        "\"mixHash\":\"0x0000000000000000000000000000000000000000000000000000000000001234\","
+                        "\"transactions\":[\"0x01\",\"0x02\"]}}\n",
+                        requestId, expectedHeaderNumber);
+            }
         } else {
             assert(strstr(buf, expectedStateTag) != NULL);
             if (strstr(buf, "0x2222222222222222222222222222222222222222")) {
@@ -442,6 +447,30 @@ void test_networkCreateTargetNotFetched(void) {
     assert(createdRequests == 0);
 }
 
+// --- test_networkMissingHeader ---
+// A future block has no header, so its fields fall back to the defaults while NUMBER keeps the override.
+static void child_missingHeader(void) {
+    evmSetNetworkFetch();
+    evmInit();
+    block_t overrides;
+    overrides.number = 0x200;
+    evmOverrideBlock(&overrides, BLOCK_BIT(number));
+    result_t result = callBlockContract();
+    assert(returnWord(&result, 0) == 0x65712600);
+    assert(returnWord(&result, 1) == 0x200);
+    evmFinalize();
+}
+
+void test_networkMissingHeader(void) {
+    blockContractCode = "0x425f5243602052595ff3";
+    expectedStateTag = "\"0x1ff\"";
+    expectedHeaderNumber = "0x200";
+    headerMissing = true;
+    with_mock_rpc(child_missingHeader, parent_block, 0, "evm: network: block 0x200 not found; using default header values\n");
+    headerMissing = false;
+    assert(headerRequests == 1);
+}
+
 int main(void) {
     test_networkFetchStorage();
     test_networkFetchStorageRpcError();
@@ -452,5 +481,6 @@ int main(void) {
     test_networkHeaderSkipsMiner();
     test_networkNumberOverride();
     test_networkCreateTargetNotFetched();
+    test_networkMissingHeader();
     return 0;
 }

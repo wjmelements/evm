@@ -72,6 +72,13 @@ static void fetchBlockHeader(block_t *block) {
     fflush(stdout);
     readResponse("eth_getBlockByNumber");
     const char *header = jFind(rpcBuf, "result");
+    if (header && !strncmp(header, "null", 4)) {
+        fprintf(stderr, "evm: network: block 0x%" PRIx64 " not found; using default header values\n", block->number);
+        uint64_t number = block->number;
+        blockDefaults(block);
+        block->number = number;
+        return;
+    }
     if (!header || *header != '{') {
         badResponse("eth_getBlockByNumber");
     }

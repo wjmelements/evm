@@ -342,6 +342,7 @@ Call objects also work with `-x` alone.
 
 Accounts created during execution are served locally and never fetched.
 Overriding `number` to N fetches the header of block N and state at block N - 1.
+If block N does not exist yet, its header fields fall back to their defaults with a warning.
 Accounts and storage are fetched once per process, so later calls reuse them regardless of `number`.
 `blobBaseFee` is not fetched; override it.
 Until the coinbase is known, accessing it costs the cold surcharge.
