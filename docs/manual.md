@@ -275,6 +275,7 @@ echo '{"from":"0xd8da6bf26964af9d7eed9e03e53415d37aa96045","data":"0x<initcode>"
 | `nonce`, `chainId`, `blockOverrides`, `stateOverrides` | as in [JSON call input](#json-call-input) | — |
 
 Each call object becomes a `tests` entry on the generated account, or a `constructTest` when it is a CREATE.
+Replay with `-w` runs the calls in their original order, after every account they fetched: each call is recorded on the account it calls, placed last, unless that would reorder calls, in which case it goes on the last entry with an explicit `to`.
 Each entry records only the block values its call read, such as `timestamp` or `chainId`.
 An entry's `stateOverrides` are recorded on its test, while each account records its chain state.
 

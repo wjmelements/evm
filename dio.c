@@ -581,16 +581,51 @@ static void runViaEvm(
 }
 
 
+/* The entry holding the last recorded call */
+static account_t *lastRecorded;
+
+/* Whether a is b or comes after it in the list */
+static bool atOrAfter(const account_t *a, const account_t *b) {
+    for (; b; b = b->next) {
+        if (b == a) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void moveToEnd(account_t **accounts, account_t *a) {
+    account_t **link = accounts;
+    while (*link != a) {
+        link = &(*link)->next;
+    }
+    *link = a->next;
+    while (*link) {
+        link = &(*link)->next;
+    }
+    *link = a;
+    a->next = NULL;
+}
+
+/* Prepend an entry without an address, for a failed create or for calls with no account to hold them */
+static account_t *addressless(account_t **head) {
+    account_t *a = calloc(1, sizeof(account_t));
+    strcpy(a->balance, "0x0");
+    strcpy(a->nonce,   "0x0");
+    a->code = strdup("0x");
+    a->next = *head;
+    *head = a;
+    return a;
+}
+
 /*
- * Parse callJson, resolve the block number, run via evm, and append the
- * result to *results.  Account state accumulates into *accounts.
+ * Parse callJson, resolve the block number, run via evm, and record the
+ * result on an entry of *accounts, where account state also accumulates.
  */
 static void run(
     const char    *callJson,
     postFn post, void *ctx,
     account_t    **accounts,
-    call_result_t **creates,
-    call_result_t **calls,
     subprocess_t  *sub)
 {
     call_result_t *r = calloc(1, sizeof(call_result_t));
@@ -682,66 +717,70 @@ static void run(
     account_t *prevHead = *accounts;
     runViaEvm(r, post, ctx, accounts, sub);
 
+    /* The entry this call is recorded on */
+    account_t *target = NULL;
     if (r->to[0] == '\0') {
-        /* Register the deployed account so subsequent calls can find it locally.
-         * A successful deploy is any nonzero status, not a fixed-width string. */
         if (r->status && strcmp(r->status, "0x0") != 0) {
-            account_t *deployed = ensureAccount(accounts, r->status);
-            free(deployed->code);
-            deployed->code = strdup(r->output ? r->output : "0x");
-            deployed->constructTest = r;
+            /* Register the deployed account so subsequent calls can find it locally.
+             * A successful deploy is any nonzero status, not a fixed-width string. */
+            target = ensureAccount(accounts, r->status);
+            free(target->code);
+            target->code = strdup(r->output ? r->output : "0x");
         } else {
-            r->next = *creates;
-            *creates = r;
+            target = addressless(accounts);
         }
-        return;
+        target->constructTest = r;
     }
 
-    /* Move newly-added accounts to the end of the list (preserving order within
-     * the new section).  Because ensureAccount prepends (LIFO) and to's code is
-     * fetched first, to sits at the tail of the new section (lastNew). */
-    account_t *lastNew = NULL;
+    /* Move newly-added accounts to the end of the list, preserving their order:
+     * ensureAccount prepends, so the first fetched, usually to, is last. */
     if (*accounts != prevHead) {
         account_t *newHead = *accounts;
-        lastNew = newHead;
-        while (lastNew->next != prevHead) {
-            lastNew = lastNew->next;
+        account_t **link = &newHead;
+        while (*link != prevHead) {
+            link = &(*link)->next;
         }
-        lastNew->next = NULL;
-        if (prevHead) {
-            account_t *tail = prevHead;
-            while (tail->next) {
-                tail = tail->next;
-            }
-            tail->next = newHead;
-            *accounts = prevHead;
-        } else {
-            *accounts = newHead;
+        *link = NULL;
+        *accounts = prevHead;
+        link = accounts;
+        while (*link) {
+            link = &(*link)->next;
         }
+        *link = newHead;
     }
 
-    /* Bind test to the to account */
-    account_t *toAcct = (lastNew && strcmp(lastNew->address, r->to) == 0)
-        ? lastNew : NULL;
-    if (!toAcct) {
+    /* Replay is one pass over the entries, running each entry's tests after applying it,
+     * so this call must be recorded at or after the entry of the previous call,
+     * and after every account fetched so far.
+     * Prefer to's entry, moved last, which is possible unless an entry after it holds an earlier call. */
+    if (!target) {
         for (account_t *a = *accounts; a; a = a->next) {
             if (strcmp(a->address, r->to) == 0) {
-                toAcct = a;
+                target = a;
                 break;
             }
         }
+        if (target && lastRecorded && !atOrAfter(target, lastRecorded)) {
+            target = NULL;
+        }
     }
-    if (toAcct) {
-        call_result_t **tp = &toAcct->tests;
+    if (target) {
+        moveToEnd(accounts, target);
+    } else {
+        target = *accounts ? *accounts : addressless(accounts);
+        while (target->next) {
+            target = target->next;
+        }
+    }
+    if (r->to[0]) {
+        call_result_t **tp = &target->tests;
         while (*tp) {
             tp = &(*tp)->next;
         }
         r->next = NULL;
         *tp = r;
-    } else {
-        r->next = *calls;
-        *calls = r;
     }
+    lastRecorded = target;
 }
 
 /* =========================================================
@@ -756,8 +795,6 @@ static void runJson(
     const char    *json,
     postFn post, void *ctx,
     account_t    **accounts,
-    call_result_t **creates,
-    call_result_t **calls,
     subprocess_t  *sub)
 {
     const char *p = json;
@@ -767,11 +804,11 @@ static void runJson(
     if (*p == '[') {
         for (const char *elem = jArrayGet(json, 0); elem; elem = jArrayNext(elem)) {
             char *copy = jValDup(elem);
-            run(copy, post, ctx, accounts, creates, calls, sub);
+            run(copy, post, ctx, accounts, sub);
             free(copy);
         }
     } else {
-        run(json, post, ctx, accounts, creates, calls, sub);
+        run(json, post, ctx, accounts, sub);
     }
 }
 
@@ -864,11 +901,9 @@ int main(int argc, char *const argv[]) {
 
     subprocess_t sub = spawnEvm();
     account_t     *accounts = NULL;
-    call_result_t *creates  = NULL;
-    call_result_t *calls    = NULL;
 
     if (inlineJson) {
-        runJson(inlineJson, post, ctx, &accounts, &creates, &calls, &sub);
+        runJson(inlineJson, post, ctx, &accounts, &sub);
     } else if (optind < argc) {
         for (; optind < argc; optind++) {
             FILE *f = fopen(argv[optind], "r");
@@ -878,12 +913,12 @@ int main(int argc, char *const argv[]) {
             }
             char *json = readAll(f);
             fclose(f);
-            runJson(json, post, ctx, &accounts, &creates, &calls, &sub);
+            runJson(json, post, ctx, &accounts, &sub);
             free(json);
         }
     } else {
         char *json = readAll(stdin);
-        runJson(json, post, ctx, &accounts, &creates, &calls, &sub);
+        runJson(json, post, ctx, &accounts, &sub);
         free(json);
     }
 
@@ -903,6 +938,6 @@ int main(int argc, char *const argv[]) {
     if (ws) {
         wsClose(ctx);
     }
-    writeConfig(accounts, creates, calls, outfile);
+    writeConfig(accounts, NULL, NULL, outfile);
     return 0;
 }

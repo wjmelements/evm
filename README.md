@@ -175,6 +175,7 @@ echo '{"from":"0xd8da6bf26964af9d7eed9e03e53415d37aa96045","data":"0x<initcode>"
 ```
 The call JSON comes from `-o`, file arguments, or stdin, and may be a single object or an array of them.
 Each object becomes a `tests` entry (or `constructTest`, for a CREATE) on the generated account.
+Replay with `-w` runs the calls in their original order, after every account they fetched: each call is recorded on the account it calls, placed last, unless that would reorder calls, in which case it goes on the last entry with an explicit `to`.
 
 | Call JSON key | Meaning | Default |
 | :-----------: | ------- | :-----: |
