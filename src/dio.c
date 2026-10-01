@@ -165,6 +165,7 @@ typedef struct testEntry {
     blockFields_t blockFields;
     uint64_t nonce;
     bool nonceSpecified;
+    char *stateOverrides;
     uint64_t debug;
     testResult_t result;
 
@@ -299,6 +300,15 @@ static void runConstructTest(const entry_t *entry, testEntry_t *test, result_t *
     reportResult(test, result, gas, "constructor", false);
 }
 
+static void applyTestOverrides(const testEntry_t *test, address_t from) {
+    if (test->stateOverrides) {
+        applyStateOverrides(test->stateOverrides, from, test->nonceSpecified ? &test->nonce : NULL);
+    }
+    if (test->nonceSpecified) {
+        evmMockNonce(from, test->nonce);
+    }
+}
+
 static uint64_t runTests(const entry_t *entry, testEntry_t *test, bool headerPrinted) {
     if (test == NULL) {
         return 0;
@@ -310,9 +320,7 @@ static uint64_t runTests(const entry_t *entry, testEntry_t *test, bool headerPri
 
     setDebug(test->debug);
     evmSetBlock(&test->block, test->blockFields);
-    if (test->nonceSpecified) {
-        evmMockNonce(test->from, test->nonce);
-    }
+    applyTestOverrides(test, test->from);
     uint64_t gas = 0xffffffffffffffff;
     if (test->gas) {
         gas = test->gas;
@@ -378,9 +386,7 @@ static void applyEntry(entry_t *entry) {
             }
             setDebug(entry->constructTest->debug);
             evmSetBlock(&entry->constructTest->block, entry->constructTest->blockFields);
-            if (entry->constructTest->nonceSpecified) {
-                evmMockNonce(from, entry->constructTest->nonce);
-            }
+            applyTestOverrides(entry->constructTest, from);
         }
         val_t value;
         value[0] = 0;
@@ -682,6 +688,12 @@ static testEntry_t *jsonScanTestEntry(const char **iter) {
                     } while (1);
                 }
                 jsonSkipExpectedChar(iter, '}');
+            } else if (testHeadingLen == 14 && *testHeading == 's') {
+                // stateOverrides
+                jsonScanWaste(iter);
+                const char *stateOverrides = *iter;
+                jsonSkipEntryValue(iter);
+                test->stateOverrides = strndup(stateOverrides, *iter - stateOverrides);
             } else {
                 const char *testValue = jsonScanStr(iter);
                 size_t testValueLength = *iter - testValue - 1;

@@ -175,6 +175,7 @@ echo '{"from":"0xd8da6bf26964af9d7eed9e03e53415d37aa96045","data":"0x<initcode>"
 ```
 The call JSON comes from `-o`, file arguments, or stdin, and may be a single object or an array of them.
 Each object becomes a `tests` entry (or `constructTest`, for a CREATE) on the generated account.
+Replay with `-w` runs the calls in their original order, after every account they fetched: each call is recorded on the account it calls, placed last, unless that would reorder calls, in which case it goes on the last entry with an explicit `to`.
 
 | Call JSON key | Meaning | Default |
 | :-----------: | ------- | :-----: |
@@ -183,9 +184,10 @@ Each object becomes a `tests` entry (or `constructTest`, for a CREATE) on the ge
 | `data` / `input` | calldata, or initcode when `to` is omitted | `0x` |
 | `value` | wei sent with the call | `0x0` |
 | `block` | `latest`, or a `0x`-prefixed hex block number, to pin state to | `latest` |
-| `nonce`, `chainId`, `blockOverrides` | as in [network mode](#network-mode--nx) | |
+| `nonce`, `chainId`, `blockOverrides`, `stateOverrides` | as in [network mode](#network-mode--nx) | |
 
 Each entry records only the block values its call read, such as `timestamp` or `chainId`.
+An entry's `stateOverrides` are recorded on its test, while each account records its chain state.
 
 | dio argument | Meaning |
 | :----------: | ------- |
@@ -228,6 +230,7 @@ ignores calldata: pass
 | `value` | `msg.value` | `0x38d7ea4c68000` | `0x0` |
 | `from` | `tx.origin` | `0xd1236a6A111879d9862f8374BA15344b6B233Fbd` | `0x0000000000000000000000000000000000000000` |
 | `nonce` | nonce of `from` before the call | `0x5` | unchanged |
+| `stateOverrides` | account state set before the call, as in [network mode](#network-mode--nx) | `{"0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97":{"balance":"0x1"}}` | `{}` |
 | `gas` | `tx.gasLimit` | `0x5208` | `0xffffffffffffffff` |
 | `op` | type of call | `STATICCALL` | `CALL` |
 | `to` | account called | `0x83F20F44975D03b1b09e64809B757c47f942BEeA` | account `address` |
@@ -246,7 +249,7 @@ ignores calldata: pass
 | `coinbase` | `block.coinbase` | `0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5` | `0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97` |
 | `debug` | debug flags | `0x20` | `0x0` |
 
-Block values set by a test persist to later tests.
+Block values and `stateOverrides` set by a test persist to later tests.
 
 The current `debug` flags:
 
@@ -332,16 +335,21 @@ Call objects also work with `-x` alone.
 | `nonce` | the nonce of `from` before this call; it persists |
 | `chainId` | `block.chainid` for this call only |
 | `blockOverrides` | block values for this call only, keyed like geth's `eth_call`: `number`, `time`, `gasLimit`, `baseFeePerGas`, `blobBaseFee`, `prevRandao`, `feeRecipient` |
+| `stateOverrides` | account state set before this call, keyed like geth's `eth_call`: `balance`, `nonce`, `code`, and either `state` or `stateDiff` |
 
 | Request emitted by `evm` | When |
 | ------------------------ | ---- |
 | `eth_blockNumber` | once, on the first fetch or `NUMBER` |
-| `eth_getCode` + `eth_getTransactionCount` + `eth_getBalance` | first touch of an account (sent as one batch array) |
+| `eth_getCode` + `eth_getTransactionCount` + `eth_getBalance` | first touch of an account (sent as one batch array, without overridden fields) |
 | `eth_getStorageAt` | first read of a storage slot |
 | `eth_chainId` | once, on the first `CHAINID` |
 | `eth_getBlockByNumber` | once per block, on the first `TIMESTAMP`, `GASLIMIT`, `BASEFEE`, `PREVRANDAO`, or `COINBASE` |
 
 Accounts created during execution are served locally and never fetched.
+Unlike `blockOverrides`, `stateOverrides` persist to later calls.
+Overridden fields and slots are never fetched; an account with `balance`, `nonce`, and `code` all overridden is not fetched at all.
+`stateDiff` sets the listed slots, while `state` replaces the account's storage, so that unlisted slots read as zero and are never fetched.
+A `nonce` override for `from` must match the call's `nonce`.
 Overriding `number` to N fetches the header of block N and state at block N - 1.
 If block N does not exist yet, its header fields fall back to their defaults with a warning.
 Accounts and storage are fetched once per process, so later calls reuse them regardless of `number`.

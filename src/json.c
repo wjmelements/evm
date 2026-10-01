@@ -81,15 +81,11 @@ const char *jNextKeyVal(const char *p, const char **keyp, size_t *keylen, const 
     }
     *keylen = p - *keyp;
     p++;
-    while (*p == ' ' || *p == '\t') {
-        p++;
-    }
+    skipWs(&p);
     if (*p++ != ':') {
         return NULL;
     }
-    while (*p == ' ' || *p == '\t') {
-        p++;
-    }
+    skipWs(&p);
     *valp = p;
     jSkip(&p);
     return p;

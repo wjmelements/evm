@@ -33,6 +33,10 @@ static void writeCallTest(FILE *f, const call_result_t *r, const char *accountAd
         fprintf(f, "%s\"nonce\": \"%s\"", sep, r->nonce);
         sep = nextSep;
     }
+    if (r->stateOverrides) {
+        fprintf(f, "%s\"stateOverrides\": %s", sep, r->stateOverrides);
+        sep = nextSep;
+    }
     if (r->value[0]) {
         fprintf(f, "%s\"value\": \"%s\"", sep, r->value);
         sep = nextSep;
@@ -70,6 +74,10 @@ static void writeConstructTest(FILE *f, const call_result_t *r) {
     }
     if (r->nonce[0]) {
         fprintf(f, "%s\"nonce\": \"%s\"", ctSep, r->nonce);
+        ctSep = nextSep;
+    }
+    if (r->stateOverrides) {
+        fprintf(f, "%s\"stateOverrides\": %s", ctSep, r->stateOverrides);
         ctSep = nextSep;
     }
     if (r->value[0]) {
@@ -118,19 +126,28 @@ void writeConfig(
         if (a != accounts) {
             fputs(",\n", f);
         }
-        fputs("    {\n", f);
-        fprintf(f, "        \"address\": \"%s\"", a->address);
+        fputs("    {", f);
+        /* an entry without an address records a failed create, or tests with nothing fetched */
+        const char *sep = "\n        ";
+        const char *nextSep = ",\n        ";
+        if (a->address[0]) {
+            fprintf(f, "%s\"address\": \"%s\"", sep, a->address);
+            sep = nextSep;
+        }
         if (strcmp(a->balance, "0x0") != 0 && strcmp(a->balance, "0x") != 0) {
-            fprintf(f, ",\n        \"balance\": \"%s\"", a->balance);
+            fprintf(f, "%s\"balance\": \"%s\"", sep, a->balance);
+            sep = nextSep;
         }
         if (strcmp(a->nonce, "0x0") != 0 && strcmp(a->nonce, "0x") != 0) {
-            fprintf(f, ",\n        \"nonce\": \"%s\"", a->nonce);
+            fprintf(f, "%s\"nonce\": \"%s\"", sep, a->nonce);
+            sep = nextSep;
         }
         if (strcmp(a->code, "0x") != 0 && strcmp(a->code, "") != 0) {
-            fprintf(f, ",\n        \"code\": \"%s\"", a->code);
+            fprintf(f, "%s\"code\": \"%s\"", sep, a->code);
+            sep = nextSep;
         }
         if (a->storage) {
-            fputs(",\n        \"storage\": {\n", f);
+            fprintf(f, "%s\"storage\": {\n", sep);
             for (storage_kv_t *s = a->storage; s; s = s->next) {
                 if (s != a->storage) {
                     fputs(",\n", f);
@@ -138,13 +155,15 @@ void writeConfig(
                 fprintf(f, "            \"%s\": \"%s\"", s->key, s->value);
             }
             fputs("\n        }", f);
+            sep = nextSep;
         }
         if (a->constructTest) {
-            fprintf(f, ",\n        \"initcode\": \"%s\"", a->constructTest->input);
+            fprintf(f, "%s\"initcode\": \"%s\"", sep, a->constructTest->input);
             writeConstructTest(f, a->constructTest);
+            sep = nextSep;
         }
         if (a->tests) {
-            fputs(",\n        \"tests\": [\n", f);
+            fprintf(f, "%s\"tests\": [\n", sep);
             for (call_result_t *r = a->tests; r; r = r->next) {
                 if (r != a->tests) {
                     fputs(",\n", f);

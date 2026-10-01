@@ -256,6 +256,7 @@ void test_create_failed() {
         .to      = "",
         .from    = "0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead",
         .nonce   = "0x5",
+        .stateOverrides = "{\"0xbb\":{\"balance\":\"0x1\"}}",
         .block   = "0x1",
         .value   = "",
         .input   = "0x",
@@ -280,6 +281,7 @@ void test_create_failed() {
         "\n        \"constructTest\": {"
         "\n            \"from\": \"0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead\","
         "\n            \"nonce\": \"0x5\","
+        "\n            \"stateOverrides\": {\"0xbb\":{\"balance\":\"0x1\"}},"
         "\n            \"blockNumber\": \"0x1\","
         "\n            \"timestamp\": \"0x6700\","
         "\n            \"gasUsed\": \"0x5208\","
@@ -339,6 +341,7 @@ void test_call_with_from_input_gasused_status_output() {
     call_result_t call = {
         .to      = "0x1234567890123456789012345678901234567890",
         .from    = "0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead",
+        .stateOverrides = "{\"0xcc\":{\"code\":\"0x00\"}}",
         .block   = "0xa",
         .value   = "",
         .input   = "0xdeadbeef",
@@ -362,6 +365,7 @@ void test_call_with_from_input_gasused_status_output() {
         "            {\n"
         "                \"to\": \"0x1234567890123456789012345678901234567890\","
         "\n                \"from\": \"0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead\","
+        "\n                \"stateOverrides\": {\"0xcc\":{\"code\":\"0x00\"}},"
         "\n                \"input\": \"0xdeadbeef\","
         "\n                \"blockNumber\": \"0xa\","
         "\n                \"coinbase\": \"0x2222222222222222222222222222222222222222\","

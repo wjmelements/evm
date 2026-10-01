@@ -22,6 +22,7 @@
 #include <curl/curl.h>
 #include <getopt.h>
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -256,19 +257,13 @@ static subprocess_t spawnEvm(void) {
 }
 
 /*
- * Write a sorted batch response [code, nonce, balance] to f.
+ * Write a batch response to f, sorted ascending by id.
  *
  * network.c's nextResultHex() scans for "result" values in forward
- * order and assigns them: first=code, second=nonce, third=balance.
- * We must therefore write the three elements sorted ascending by id.
+ * order, matching the order of its requests, which have ascending ids.
  */
-static void writeSortedBatch(FILE *f,
-                             uint64_t codeId,    const char *code,
-                             uint64_t nonceId,   const char *nonce,
-                             uint64_t balanceId, const char *balance) {
-    uint64_t ids[3]  = { codeId,  nonceId,  balanceId };
-    const char *vals[3] = { code,    nonce,    balance   };
-    for (int i = 1; i < 3; i++) {
+static void writeSortedBatch(FILE *f, int count, uint64_t *ids, const char **vals) {
+    for (int i = 1; i < count; i++) {
         uint64_t ki = ids[i];
         const char *vi = vals[i];
         int j = i - 1;
@@ -281,7 +276,7 @@ static void writeSortedBatch(FILE *f,
         vals[j + 1] = vi;
     }
     fputc('[', f);
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < count; i++) {
         if (i) {
             fputc(',', f);
         }
@@ -384,25 +379,33 @@ static void runViaEvm(
         }
 
         if (*line == '[') {
-            /* ---- Account batch: [getCode, getTxCount, getBalance] ---- */
+            /* ---- Account batch: getCode, getTransactionCount, getBalance, for the fields not overridden ---- */
             const char *elem0   = jArrayGet(line, 0);
             const char *params0 = jFind(elem0, "params");
             char addr[ADDR_LEN];
             jStr(jArrayGet(params0, 0), addr, sizeof(addr));
             account_t *acct = ensureAccount(accounts, addr);
 
-            const char *elem1  = jArrayNext(elem0);
-            const char *elem2  = jArrayNext(elem1);
-            uint64_t codeId    = jUint(jFind(elem0, "id"));
-            uint64_t nonceId   = jUint(jFind(elem1, "id"));
-            uint64_t balanceId = jUint(jFind(elem2, "id"));
+            // by field: code, nonce, balance
+            static const char *const methods[3] = { "eth_getCode", "eth_getTransactionCount", "eth_getBalance" };
+            uint64_t fieldIds[3];
+            bool requested[3] = { false, false, false };
+            for (const char *elem = elem0; elem; elem = jArrayNext(elem)) {
+                char method[32];
+                jStr(jFind(elem, "method"), method, sizeof(method));
+                for (int field = 0; field < 3; field++) {
+                    if (!strcmp(method, methods[field])) {
+                        fieldIds[field] = jUint(jFind(elem, "id"));
+                        requested[field] = true;
+                    }
+                }
+            }
 
             char *resp = post(line, nl - line, ctx);
             if (!resp) {
                 rpcFailed(line);
             }
-            const char *qHead = jArrayGet(line, 0);
-            char *code = NULL, *nonce = NULL, *balance = NULL;
+            char *values[3] = { NULL, NULL, NULL };
             for (const char *rElem = jArrayGet(resp, 0); rElem; rElem = jArrayNext(rElem)) {
                 uint64_t id = 0;
                 const char *errField = NULL, *resultVal = NULL;
@@ -422,35 +425,45 @@ static void runViaEvm(
                     }
                 }
                 if (errField) {
-                    for (const char *qElem = qHead; qElem; qElem = jArrayNext(qElem)) {
+                    for (const char *qElem = elem0; qElem; qElem = jArrayNext(qElem)) {
                         if (jUint(jFind(qElem, "id")) == id) {
                             rpcError(qElem, errField);
                         }
                     }
-                    rpcError(qHead, errField);
+                    rpcError(elem0, errField);
                 }
-                char **out = (id == codeId) ? &code : (id == nonceId) ? &nonce : (id == balanceId) ? &balance : NULL;
-                if (out && resultVal) {
-                    *out = jStrDup(resultVal);
+                for (int field = 0; field < 3; field++) {
+                    if (requested[field] && id == fieldIds[field] && resultVal) {
+                        values[field] = jStrDup(resultVal);
+                    }
                 }
             }
             free(resp);
 
-            free(acct->code);
-            acct->code = code ? code : strdup("0x");
-            if (nonce) {
-                strncpy(acct->nonce,   nonce,   sizeof(acct->nonce)   - 1);
+            if (requested[0]) {
+                free(acct->code);
+                acct->code = values[0] ? values[0] : strdup("0x");
             }
-            if (balance) {
-                strncpy(acct->balance, balance, sizeof(acct->balance) - 1);
+            if (values[1]) {
+                strncpy(acct->nonce,   values[1], sizeof(acct->nonce)   - 1);
             }
-            free(nonce);
-            free(balance);
+            if (values[2]) {
+                strncpy(acct->balance, values[2], sizeof(acct->balance) - 1);
+            }
+            free(values[1]);
+            free(values[2]);
 
-            writeSortedBatch(toChild,
-                             codeId,    acct->code,
-                             nonceId,   acct->nonce,
-                             balanceId, acct->balance);
+            const char *fieldValues[3] = { acct->code, acct->nonce, acct->balance };
+            uint64_t ids[3];
+            const char *vals[3];
+            int count = 0;
+            for (int field = 0; field < 3; field++) {
+                if (requested[field]) {
+                    ids[count] = fieldIds[field];
+                    vals[count++] = fieldValues[field];
+                }
+            }
+            writeSortedBatch(toChild, count, ids, vals);
 
         } else if (strstr(line, "\"eth_blockNumber\"")) {
             uint64_t id = jUint(jFind(line, "id"));
@@ -568,16 +581,51 @@ static void runViaEvm(
 }
 
 
+/* The entry holding the last recorded call */
+static account_t *lastRecorded;
+
+/* Whether a is b or comes after it in the list */
+static bool atOrAfter(const account_t *a, const account_t *b) {
+    for (; b; b = b->next) {
+        if (b == a) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void moveToEnd(account_t **accounts, account_t *a) {
+    account_t **link = accounts;
+    while (*link != a) {
+        link = &(*link)->next;
+    }
+    *link = a->next;
+    while (*link) {
+        link = &(*link)->next;
+    }
+    *link = a;
+    a->next = NULL;
+}
+
+/* Prepend an entry without an address, for a failed create or for calls with no account to hold them */
+static account_t *addressless(account_t **head) {
+    account_t *a = calloc(1, sizeof(account_t));
+    strcpy(a->balance, "0x0");
+    strcpy(a->nonce,   "0x0");
+    a->code = strdup("0x");
+    a->next = *head;
+    *head = a;
+    return a;
+}
+
 /*
- * Parse callJson, resolve the block number, run via evm, and append the
- * result to *results.  Account state accumulates into *accounts.
+ * Parse callJson, resolve the block number, run via evm, and record the
+ * result on an entry of *accounts, where account state also accumulates.
  */
 static void run(
     const char    *callJson,
     postFn post, void *ctx,
     account_t    **accounts,
-    call_result_t **creates,
-    call_result_t **calls,
     subprocess_t  *sub)
 {
     call_result_t *r = calloc(1, sizeof(call_result_t));
@@ -594,13 +642,15 @@ static void run(
     for (const char *p = callJson; (p = jNextKeyVal(p, &key, &klen, &val)); ) {
         if ((klen == 5 && !memcmp(key, "nonce", 5))
             || (klen == 7 && !memcmp(key, "chainId", 7))
-            || (klen == 14 && !memcmp(key, "blockOverrides", 14))) {
+            || (klen == 14 && (!memcmp(key, "blockOverrides", 14) || !memcmp(key, "stateOverrides", 14)))) {
             sbAppend(&overrides, ",\"", 2);
             sbAppend(&overrides, key, klen);
             sbAppend(&overrides, "\":", 2);
             sbAppend(&overrides, val, p - val);
             if (klen == 5) {
                 jStr(val, r->nonce, sizeof(r->nonce));
+            } else if (*key == 's') {
+                r->stateOverrides = jValDup(val);
             }
             continue;
         }
@@ -667,66 +717,70 @@ static void run(
     account_t *prevHead = *accounts;
     runViaEvm(r, post, ctx, accounts, sub);
 
+    /* The entry this call is recorded on */
+    account_t *target = NULL;
     if (r->to[0] == '\0') {
-        /* Register the deployed account so subsequent calls can find it locally.
-         * A successful deploy is any nonzero status, not a fixed-width string. */
         if (r->status && strcmp(r->status, "0x0") != 0) {
-            account_t *deployed = ensureAccount(accounts, r->status);
-            free(deployed->code);
-            deployed->code = strdup(r->output ? r->output : "0x");
-            deployed->constructTest = r;
+            /* Register the deployed account so subsequent calls can find it locally.
+             * A successful deploy is any nonzero status, not a fixed-width string. */
+            target = ensureAccount(accounts, r->status);
+            free(target->code);
+            target->code = strdup(r->output ? r->output : "0x");
         } else {
-            r->next = *creates;
-            *creates = r;
+            target = addressless(accounts);
         }
-        return;
+        target->constructTest = r;
     }
 
-    /* Move newly-added accounts to the end of the list (preserving order within
-     * the new section).  Because ensureAccount prepends (LIFO) and to's code is
-     * fetched first, to sits at the tail of the new section (lastNew). */
-    account_t *lastNew = NULL;
+    /* Move newly-added accounts to the end of the list, preserving their order:
+     * ensureAccount prepends, so the first fetched, usually to, is last. */
     if (*accounts != prevHead) {
         account_t *newHead = *accounts;
-        lastNew = newHead;
-        while (lastNew->next != prevHead) {
-            lastNew = lastNew->next;
+        account_t **link = &newHead;
+        while (*link != prevHead) {
+            link = &(*link)->next;
         }
-        lastNew->next = NULL;
-        if (prevHead) {
-            account_t *tail = prevHead;
-            while (tail->next) {
-                tail = tail->next;
-            }
-            tail->next = newHead;
-            *accounts = prevHead;
-        } else {
-            *accounts = newHead;
+        *link = NULL;
+        *accounts = prevHead;
+        link = accounts;
+        while (*link) {
+            link = &(*link)->next;
         }
+        *link = newHead;
     }
 
-    /* Bind test to the to account */
-    account_t *toAcct = (lastNew && strcmp(lastNew->address, r->to) == 0)
-        ? lastNew : NULL;
-    if (!toAcct) {
+    /* Replay is one pass over the entries, running each entry's tests after applying it,
+     * so this call must be recorded at or after the entry of the previous call,
+     * and after every account fetched so far.
+     * Prefer to's entry, moved last, which is possible unless an entry after it holds an earlier call. */
+    if (!target) {
         for (account_t *a = *accounts; a; a = a->next) {
             if (strcmp(a->address, r->to) == 0) {
-                toAcct = a;
+                target = a;
                 break;
             }
         }
+        if (target && lastRecorded && !atOrAfter(target, lastRecorded)) {
+            target = NULL;
+        }
     }
-    if (toAcct) {
-        call_result_t **tp = &toAcct->tests;
+    if (target) {
+        moveToEnd(accounts, target);
+    } else {
+        target = *accounts ? *accounts : addressless(accounts);
+        while (target->next) {
+            target = target->next;
+        }
+    }
+    if (r->to[0]) {
+        call_result_t **tp = &target->tests;
         while (*tp) {
             tp = &(*tp)->next;
         }
         r->next = NULL;
         *tp = r;
-    } else {
-        r->next = *calls;
-        *calls = r;
     }
+    lastRecorded = target;
 }
 
 /* =========================================================
@@ -741,8 +795,6 @@ static void runJson(
     const char    *json,
     postFn post, void *ctx,
     account_t    **accounts,
-    call_result_t **creates,
-    call_result_t **calls,
     subprocess_t  *sub)
 {
     const char *p = json;
@@ -752,11 +804,11 @@ static void runJson(
     if (*p == '[') {
         for (const char *elem = jArrayGet(json, 0); elem; elem = jArrayNext(elem)) {
             char *copy = jValDup(elem);
-            run(copy, post, ctx, accounts, creates, calls, sub);
+            run(copy, post, ctx, accounts, sub);
             free(copy);
         }
     } else {
-        run(json, post, ctx, accounts, creates, calls, sub);
+        run(json, post, ctx, accounts, sub);
     }
 }
 
@@ -784,7 +836,7 @@ static const char usage[] =
     "    [{\"to\": \"0x...\"}, {\"to\": \"0x...\"}]\n"
     "\n"
     "Only \"to\" is required.  \"block\" defaults to \"latest\".\n"
-    "\"nonce\", \"chainId\", and \"blockOverrides\" are passed to evm -nx.\n"
+    "\"nonce\", \"chainId\", \"blockOverrides\", and \"stateOverrides\" are passed to evm -nx.\n"
     "The generated config is written to outfile, or stdout if omitted.\n"
     "\n"
     "Options:\n"
@@ -849,11 +901,9 @@ int main(int argc, char *const argv[]) {
 
     subprocess_t sub = spawnEvm();
     account_t     *accounts = NULL;
-    call_result_t *creates  = NULL;
-    call_result_t *calls    = NULL;
 
     if (inlineJson) {
-        runJson(inlineJson, post, ctx, &accounts, &creates, &calls, &sub);
+        runJson(inlineJson, post, ctx, &accounts, &sub);
     } else if (optind < argc) {
         for (; optind < argc; optind++) {
             FILE *f = fopen(argv[optind], "r");
@@ -863,12 +913,12 @@ int main(int argc, char *const argv[]) {
             }
             char *json = readAll(f);
             fclose(f);
-            runJson(json, post, ctx, &accounts, &creates, &calls, &sub);
+            runJson(json, post, ctx, &accounts, &sub);
             free(json);
         }
     } else {
         char *json = readAll(stdin);
-        runJson(json, post, ctx, &accounts, &creates, &calls, &sub);
+        runJson(json, post, ctx, &accounts, &sub);
         free(json);
     }
 
@@ -888,6 +938,6 @@ int main(int argc, char *const argv[]) {
     if (ws) {
         wsClose(ctx);
     }
-    writeConfig(accounts, creates, calls, outfile);
+    writeConfig(accounts, NULL, NULL, outfile);
     return 0;
 }

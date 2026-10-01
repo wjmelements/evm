@@ -115,7 +115,13 @@ typedef struct callResult {
 void evmInit();
 void evmFinalize();
 
-typedef void (*account_fetch_t)(address_t address);
+// Account fields to fetch
+typedef uint8_t accountFields_t;
+#define ACCOUNT_CODE 1
+#define ACCOUNT_NONCE 2
+#define ACCOUNT_BALANCE 4
+#define ACCOUNT_ALL (ACCOUNT_CODE | ACCOUNT_NONCE | ACCOUNT_BALANCE)
+typedef void (*account_fetch_t)(address_t address, accountFields_t fields);
 typedef void (*storage_fetch_t)(address_t address, const uint256_t *key, uint256_t *value_out);
 void evmSetFetch(account_fetch_t, storage_fetch_t);
 
@@ -152,6 +158,10 @@ void evmMockStorage(address_t to, const uint256_t *key, const uint256_t *storedV
 void evmMockNonce(address_t to, uint64_t nonce);
 void evmMockCode(address_t to, data_t code);
 uint64_t evmGetNonce(address_t to);
+// Load an account before overriding it, fetching only the fields not in overridden
+void evmLoadAccount(address_t to, accountFields_t overridden);
+// Empty the storage; unset slots then read as zero and are never fetched
+void evmClearStorage(address_t to);
 
 typedef struct accessListStorage {
     uint256_t key;

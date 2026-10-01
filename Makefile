@@ -88,14 +88,15 @@ distcheck dist-check:
 	@$(subst $(eval ) , -w ,$^) && touch $@
 # dio integration tests: each tst/dio/*.json is a JSON array of call inputs for bin/dio.
 # Step 1: split inputs into tst/dio/out/<stem>/<n>.json, run bin/dio writing tst/dio/out/<stem>.json.
-# Step 2: verify no standalone "tests" entry (all tests co-located), then run bin/evm -w.
+# Step 2: verify no standalone "tests" entry (all tests co-located), run bin/evm -w, then check that the
+# config replays the input calls in order, and matches tst/dio/expected/<stem>.json if present.
 tst/dio/out/%.json: tst/dio/%.json bin/dio | tst/dio/out
 	@echo [dio $<]
 	@bin/dio $(DIO_RPC) $@ $<
 .pass/tst/dio/%.json: tst/dio/out/%.json bin/evm | .pass/tst/dio
 	@{ jq -e 'all(.[]; has("address") or has("initcode"))' $< >/dev/null \
 		&& bin/evm -w $< \
-		&& [ ! -f tst/dio/expected/$*.json ] || perl make/diocmp.pl tst/dio/expected/$*.json $<; } \
+		&& perl make/diocmp.pl tst/dio/$*.json $< $(wildcard tst/dio/expected/$*.json); } \
 		&& echo -e "tst/dio/$*.json: \033[0;32mpass\033[0m" && touch $@ \
 		|| { echo -e "tst/dio/$*.json: \033[0;31mfail\033[0m"; exit 1; }
 $(MKDIRS):
