@@ -36,8 +36,9 @@ struct call_result {
     char *logs;
     char *status;
     char *gasUsed;
-    // nonce, chainId, and blockOverrides from the call JSON, as a JSON object tail: ,"key":value...
+    // nonce, chainId, blockOverrides, and stateOverrides from the call JSON, as a JSON object tail: ,"key":value...
     char *overrides;
+    char *stateOverrides;
     // block values read during the call, by field index
     char *blockValues[BLOCK_FIELD_COUNT];
     struct call_result *next;

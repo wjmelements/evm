@@ -33,6 +33,10 @@ static void writeCallTest(FILE *f, const call_result_t *r, const char *accountAd
         fprintf(f, "%s\"nonce\": \"%s\"", sep, r->nonce);
         sep = nextSep;
     }
+    if (r->stateOverrides) {
+        fprintf(f, "%s\"stateOverrides\": %s", sep, r->stateOverrides);
+        sep = nextSep;
+    }
     if (r->value[0]) {
         fprintf(f, "%s\"value\": \"%s\"", sep, r->value);
         sep = nextSep;
@@ -70,6 +74,10 @@ static void writeConstructTest(FILE *f, const call_result_t *r) {
     }
     if (r->nonce[0]) {
         fprintf(f, "%s\"nonce\": \"%s\"", ctSep, r->nonce);
+        ctSep = nextSep;
+    }
+    if (r->stateOverrides) {
+        fprintf(f, "%s\"stateOverrides\": %s", ctSep, r->stateOverrides);
         ctSep = nextSep;
     }
     if (r->value[0]) {

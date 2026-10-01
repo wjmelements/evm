@@ -3,7 +3,6 @@
 #include "path.h"
 #include "scan.h"
 #include "disassemble.h"
-#include "json.h"
 #include "version.h"
 
 #include <sys/stat.h>
@@ -111,31 +110,6 @@ static void disassemble(const char *contents) {
     disassembleFinalize();
 }
 
-// The hex chars of the JSON string from val to end (just past its closing quote), without "0x"
-static const char *jsonHex(const char *val, const char *end, const char *key, size_t *len) {
-    if (*val != '"' || end[-1] != '"') {
-        fprintf(stderr, "evm: \"%s\" must be a string\n", key);
-        exit(1);
-    }
-    val++;
-    end--;
-    if (val[0] == '0' && val[1] == 'x') {
-        val += 2;
-    }
-    *len = end - val;
-    return val;
-}
-
-static address_t jsonAddress(const char *val, const char *end, const char *key) {
-    size_t len;
-    const char *hex = jsonHex(val, end, key, &len);
-    if (len != 40) {
-        fprintf(stderr, "evm: malformed \"%s\" address\n", key);
-        exit(1);
-    }
-    return AddressFromHex40(hex);
-}
-
 static void execute(const char *contents) {
     address_t from = {{0}};
     address_t to;
@@ -147,6 +121,7 @@ static void execute(const char *contents) {
     uint64_t nonce = 0;
     block_t overrides;
     blockFields_t overridden = 0;
+    const char *stateOverrides = NULL;
 
     if (contents[0] == '{') {
         hexData = "";
@@ -209,6 +184,8 @@ static void execute(const char *contents) {
                         blockParseField(&overrides, index, hex, len);
                         overridden |= (blockFields_t)1 << index;
                     }
+                } else if (!memcmp(key, "stateOverrides", 14)) {
+                    stateOverrides = val;
                 }
                 break;
             }
@@ -237,6 +214,9 @@ static void execute(const char *contents) {
 
     if (overridden) {
         evmOverrideBlock(&overrides, overridden);
+    }
+    if (stateOverrides) {
+        applyStateOverrides(stateOverrides, from, hasNonce ? &nonce : NULL);
     }
     if (hasNonce) {
         evmMockNonce(from, nonce);

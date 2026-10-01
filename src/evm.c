@@ -626,7 +626,7 @@ static void traceSummary(const result_t *result, uint64_t gasUsed) {
 #define SHOW_CALLS (debugFlags & EVM_DEBUG_CALLS)
 #define SHOW_LOGS (debugFlags & EVM_DEBUG_LOGS)
 
-static account_t *findAccount(const address_t address, bool fetch) {
+static account_t *findAccount(const address_t address, accountFields_t fetch) {
     if (AddressIsPrecompile(address)) {
         if (PrecompileIsKnownPrecompile(address)) {
             account_t *precompile = knownPrecompiles + address.address[19];
@@ -660,19 +660,19 @@ static account_t *findAccount(const address_t address, bool fetch) {
             if (traceEnabled) {
                 traceFlush();
             }
-            accountFetch(address);
+            accountFetch(address, fetch);
         }
     }
     return result;
 }
 
 static account_t *getAccount(const address_t address) {
-    return findAccount(address, true);
+    return findAccount(address, ACCOUNT_ALL);
 }
 
 // a CREATE target starts empty, as it was just before the deploy
 static account_t *createLocalAccount(const address_t address) {
-    account_t *result = findAccount(address, false);
+    account_t *result = findAccount(address, 0);
     result->local = true;
     return result;
 }
@@ -734,7 +734,25 @@ void evmMockBalance(address_t from, const val_t balance) {
 }
 
 void evmMockCode(address_t to, data_t code) {
-    getAccount(to)->code = copyPaddedCode(code);
+    account_t *account = getAccount(to);
+    free(account->code.content);
+    account->code = copyPaddedCode(code);
+}
+
+void evmLoadAccount(address_t to, accountFields_t overridden) {
+    findAccount(to, ACCOUNT_ALL & ~overridden);
+}
+
+void evmClearStorage(address_t to) {
+    account_t *account = getAccount(to);
+    storage_t *storage = account->storage;
+    while (storage != NULL) {
+        void *toFree = storage;
+        storage = storage->next;
+        free(toFree);
+    }
+    account->storage = NULL;
+    account->local = true;
 }
 
 void evmMockNonce(address_t to, uint64_t nonce) {
@@ -867,7 +885,7 @@ static account_t *warmAccount(context_t *callContext, const address_t address) {
     return account;
 }
 
-static storage_t *getAccountStorage(account_t *account, const uint256_t *key) {
+static inline __attribute__((always_inline)) storage_t *findStorage(account_t *account, const uint256_t *key, bool fetch) {
     storage_t **storage = &account->storage;
     while (*storage != NULL) {
         if (equal256(&(*storage)->key, key)) {
@@ -877,13 +895,17 @@ static storage_t *getAccountStorage(account_t *account, const uint256_t *key) {
     }
     *storage = calloc(1, sizeof(storage_t));
     copy256(&(*storage)->key, key);
-    if (storageFetch && !account->local) {
+    if (fetch && storageFetch && !account->local) {
         if (traceEnabled) {
             traceFlush();
         }
         storageFetch(account->address, key, &(*storage)->value);
     }
     return *storage;
+}
+
+static storage_t *getAccountStorage(account_t *account, const uint256_t *key) {
+    return findStorage(account, key, true);
 }
 
 static tstorage_t *getAccountTransientStorage(account_t *account, const uint256_t *key) {
@@ -958,7 +980,7 @@ static void mergeStateChanges(stateChanges_t **dst, stateChanges_t *src) {
 
 void evmMockStorage(address_t to, const uint256_t *key, const uint256_t *storedValue) {
     account_t *account = getAccount(to);
-    storage_t *storage = getAccountStorage(account, key);
+    storage_t *storage = findStorage(account, key, false);
     copy256(&storage->value, storedValue);
 }
 

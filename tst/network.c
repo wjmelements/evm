@@ -1,5 +1,5 @@
-#include "evm.h"
 #include "network.h"
+#include "overrides.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -471,6 +471,82 @@ void test_networkMissingHeader(void) {
     assert(headerRequests == 1);
 }
 
+// --- test_networkStateOverrides ---
+// Overridden fields and slots are never fetched.
+#define OVERRIDE_PARTIAL "0x1111000000000000000000000000000000000001"
+#define OVERRIDE_FULL "0x2222000000000000000000000000000000000002"
+// MSTORE(0, SLOAD(0)) MSTORE(32, SLOAD(1)) RETURN(0, 64)
+#define SLOAD_CODE "0x5f545f5260015460205260405ff3"
+static int partialRequests;
+static int partialCodeRequests;
+static int storageRequests;
+static int fullRequests;
+
+static void parent_stateOverrides(FILE *req, FILE *rsp) {
+    static const char *methods[] = { "eth_getCode", "eth_getTransactionCount", "eth_getBalance" };
+    char buf[8192];
+    partialRequests = partialCodeRequests = storageRequests = fullRequests = 0;
+    while (fgets(buf, sizeof(buf), req)) {
+        if (strstr(buf, OVERRIDE_FULL)) {
+            fullRequests++;
+        }
+        if (strstr(buf, "eth_getStorageAt")) {
+            storageRequests++;
+            assert(strstr(buf, "0x0000000000000000000000000000000000000000000000000000000000000001") != NULL);
+            fputs("{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x5\"}\n", rsp);
+        } else {
+            if (strstr(buf, OVERRIDE_PARTIAL)) {
+                partialRequests++;
+                if (strstr(buf, "eth_getCode")) {
+                    partialCodeRequests++;
+                }
+            }
+            // one result per requested field, in order
+            const char *separator = "[";
+            for (int i = 0; i < 3; i++) {
+                if (strstr(buf, methods[i])) {
+                    fprintf(rsp, "%s{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"%s\"}", separator, i ? "0x0" : "0x");
+                    separator = ",";
+                }
+            }
+            fputs("]\n", rsp);
+        }
+        fflush(rsp);
+    }
+}
+
+static void child_stateOverrides(void) {
+    evmSetNetworkFetch();
+    evmInit();
+    evmSetBlockNumber(0x100);
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    val_t val;
+    val[0] = val[1] = val[2] = 0;
+    data_t input;
+    input.size = 0;
+
+    // the nonce and balance are fetched; slot 1 is fetched
+    applyStateOverrides("{\"" OVERRIDE_PARTIAL "\":{\"code\":\"" SLOAD_CODE "\",\"stateDiff\":{\"0x0\":\"0x7\"}}}", from, NULL);
+    result_t result = txCall(from, 100000, AddressFromHex42(OVERRIDE_PARTIAL), val, input, NULL);
+    assert(returnWord(&result, 0) == 7);
+    assert(returnWord(&result, 1) == 5);
+
+    // nothing is fetched
+    applyStateOverrides("{\"" OVERRIDE_FULL "\":{\"code\":\"" SLOAD_CODE "\",\"nonce\":\"0x1\",\"balance\":\"0x0\",\"state\":{}}}", from, NULL);
+    result = txCall(from, 100000, AddressFromHex42(OVERRIDE_FULL), val, input, NULL);
+    assert(returnWord(&result, 0) == 0);
+    assert(returnWord(&result, 1) == 0);
+    evmFinalize();
+}
+
+void test_networkStateOverrides(void) {
+    with_mock_rpc(child_stateOverrides, parent_stateOverrides, 0, "");
+    assert(partialRequests == 1);
+    assert(partialCodeRequests == 0);
+    assert(storageRequests == 1);
+    assert(fullRequests == 0);
+}
+
 int main(void) {
     test_networkFetchStorage();
     test_networkFetchStorageRpcError();
@@ -482,5 +558,6 @@ int main(void) {
     test_networkNumberOverride();
     test_networkCreateTargetNotFetched();
     test_networkMissingHeader();
+    test_networkStateOverrides();
     return 0;
 }

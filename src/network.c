@@ -120,72 +120,81 @@ static void ensureNetworkBlock(void) {
     snprintf(networkBlockHex, sizeof(networkBlockHex), "0x%" PRIx64, evmStateBlockNumber());
 }
 
-static void networkFetchAccount(address_t address) {
-    ensureNetworkBlock();
-    uint32_t base = ++rpcId;
-    rpcId += 2;
-    putchar('[');
-    printf("{\"jsonrpc\":\"2.0\",\"id\":%u,\"method\":\"eth_getCode\",\"params\":[\"", base);
-    fprintAddress(stdout, address);
-    printf("\",\"%s\"]},", networkBlockHex);
-    printf("{\"jsonrpc\":\"2.0\",\"id\":%u,\"method\":\"eth_getTransactionCount\",\"params\":[\"", base + 1);
-    fprintAddress(stdout, address);
-    printf("\",\"%s\"]},", networkBlockHex);
-    printf("{\"jsonrpc\":\"2.0\",\"id\":%u,\"method\":\"eth_getBalance\",\"params\":[\"", base + 2);
+static void accountRequest(address_t address, const char *method, const char **separator) {
+    printf("%s{\"jsonrpc\":\"2.0\",\"id\":%u,\"method\":\"%s\",\"params\":[\"", *separator, ++rpcId, method);
     fprintAddress(stdout, address);
     printf("\",\"%s\"]}", networkBlockHex);
+    *separator = ",";
+}
+
+static void networkFetchAccount(address_t address, accountFields_t fields) {
+    ensureNetworkBlock();
+    const char *separator = "[";
+    if (fields & ACCOUNT_CODE) {
+        accountRequest(address, "eth_getCode", &separator);
+    }
+    if (fields & ACCOUNT_NONCE) {
+        accountRequest(address, "eth_getTransactionCount", &separator);
+    }
+    if (fields & ACCOUNT_BALANCE) {
+        accountRequest(address, "eth_getBalance", &separator);
+    }
     puts("]");
     fflush(stdout);
 
     readResponse("account fetch");
     const char *p = rpcBuf;
 
-    // code
-    const char *hex = nextResultHex(&p);
-    if (!hex) {
-        badResponse("eth_getCode");
-    }
-    const char *codeStart = p;
-    while (*p != '"' && *p) {
-        p++;
-    }
-    data_t code;
-    code.size = (p - codeStart) / 2;
-    code.content = code.size ? malloc(code.size) : NULL;
-    for (size_t i = 0; i < code.size; i++) {
-        code.content[i] = hexString16ToUint8(codeStart + i * 2);
-    }
-    evmMockCode(address, code);
-    if (*p == '"') {
-        p++;
-    }
-
-    // nonce
-    hex = nextResultHex(&p);
-    if (!hex) {
-        badResponse("eth_getTransactionCount");
-    }
-    uint64_t nonce = 0;
-    while (*p != '"' && *p) {
-        nonce = (nonce << 4) | hexString8ToUint8(*p++);
-    }
-    evmMockNonce(address, nonce);
-    if (*p == '"') {
-        p++;
+    if (fields & ACCOUNT_CODE) {
+        const char *hex = nextResultHex(&p);
+        if (!hex) {
+            badResponse("eth_getCode");
+        }
+        const char *codeStart = p;
+        while (*p != '"' && *p) {
+            p++;
+        }
+        data_t code;
+        code.size = (p - codeStart) / 2;
+        code.content = code.size ? malloc(code.size) : NULL;
+        for (size_t i = 0; i < code.size; i++) {
+            code.content[i] = hexString16ToUint8(codeStart + i * 2);
+        }
+        evmMockCode(address, code);
+        free(code.content);
+        if (*p == '"') {
+            p++;
+        }
     }
 
-    // balance
-    hex = nextResultHex(&p);
-    if (!hex) {
-        badResponse("eth_getBalance");
+    if (fields & ACCOUNT_NONCE) {
+        const char *hex = nextResultHex(&p);
+        if (!hex) {
+            badResponse("eth_getTransactionCount");
+        }
+        uint64_t nonce = 0;
+        while (*p != '"' && *p) {
+            nonce = (nonce << 4) | hexString8ToUint8(*p++);
+        }
+        evmMockNonce(address, nonce);
+        if (*p == '"') {
+            p++;
+        }
     }
-    val_t balance = {0, 0, 0};
-    while (*p != '"' && *p) {
-        balance[0] = (balance[0] << 4) | (balance[1] >> 28);
-        balance[1] = (balance[1] << 4) | (balance[2] >> 28);
-        balance[2] = (balance[2] << 4) | hexString8ToUint8(*p++);
+
+    if (fields & ACCOUNT_BALANCE) {
+        const char *hex = nextResultHex(&p);
+        if (!hex) {
+            badResponse("eth_getBalance");
+        }
+        val_t balance = {0, 0, 0};
+        while (*p != '"' && *p) {
+            balance[0] = (balance[0] << 4) | (balance[1] >> 28);
+            balance[1] = (balance[1] << 4) | (balance[2] >> 28);
+            balance[2] = (balance[2] << 4) | hexString8ToUint8(*p++);
+        }
+        evmMockBalance(address, balance);
     }
-    evmMockBalance(address, balance);
 }
 
 static void networkFetchStorage(address_t address, const uint256_t *key, uint256_t *value_out) {

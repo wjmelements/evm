@@ -22,6 +22,7 @@
 #include <curl/curl.h>
 #include <getopt.h>
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -256,19 +257,13 @@ static subprocess_t spawnEvm(void) {
 }
 
 /*
- * Write a sorted batch response [code, nonce, balance] to f.
+ * Write a batch response to f, sorted ascending by id.
  *
  * network.c's nextResultHex() scans for "result" values in forward
- * order and assigns them: first=code, second=nonce, third=balance.
- * We must therefore write the three elements sorted ascending by id.
+ * order, matching the order of its requests, which have ascending ids.
  */
-static void writeSortedBatch(FILE *f,
-                             uint64_t codeId,    const char *code,
-                             uint64_t nonceId,   const char *nonce,
-                             uint64_t balanceId, const char *balance) {
-    uint64_t ids[3]  = { codeId,  nonceId,  balanceId };
-    const char *vals[3] = { code,    nonce,    balance   };
-    for (int i = 1; i < 3; i++) {
+static void writeSortedBatch(FILE *f, int count, uint64_t *ids, const char **vals) {
+    for (int i = 1; i < count; i++) {
         uint64_t ki = ids[i];
         const char *vi = vals[i];
         int j = i - 1;
@@ -281,7 +276,7 @@ static void writeSortedBatch(FILE *f,
         vals[j + 1] = vi;
     }
     fputc('[', f);
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < count; i++) {
         if (i) {
             fputc(',', f);
         }
@@ -384,25 +379,33 @@ static void runViaEvm(
         }
 
         if (*line == '[') {
-            /* ---- Account batch: [getCode, getTxCount, getBalance] ---- */
+            /* ---- Account batch: getCode, getTransactionCount, getBalance, for the fields not overridden ---- */
             const char *elem0   = jArrayGet(line, 0);
             const char *params0 = jFind(elem0, "params");
             char addr[ADDR_LEN];
             jStr(jArrayGet(params0, 0), addr, sizeof(addr));
             account_t *acct = ensureAccount(accounts, addr);
 
-            const char *elem1  = jArrayNext(elem0);
-            const char *elem2  = jArrayNext(elem1);
-            uint64_t codeId    = jUint(jFind(elem0, "id"));
-            uint64_t nonceId   = jUint(jFind(elem1, "id"));
-            uint64_t balanceId = jUint(jFind(elem2, "id"));
+            // by field: code, nonce, balance
+            static const char *const methods[3] = { "eth_getCode", "eth_getTransactionCount", "eth_getBalance" };
+            uint64_t fieldIds[3];
+            bool requested[3] = { false, false, false };
+            for (const char *elem = elem0; elem; elem = jArrayNext(elem)) {
+                char method[32];
+                jStr(jFind(elem, "method"), method, sizeof(method));
+                for (int field = 0; field < 3; field++) {
+                    if (!strcmp(method, methods[field])) {
+                        fieldIds[field] = jUint(jFind(elem, "id"));
+                        requested[field] = true;
+                    }
+                }
+            }
 
             char *resp = post(line, nl - line, ctx);
             if (!resp) {
                 rpcFailed(line);
             }
-            const char *qHead = jArrayGet(line, 0);
-            char *code = NULL, *nonce = NULL, *balance = NULL;
+            char *values[3] = { NULL, NULL, NULL };
             for (const char *rElem = jArrayGet(resp, 0); rElem; rElem = jArrayNext(rElem)) {
                 uint64_t id = 0;
                 const char *errField = NULL, *resultVal = NULL;
@@ -422,35 +425,45 @@ static void runViaEvm(
                     }
                 }
                 if (errField) {
-                    for (const char *qElem = qHead; qElem; qElem = jArrayNext(qElem)) {
+                    for (const char *qElem = elem0; qElem; qElem = jArrayNext(qElem)) {
                         if (jUint(jFind(qElem, "id")) == id) {
                             rpcError(qElem, errField);
                         }
                     }
-                    rpcError(qHead, errField);
+                    rpcError(elem0, errField);
                 }
-                char **out = (id == codeId) ? &code : (id == nonceId) ? &nonce : (id == balanceId) ? &balance : NULL;
-                if (out && resultVal) {
-                    *out = jStrDup(resultVal);
+                for (int field = 0; field < 3; field++) {
+                    if (requested[field] && id == fieldIds[field] && resultVal) {
+                        values[field] = jStrDup(resultVal);
+                    }
                 }
             }
             free(resp);
 
-            free(acct->code);
-            acct->code = code ? code : strdup("0x");
-            if (nonce) {
-                strncpy(acct->nonce,   nonce,   sizeof(acct->nonce)   - 1);
+            if (requested[0]) {
+                free(acct->code);
+                acct->code = values[0] ? values[0] : strdup("0x");
             }
-            if (balance) {
-                strncpy(acct->balance, balance, sizeof(acct->balance) - 1);
+            if (values[1]) {
+                strncpy(acct->nonce,   values[1], sizeof(acct->nonce)   - 1);
             }
-            free(nonce);
-            free(balance);
+            if (values[2]) {
+                strncpy(acct->balance, values[2], sizeof(acct->balance) - 1);
+            }
+            free(values[1]);
+            free(values[2]);
 
-            writeSortedBatch(toChild,
-                             codeId,    acct->code,
-                             nonceId,   acct->nonce,
-                             balanceId, acct->balance);
+            const char *fieldValues[3] = { acct->code, acct->nonce, acct->balance };
+            uint64_t ids[3];
+            const char *vals[3];
+            int count = 0;
+            for (int field = 0; field < 3; field++) {
+                if (requested[field]) {
+                    ids[count] = fieldIds[field];
+                    vals[count++] = fieldValues[field];
+                }
+            }
+            writeSortedBatch(toChild, count, ids, vals);
 
         } else if (strstr(line, "\"eth_blockNumber\"")) {
             uint64_t id = jUint(jFind(line, "id"));
@@ -594,13 +607,15 @@ static void run(
     for (const char *p = callJson; (p = jNextKeyVal(p, &key, &klen, &val)); ) {
         if ((klen == 5 && !memcmp(key, "nonce", 5))
             || (klen == 7 && !memcmp(key, "chainId", 7))
-            || (klen == 14 && !memcmp(key, "blockOverrides", 14))) {
+            || (klen == 14 && (!memcmp(key, "blockOverrides", 14) || !memcmp(key, "stateOverrides", 14)))) {
             sbAppend(&overrides, ",\"", 2);
             sbAppend(&overrides, key, klen);
             sbAppend(&overrides, "\":", 2);
             sbAppend(&overrides, val, p - val);
             if (klen == 5) {
                 jStr(val, r->nonce, sizeof(r->nonce));
+            } else if (*key == 's') {
+                r->stateOverrides = jValDup(val);
             }
             continue;
         }
@@ -784,7 +799,7 @@ static const char usage[] =
     "    [{\"to\": \"0x...\"}, {\"to\": \"0x...\"}]\n"
     "\n"
     "Only \"to\" is required.  \"block\" defaults to \"latest\".\n"
-    "\"nonce\", \"chainId\", and \"blockOverrides\" are passed to evm -nx.\n"
+    "\"nonce\", \"chainId\", \"blockOverrides\", and \"stateOverrides\" are passed to evm -nx.\n"
     "The generated config is written to outfile, or stdout if omitted.\n"
     "\n"
     "Options:\n"
