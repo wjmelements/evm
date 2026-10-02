@@ -32,6 +32,7 @@ static const char *configFile = NULL;
 static int updateConfigFile = 0;
 static int networkMode = 0;
 static int trace = 0;
+static int traceMemory = 0;
 static const char *traceFileName = NULL;
 static uint64_t debugFlags = 0;
 
@@ -282,7 +283,7 @@ static void execute(const char *contents) {
     fflush(stdout);
 }
 
-#define USAGE fputs("usage: evm [ [-w json-file [-u] ] [-x [-n] [-gls] ] [-D flags | -t] [-T trace-file] | [-c | -C] [-j] | -d ] [-o input] [file...]\n", stderr)
+#define USAGE fputs("usage: evm [ [-w json-file [-u] ] [-x [-n] [-gls] ] [-D flags | -t [-m] ] [-T trace-file] | [-c | -C] [-j] | -d ] [-o input] [file...]\n", stderr)
 
 static const struct option long_options[] = {
     {"version", no_argument, NULL, 'v'},
@@ -296,7 +297,7 @@ int main(int argc, char *const argv[]) {
     char *contents = NULL;
     const char **configFiles = calloc(argc - 1, sizeof(char *));
     int configCount = 0;
-    while ((option = getopt_long(argc, argv, "cCdD:gjlo:nstT:uvw:x", long_options, NULL)) != -1) {
+    while ((option = getopt_long(argc, argv, "cCdD:gjlmo:nstT:uvw:x", long_options, NULL)) != -1) {
         switch (option) {
         case 'c':
             wrapMinConstructor = 1;
@@ -318,6 +319,9 @@ int main(int argc, char *const argv[]) {
         }
         case 'j':
             labelJumpdests = 1;
+            break;
+        case 'm':
+            traceMemory = 1;
             break;
         case 'o':
             contents = optarg;
@@ -414,6 +418,11 @@ int main(int argc, char *const argv[]) {
         USAGE;
         return 1;
     }
+    if (traceMemory && !trace) {
+        fputs("-m requires -t\n", stderr);
+        USAGE;
+        return 1;
+    }
     if (traceFileName) {
         int traceFd = open(traceFileName, O_WRONLY | O_CREAT | O_APPEND, 0666);
         if (traceFd < 0) {
@@ -423,6 +432,7 @@ int main(int argc, char *const argv[]) {
         evmSetDebugFile(traceFd);
     }
     evmSetTrace(trace);
+    evmSetTraceMemory(traceMemory);
     evmSetDebug(debugFlags);
     setConfigDebug(debugFlags);
     if (configCount) {

@@ -478,6 +478,12 @@ bool evmTraceEnabled(void) {
     return traceEnabled;
 }
 
+static bool traceMemory = false;
+
+void evmSetTraceMemory(bool enabled) {
+    traceMemory = enabled;
+}
+
 void evmSetDebugFile(int fd) {
     debugFd = fd;
     debugFile = fdopen(fd, "a");
@@ -580,6 +586,14 @@ static void traceStepBegin(context_t *callContext, uint64_t pc, op_t op) {
     traceAppendDecimal(refundCounter);
     // memory expands by words, like MSIZE
     uint64_t memSize = (callContext->memory.num_uint8s + 31) & ~31ull;
+    if (traceMemory) {
+        TRACE_APPEND(",\"memory\":\"0x");
+        traceAppendData((data_t){callContext->memory.num_uint8s, callContext->memory.uint8s});
+        for (uint64_t i = callContext->memory.num_uint8s; i < memSize; i++) {
+            TRACE_APPEND("00");
+        }
+        traceLine_append(&traceStep, '"');
+    }
     TRACE_APPEND(",\"memSize\":");
     traceAppendDecimal(memSize);
     TRACE_APPEND(",\"opName\":\"");

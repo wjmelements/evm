@@ -136,6 +136,8 @@ void evmSetDebug(uint64_t flags);
 // EIP-3155 JSON trace; mutually exclusive with human-readable debug
 void evmSetTrace(bool enabled);
 bool evmTraceEnabled(void);
+// include the optional EIP-3155 memory field in each trace step
+void evmSetTraceMemory(bool enabled);
 // destination for debug and trace output; defaults to stderr
 void evmSetDebugFile(int fd);
 // Persistent block values
