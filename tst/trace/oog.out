@@ -13,9 +13,9 @@
 {"pc":0,"op":96,"gas":"0xfbfffffffffeb77d","stack":[],"depth":2,"returnData":"0x","refund":0,"memSize":0,"opName":"PUSH1","gasCost":"0x3"}
 {"pc":2,"op":95,"gas":"0xfbfffffffffeb77a","stack":["0x5f"],"depth":2,"returnData":"0x","refund":0,"memSize":0,"opName":"PUSH0","gasCost":"0x2"}
 {"pc":3,"op":83,"gas":"0xfbfffffffffeb778","stack":["0x5f","0x0"],"depth":2,"returnData":"0x","refund":0,"memSize":0,"opName":"MSTORE8","gasCost":"0x6"}
-{"pc":4,"op":96,"gas":"0xfbfffffffffeb772","stack":[],"depth":2,"returnData":"0x","refund":0,"memSize":1,"opName":"PUSH1","gasCost":"0x3"}
-{"pc":6,"op":95,"gas":"0xfbfffffffffeb76f","stack":["0x1"],"depth":2,"returnData":"0x","refund":0,"memSize":1,"opName":"PUSH0","gasCost":"0x2"}
-{"pc":7,"op":243,"gas":"0xfbfffffffffeb76d","stack":["0x1","0x0"],"depth":2,"returnData":"0x","refund":0,"memSize":1,"opName":"RETURN","gasCost":"0x0"}
+{"pc":4,"op":96,"gas":"0xfbfffffffffeb772","stack":[],"depth":2,"returnData":"0x","refund":0,"memSize":32,"opName":"PUSH1","gasCost":"0x3"}
+{"pc":6,"op":95,"gas":"0xfbfffffffffeb76f","stack":["0x1"],"depth":2,"returnData":"0x","refund":0,"memSize":32,"opName":"PUSH0","gasCost":"0x2"}
+{"pc":7,"op":243,"gas":"0xfbfffffffffeb76d","stack":["0x1","0x0"],"depth":2,"returnData":"0x","refund":0,"memSize":32,"opName":"RETURN","gasCost":"0x0"}
 {"pc":22,"op":96,"gas":"0xfffffffffffeb16e","stack":["0x0","0x0","0x0","0x0","0x0","0xf4d9599afd90b5038b18e3b551bc21a97ed21c37"],"depth":1,"returnData":"0x","refund":0,"memSize":32,"opName":"PUSH1","gasCost":"0x3"}
 {"pc":24,"op":241,"gas":"0xfffffffffffeb16b","stack":["0x0","0x0","0x0","0x0","0x0","0xf4d9599afd90b5038b18e3b551bc21a97ed21c37","0x1"],"depth":1,"returnData":"0x","refund":0,"memSize":32,"opName":"CALL","gasCost":"0x65"}
 {"pc":0,"op":95,"gas":"0x1","stack":[],"depth":2,"returnData":"0x","refund":0,"memSize":0,"opName":"PUSH0","gasCost":"0x2","error":"out of gas"}

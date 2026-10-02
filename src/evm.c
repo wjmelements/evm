@@ -578,8 +578,10 @@ static void traceStepBegin(context_t *callContext, uint64_t pc, op_t op) {
     traceAppendData(callContext->returnData);
     TRACE_APPEND("\",\"refund\":");
     traceAppendDecimal(refundCounter);
+    // memory expands by words, like MSIZE
+    uint64_t memSize = (callContext->memory.num_uint8s + 31) & ~31ull;
     TRACE_APPEND(",\"memSize\":");
-    traceAppendDecimal(callContext->memory.num_uint8s);
+    traceAppendDecimal(memSize);
     TRACE_APPEND(",\"opName\":\"");
     traceLine_extend(&traceStep, opString[op], strlen(opString[op]));
     traceLine_append(&traceStep, '"');
