@@ -10,7 +10,7 @@
 | _(none)_ | assemble | Assemble `.evm` source to hex bytecode |
 | `-d` | disassemble | Disassemble hex bytecode to assembly |
 | `-x` | execute | Execute hex bytecode, print returndata |
-| `-w file` | test | Load Dio config; run tests; exit. Combine with `-x` to also execute a bytecode input with that world state. |
+| `-w file` | test | Load Dio config (repeatable); run tests; exit. With `-x`, also execute the input in that state. |
 
 **Mode modifiers**
 
@@ -24,12 +24,17 @@
 | `-s` | `-x` | Include `status` in JSON output |
 | `-n` | `-x` | Network mode: fetch account and storage state on demand over JSON-RPC |
 | `-u` | `-w` | Update `gasUsed` fields in config file in-place |
+| `-D flags` | `-x` or `-w` | Human-readable debug output; overrides `debug` in `-w` tests (see [Debug flags](#debug-flags)) |
+| `-t` | `-x` or `-w` | Emit an [EIP-3155](https://eips.ethereum.org/EIPS/eip-3155) JSON trace (see [Tracing](#tracing)) |
+| `-m` | `-t` | Include `memory` in each trace step |
+| `-T file` | — | Append debug and trace output to `file` instead of stderr |
 
 **Shared**
 
 | Flag | Description |
 | :--: | ----------- |
 | `-o input` | Pass input as a command-line string instead of file/stdin |
+| `-v`, `--version` | Print the version and exit |
 
 ---
 
@@ -201,6 +206,27 @@ The coinbase is warm ([EIP-3651](https://eips.ethereum.org/EIPS/eip-3651)) once 
 An account takes either `state` or `stateDiff`, not both.
 Unlike `blockOverrides`, state overrides persist: later calls see the overridden state and any changes made on top of it.
 A `nonce` override for `from` must match the call's `nonce`, when both are given.
+
+### Tracing
+
+`-t` emits an [EIP-3155](https://eips.ethereum.org/EIPS/eip-3155) JSON trace for `-x` and `-w`: one line per step, then a summary line per transaction.
+
+```sh
+evm -txo 385952593df3 2>&1 >/dev/null
+```
+```jsonl
+{"pc":0,"op":56,"gas":"0xffffffffffff3095","stack":[],"depth":1,"returnData":"0x","refund":0,"memSize":0,"opName":"CODESIZE","gasCost":"0x2"}
+…
+{"output":"0x0000000000000000000000000000000000000000000000000000000000000006","gasUsed":"0xe878","pass":true}
+```
+
+`-m` adds the optional `memory` field to each step, as hex.
+Like `memSize`, it covers memory in whole 32-byte words, as `MSIZE` reports it.
+
+The `gasCost` of a `CALL` or `CREATE` step includes the gas it forwards.
+The summary line omits `stateRoot`.
+`-t` overrides any `debug` flags from `-w` tests, and cannot be combined with `-D`.
+Trace and debug output both go to stderr, or are appended to the file given by `-T`.
 
 ---
 
