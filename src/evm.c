@@ -341,6 +341,18 @@ static inline uint64_t calldataGas(const data_t *calldata) {
     return gas;
 }
 
+// EIP-7623: a transaction's gasUsed is at least this
+// calldata tokens count zero bytes once and nonzero bytes four times, so calldataGas is G_CALLDATAZERO per token
+static inline uint64_t floorGas(const data_t *calldata) {
+    return G_TX + calldataGas(calldata) / G_CALLDATAZERO * G_TXDATA_FLOOR;
+}
+
+static inline void applyFloor(result_t *result, uint64_t gas, uint64_t minGasUsed) {
+    if (gas - result->gasRemaining < minGasUsed) {
+        result->gasRemaining = gas - minGasUsed;
+    }
+}
+
 // In the yellow paper, this is the R function.
 static inline uint64_t initcodeGas(const data_t *initcode) {
     return G_INITCODEWORD * ((initcode->size + 31) >> 5); // EIP 3860: 2 gas per word
@@ -2486,12 +2498,11 @@ static result_t _evmConstruct(account_t *fromAccount, account_t *to, uint64_t ga
     context_t *callContext = callstack.next;
     callContext->gas = gas;
     if (callstack.next == callstack.bottom) {
-        callContext->gas -= G_TXCREATE + G_TX;
-        callContext->gas -= calldataGas(&input);
-        callContext->gas -= initcodeGas(&input);
-        if (gas < callContext->gas) {
-            // underflow indicates insufficient initial gas
-            fprintf(stderr, "Out of gas while initializing initcode (have %" PRIu64 " need %" PRIu64 ")\n", gas, gas - callContext->gas);
+        uint64_t intrinsicGas = G_TXCREATE + G_TX + calldataGas(&input) + initcodeGas(&input);
+        uint64_t minGasUsed = floorGas(&input);
+        callContext->gas -= intrinsicGas;
+        if (gas < intrinsicGas || gas < minGasUsed) {
+            fprintf(stderr, "Out of gas while initializing initcode (have %" PRIu64 " need %" PRIu64 ")\n", gas, intrinsicGas > minGasUsed ? intrinsicGas : minGasUsed);
             evmRevert(&callContext->stateChanges);
             result_t result;
             result.gasRemaining = 0;
@@ -2570,6 +2581,7 @@ static result_t _evmConstruct(account_t *fromAccount, account_t *to, uint64_t ga
         }
         result.gasRemaining += refund;
         refundCounter = 0;
+        applyFloor(&result, gas, floorGas(&input));
     }
 
     return result;
@@ -2602,8 +2614,9 @@ result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t 
         }
         accessList = accessList->prev;
     }
-    if (gas < intrinsicGas) {
-        fprintf(stderr, "Insufficient intrinsic gas %" PRIu64 " (need %" PRIu64 ")\n", gas, intrinsicGas);
+    uint64_t minGasUsed = floorGas(&input);
+    if (gas < intrinsicGas || gas < minGasUsed) {
+        fprintf(stderr, "Insufficient intrinsic gas %" PRIu64 " (need %" PRIu64 ")\n", gas, intrinsicGas > minGasUsed ? intrinsicGas : minGasUsed);
         result_t result;
         result.gasRemaining = 0;
         clear256(&result.status);
@@ -2629,6 +2642,7 @@ result_t txCall(address_t from, uint64_t gas, address_t to, val_t value, data_t 
     }
     result.gasRemaining += refund;
     refundCounter = 0;
+    applyFloor(&result, originalGas, minGasUsed);
 
     evmIteration++;
     blockEnd();

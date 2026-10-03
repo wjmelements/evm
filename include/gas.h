@@ -31,6 +31,7 @@
 #define G_CALLDATAZERO 4
 #define G_CALLDATA 16
 #define G_CALLDATANONZERO 12
+#define G_TXDATA_FLOOR 10
 #define G_LOG 375
 #define G_LOGDATA 8
 #define G_LOGTOPIC 375

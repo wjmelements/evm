@@ -33,6 +33,13 @@
                 "input": "0x0000000000000000000000000000000000000000000000000000000000000001",
                 "gasUsed": "0x53eb",
                 "output": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a47042745b147133dc2dae253631d9081ba4c329248e74d1b9f10e38efe1385af484"
+            },
+            {
+                "name": "tx.origin, calldata floor (sepolia 0xe3d091e1cbcdb866699e9fe5bd0d38223e75238f2ff1434477126dd5013c3aff)",
+                "from": "0x3b559cf662fdfe485ec216c036d4cee91fbd1d39",
+                "input": "0x0000000000000000000000003b559cf662fdfe485ec216c036d4cee91fbd1d39",
+                "gasUsed": "0x55a0",
+                "output": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a47042745b147133dc2dae253631d9081ba4c329248e74d1b9f10e38efe1385af484"
             }
         ]
     }
