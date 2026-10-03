@@ -418,7 +418,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | EXTCODECOPY | ✅ |✅ |
 | RETURNDATASIZE | ✅ |✅ |
 | RETURNDATACOPY | ✅ |✅ |
-| EXTCODEHASH | ✅ | ❌ |
+| EXTCODEHASH | ✅ |✅ |
 | BLOCKHASH | ✅ | ❌ |
 | COINBASE | ✅ |✅ |
 | TIMESTAMP | ✅ |✅ |
@@ -430,7 +430,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | BASEFEE | ✅ |✅ |
 | BLOBHASH | ✅ | ❌ |
 | BLOBBASEFEE | ✅ |✅ |
-| POP | ✅ |❓ |
+| POP | ✅ |✅ |
 | MLOAD | ✅ |✅ |
 | MSTORE | ✅ |✅ |
 | MSTORE8 | ✅ |✅ |
@@ -449,7 +449,7 @@ If you find a bug that disrupts you, please file an issue with its impact to you
 | PUSH1 | ✅ |✅ |
 | PUSH2 | ✅ |✅ |
 | PUSH3 | ✅ |✅ |
-| PUSH4 | ✅ |❓ |
+| PUSH4 | ✅ |✅ |
 | PUSH5 | ✅ |❓ |
 | PUSH6 | ✅ |❓ |
 | PUSH7 | ✅ |✅ |
