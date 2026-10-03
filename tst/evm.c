@@ -1355,6 +1355,232 @@ void test_extcodecopy() {
     evmFinalize();
 }
 
+static const uint8_t emptyCodeHash[32] = {
+    0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c, 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0,
+    0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b, 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70,
+};
+// keccak256(0x00)
+static const uint8_t stopCodeHash[32] = {
+    0xbc, 0x36, 0x78, 0x9e, 0x7a, 0x1e, 0x28, 0x14, 0x36, 0x46, 0x42, 0x29, 0x82, 0x8f, 0x81, 0x7d,
+    0x66, 0x12, 0xf7, 0xb4, 0x77, 0xd6, 0x65, 0x91, 0xff, 0x96, 0xa9, 0xe0, 0x64, 0xbc, 0xc9, 0x8a,
+};
+static const uint8_t zeroHash[32];
+
+static result_t callWithWords(address_t to, const address_t *words, size_t count, val_t value) {
+    uint8_t callData[32 * count];
+    bzero(callData, sizeof(callData));
+    for (size_t i = 0; i < count; i++) {
+        memcpy(callData + 32 * i + 12, words[i].address, 20);
+    }
+    data_t input = {sizeof(callData), callData};
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    result_t result = txCall(from, 1000000, to, value, input, NULL);
+    assert(UPPER(UPPER(result.status)) == 0);
+    assert(LOWER(UPPER(result.status)) == 0);
+    assert(UPPER(LOWER(result.status)) == 0);
+    assert(LOWER(LOWER(result.status)) == 1);
+    return result;
+}
+
+static void assertExtcodehash(address_t queried, const uint8_t expected[32]) {
+    address_t query = AddressFromHex42("0x1052000000000000000000000000000000000000");
+    op_t program[] = {
+        PUSH0, CALLDATALOAD, EXTCODEHASH, PUSH0, MSTORE,
+        PUSH1, 32, PUSH0, RETURN,
+    };
+    data_t code = {sizeof(program), program};
+    evmMockCode(query, code);
+    val_t value = {0, 0, 0};
+    result_t result = callWithWords(query, &queried, 1, value);
+    assert(result.returnData.size == 32);
+    assert(memcmp(result.returnData.content, expected, 32) == 0);
+    data_t empty = {0, NULL};
+    evmMockCode(query, empty);
+}
+
+void test_extcodehash() {
+    evmInit();
+    val_t value = {0, 0, 1};
+
+    // account without code
+    address_t funded = AddressFromHex42("0xf00d100000000000000000000000000000000000");
+    evmMockBalance(funded, value);
+    assertExtcodehash(funded, emptyCodeHash);
+    address_t used = AddressFromHex42("0xf00d200000000000000000000000000000000000");
+    evmMockNonce(used, 1);
+    assertExtcodehash(used, emptyCodeHash);
+
+    // non-existent account
+    assertExtcodehash(AddressFromHex42("0xdeadbeef00000000000000000000000000000000"), zeroHash);
+
+    // precompiled contract, either emptyCodeHash or 0
+    assertExtcodehash(AddressFromHex42("0x0000000000000000000000000000000000000001"), zeroHash);
+
+    // empty account to be cleared by the state clearing rule
+    address_t empty = AddressFromHex42("0xf00d300000000000000000000000000000000000");
+    val_t zero = {0, 0, 0};
+    evmMockBalance(empty, zero);
+    assertExtcodehash(empty, zeroHash);
+
+    evmFinalize();
+}
+
+// if EXTCODEHASH of A is X, then EXTCODEHASH of A + 2**160 is X
+void test_extcodehashUpperBits() {
+    evmInit();
+
+    address_t a = AddressFromHex42("0xc0de000000000000000000000000000000000000");
+    op_t stop[] = {STOP};
+    data_t stopCode = {sizeof(stop), stop};
+    evmMockCode(a, stopCode);
+
+    address_t to = AddressFromHex42("0x1052000000000000000000000000000000000000");
+    op_t program[] = {
+        PUSH0, CALLDATALOAD, EXTCODEHASH, PUSH0, MSTORE,
+        GAS, PUSH1, 32, CALLDATALOAD, EXTCODEHASH, GAS,
+        SWAP1, PUSH1, 32, MSTORE,
+        SWAP1, SUB, PUSH1, 64, MSTORE,
+        PUSH1, 96, PUSH0, RETURN,
+    };
+    data_t code = {sizeof(program), program};
+    evmMockCode(to, code);
+
+    uint8_t callData[64];
+    bzero(callData, sizeof(callData));
+    memcpy(callData + 12, a.address, 20);
+    memcpy(callData + 44, a.address, 20);
+    callData[43] = 1; // 2**160
+    data_t input = {sizeof(callData), callData};
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    val_t value = {0, 0, 0};
+    result_t result = txCall(from, 1000000, to, value, input, NULL);
+    assert(LOWER(LOWER(result.status)) == 1);
+    assert(result.returnData.size == 96);
+    assert(memcmp(result.returnData.content, stopCodeHash, 32) == 0);
+    assert(memcmp(result.returnData.content + 32, stopCodeHash, 32) == 0);
+    // A + 2**160 is warm because A is: PUSH1 + CALLDATALOAD + warm EXTCODEHASH + GAS
+    uint8_t warmCost[32];
+    bzero(warmCost, sizeof(warmCost));
+    warmCost[31] = G_VERYLOW + G_VERYLOW + G_ACCESS + G_BASE;
+    assert(memcmp(result.returnData.content + 64, warmCost, 32) == 0);
+
+    data_t empty = {0, NULL};
+    evmMockCode(a, empty);
+    evmMockCode(to, empty);
+    evmFinalize();
+}
+
+// account created in the current transaction
+// account newly created and later the creation reverted
+void test_extcodehashCreated() {
+    // a factory CREATEs a child with code 0x00, then RETURNs or REVERTs with its address
+#define PROGRAM_FACTORY(END) \
+        PUSH4, PUSH1, 1, PUSH0, RETURN, PUSH0, MSTORE, \
+        PUSH1, 4, PUSH1, 28, PUSH0, CREATE, PUSH0, MSTORE, \
+        PUSH1, 32, PUSH0, END
+    op_t factoryReturn[] = {
+        PROGRAM_FACTORY(RETURN)
+    };
+    op_t factoryRevert[] = {
+        PROGRAM_FACTORY(REVERT)
+    };
+#undef PROGRAM_FACTORY
+    // calls the factory, then returns the child address and its EXTCODEHASH
+    op_t outer[] = {
+        PUSH0, PUSH0, PUSH0, PUSH0, PUSH0, PUSH0, CALLDATALOAD, GAS, CALL, POP,
+        PUSH1, 32, PUSH0, PUSH0, RETURNDATACOPY,
+        PUSH0, MLOAD, EXTCODEHASH, PUSH1, 32, MSTORE,
+        PUSH1, 64, PUSH0, RETURN,
+    };
+    address_t to = AddressFromHex42("0x1052000000000000000000000000000000000000");
+    address_t factory = AddressFromHex42("0xfac7000000000000000000000000000000000000");
+    data_t outerCode = {sizeof(outer), outer};
+    data_t empty = {0, NULL};
+    val_t value = {0, 0, 0};
+
+    evmInit();
+    evmMockCode(to, outerCode);
+    data_t factoryCode = {sizeof(factoryReturn), factoryReturn};
+    evmMockCode(factory, factoryCode);
+    result_t result = callWithWords(to, &factory, 1, value);
+    assert(result.returnData.size == 64);
+    for (int i = 0; i < 12; i++) {
+        assert(result.returnData.content[i] == 0);
+    }
+    assert(memcmp(result.returnData.content, zeroHash, 32) != 0);
+    assert(memcmp(result.returnData.content + 32, stopCodeHash, 32) == 0);
+    evmMockCode(factory, empty);
+    evmMockCode(to, empty);
+    evmFinalize();
+
+    evmInit();
+    evmMockCode(to, outerCode);
+    factoryCode.content = factoryRevert;
+    factoryCode.size = sizeof(factoryRevert);
+    evmMockCode(factory, factoryCode);
+    result = callWithWords(to, &factory, 1, value);
+    assert(result.returnData.size == 64);
+    assert(memcmp(result.returnData.content, zeroHash, 32) != 0);
+    assert(memcmp(result.returnData.content + 32, zeroHash, 32) == 0);
+    evmMockCode(factory, empty);
+    evmMockCode(to, empty);
+    evmFinalize();
+
+    // during construction, the account exists (nonce 1) without code
+    evmInit();
+    op_t initcode[] = {
+        ADDRESS, EXTCODEHASH, PUSH0, MSTORE,
+        PUSH1, 32, PUSH0, REVERT,
+    };
+    data_t input = {sizeof(initcode), initcode};
+    address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
+    result = txCreate(from, 1000000, value, input);
+    assert(zero256(&result.status));
+    assert(result.returnData.size == 32);
+    assert(memcmp(result.returnData.content, emptyCodeHash, 32) == 0);
+    evmFinalize();
+}
+
+// account that firstly does not exist and later is empty
+void test_extcodehashNonexistentThenEmpty() {
+    // EXTCODEHASH, CALL with the given value, EXTCODEHASH again
+    op_t program[] = {
+        PUSH0, CALLDATALOAD, EXTCODEHASH, PUSH0, MSTORE,
+        PUSH0, PUSH0, PUSH0, PUSH0, PUSH1, 32, CALLDATALOAD, PUSH0, CALLDATALOAD, GAS, CALL, POP,
+        PUSH0, CALLDATALOAD, EXTCODEHASH, PUSH1, 32, MSTORE,
+        PUSH1, 64, PUSH0, RETURN,
+    };
+    address_t to = AddressFromHex42("0x1052000000000000000000000000000000000000");
+    data_t code = {sizeof(program), program};
+    data_t empty = {0, NULL};
+    val_t value = {0, 0, 0};
+    address_t words[2];
+    words[0] = AddressFromHex42("0xdeadbeef00000000000000000000000000000000");
+    bzero(&words[1], sizeof(words[1]));
+
+    evmInit();
+    evmMockCode(to, code);
+    result_t result = callWithWords(to, words, 2, value);
+    assert(result.returnData.size == 64);
+    assert(memcmp(result.returnData.content, zeroHash, 32) == 0);
+    assert(memcmp(result.returnData.content + 32, zeroHash, 32) == 0);
+    evmMockCode(to, empty);
+    evmFinalize();
+
+    // contrast: a value transfer makes it exist without code
+    evmInit();
+    evmMockCode(to, code);
+    val_t balance = {0, 0, 1};
+    evmMockBalance(to, balance);
+    words[1].address[19] = 1;
+    result = callWithWords(to, words, 2, value);
+    assert(result.returnData.size == 64);
+    assert(memcmp(result.returnData.content, zeroHash, 32) == 0);
+    assert(memcmp(result.returnData.content + 32, emptyCodeHash, 32) == 0);
+    evmMockCode(to, empty);
+    evmFinalize();
+}
+
 void test_deepCall() {
     evmInit();
     // 3d3580600757005b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01805952590259595f34305af1603c57595ffd5b595ff3
@@ -2849,6 +3075,10 @@ int main() {
     test_callBounce();
     test_coinbase();
     test_extcodecopy();
+    test_extcodehash();
+    test_extcodehashUpperBits();
+    test_extcodehashCreated();
+    test_extcodehashNonexistentThenEmpty();
     test_deepCall();
     test_revertStorage();
     test_revertSload();

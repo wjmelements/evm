@@ -1606,7 +1606,6 @@ op_ASSERT_0x2d:
 op_ASSERT_0x2e:
 op_ASSERT_0x2f:
 op_GASPRICE:
-op_EXTCODEHASH:
 op_BLOCKHASH:
 op_BLOBHASH:
 op_ASSERT_0x4b:
@@ -1724,6 +1723,22 @@ op_EXTCODESIZE:
         }
         bzero(callContext->top - 1, 24);
         LOWER(LOWER_P(callContext->top - 1)) = account->code.size;
+    }
+    DISPATCH();
+op_EXTCODEHASH:
+    {
+        account_t *account = warmAccount(callContext, AddressFromUint256(callContext->top - 1));
+        if (account == NULL) {
+            OUT_OF_GAS;
+        }
+        // EIP-1052: nonexistent and EIP-161 empty accounts hash to 0
+        if (AccountDead(account)) {
+            clear256(callContext->top - 1);
+        } else {
+            uint8_t result[32];
+            keccak_256(result, 32, (uint8_t *)account->code.content, account->code.size);
+            readu256BE(result, callContext->top - 1);
+        }
     }
     DISPATCH();
 op_CODESIZE:
