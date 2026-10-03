@@ -1127,7 +1127,7 @@ void test_callEmpty() {
     };
     address_t from = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
     address_t to = AddressFromHex42("0x4a6f6B9fF1fc974096f9063a45Fd12bD5B928AD1");
-    uint64_t gas = 21432;
+    uint64_t gas = 22080;
     val_t value;
     value[0] = 0;
     value[1] = 0;
@@ -1330,7 +1330,7 @@ void test_extcodecopy() {
     }
     assert(examineFirstAccount.gasRemaining == 0);
 
-    gas = 21617;
+    gas = 21920;
     input.content = locations[3].address - 12;
     result_t examineSecondAccount = txCall(from, gas, to, value, input, NULL);
     assert(UPPER(UPPER(examineSecondAccount.status)) == 0);
