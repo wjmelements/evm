@@ -120,6 +120,7 @@ static void execute(const char *contents) {
     val_t value = {0, 0, 0};
     bool hasNonce = false;
     uint64_t nonce = 0;
+    uint64_t gas = 0xffffffffffffffff;
     block_t overrides;
     blockFields_t overridden = 0;
     const char *stateOverrides = NULL;
@@ -137,6 +138,15 @@ static void execute(const char *contents) {
                 if (!memcmp(key, "to", 2)) {
                     hasTo = 1;
                     to = jsonAddress(val, end, "to");
+                }
+                break;
+            case 3:
+                if (!memcmp(key, "gas", 3)) {
+                    hex = jsonHex(val, end, "gas", &len);
+                    gas = 0;
+                    for (size_t i = 0; i < len; i++) {
+                        gas = (gas << 4) | hexString8ToUint8(hex[i]);
+                    }
                 }
                 break;
             case 4:
@@ -223,7 +233,6 @@ static void execute(const char *contents) {
         evmMockNonce(from, nonce);
     }
 
-    uint64_t gas = 0xffffffffffffffff;
     result_t result;
     if (hasTo) {
         result = txCall(from, gas, to, value, input, NULL);

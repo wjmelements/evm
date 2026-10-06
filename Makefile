@@ -80,7 +80,7 @@ distcheck dist-check:
 		|| { echo -e "\033[0;31mfail\033[0m"; exit 1; }
 .pass/tst/x/%.jsonl: bin/evm tst/x/%.jsonl tst/x/%.out | .pass/tst/x
 	@printf "tst/x/$*.jsonl: "
-	@bin/evm -xs < tst/x/$*.jsonl | diff tst/x/$*.out - \
+	@timeout 10 bin/evm -gxs < tst/x/$*.jsonl | diff tst/x/$*.out - \
 		&& echo -e "\033[0;32mpass\033[0m" && touch $@\
 		|| { echo -e "\033[0;31mfail\033[0m"; exit 1; }
 .pass/tst/fail/%.json: bin/evm tst/fail/%.json | .pass/tst/fail
