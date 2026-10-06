@@ -231,7 +231,7 @@ ignores calldata: pass
 | `from` | `tx.origin` | `0xd1236a6A111879d9862f8374BA15344b6B233Fbd` | `0x0000000000000000000000000000000000000000` |
 | `nonce` | nonce of `from` before the call | `0x5` | unchanged |
 | `stateOverrides` | account state set before the call, as in [network mode](#network-mode--nx) | `{"0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97":{"balance":"0x1"}}` | `{}` |
-| `gas` | `tx.gasLimit` | `0x5208` | `0xffffffffffffffff` |
+| `gas` | `tx.gasLimit` | `0x5208` | `uint64(-1)` |
 | `op` | type of call | `STATICCALL` | `CALL` |
 | `to` | account called | `0x83F20F44975D03b1b09e64809B757c47f942BEeA` | account `address` |
 | `status` | expected return status | `0x0` (revert) | `0x1` (success) |
@@ -333,7 +333,7 @@ Call objects also work with `-x` alone.
 | `from` | `tx.origin` |
 | `data` or `input` | calldata, or initcode |
 | `value` | `msg.value` |
-| `gas` | gas limit for this call; defaults to `0xffffffffffffffff` |
+| `gas` | gas limit for this call; defaults to `uint64(-1)` |
 | `nonce` | the nonce of `from` before this call; it persists |
 | `chainId` | `block.chainid` for this call only |
 | `blockOverrides` | block values for this call only, keyed like geth's `eth_call`: `number`, `time`, `gasLimit`, `baseFeePerGas`, `blobBaseFee`, `prevRandao`, `feeRecipient` |

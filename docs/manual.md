@@ -158,7 +158,7 @@ When the input to `-x` begins with `{`, it is parsed as a call object instead of
 | `from` | `msg.sender` |
 | `data` / `input` | calldata, or initcode when `to` is absent |
 | `value` | `msg.value` |
-| `gas` | gas limit for this call; defaults to `0xffffffffffffffff` |
+| `gas` | gas limit for this call; defaults to `uint64(-1)` |
 | `nonce` | nonce of `from` before this call; it persists |
 | `chainId` | `block.chainid` for this call only |
 | `blockOverrides` | block values for this call only, keyed like geth's `eth_call` (see below) |
@@ -348,7 +348,7 @@ All fields are optional; unset fields default to zero.
 | `from` | `tx.origin` | `0x000…000` | |
 | `nonce` | nonce of `from` | unchanged | Set before the call |
 | `stateOverrides` | account state | `{}` | As in [state overrides](#state-overrides) |
-| `gas` | gas limit | `0xffffffffffffffff` | |
+| `gas` | gas limit | `uint64(-1)` | |
 | `op` | call type | `CALL` | `STATICCALL`, `DELEGATECALL`, etc. |
 | `to` | callee address | account `address` | |
 | `status` | expected status | `0x1` (success) | Set to `0x0` to assert revert |
@@ -377,7 +377,7 @@ It accepts a subset of the test fields:
 | :-: | ----------- | :-----: |
 | `name` | Label shown in output | `"constructor"` |
 | `from` | `msg.sender` for the constructor. Must equal `creator` if both are set. | `creator` (or `0x000…000`) |
-| `gas` | Gas limit | `0xffffffffffffffff` |
+| `gas` | Gas limit | `uint64(-1)` |
 | `nonce` | Nonce of `from`, which determines the deployed address | unchanged |
 | `stateOverrides` | Account state set before the constructor | `{}` |
 | block fields | As in [test fields](#test-fields) | defaults |
