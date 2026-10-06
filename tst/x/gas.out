@@ -1,3 +1,3 @@
-{"status":"0x0","returnData":"0x"}
-{"status":"0x0","returnData":"0x"}
-{"status":"0x1","returnData":"0x000000000000000000000000000000000000000000000000000000000000002a"}
+{"gasUsed":"0x10000","status":"0x0","returnData":"0x"}
+{"gasUsed":"0x6000","status":"0x0","returnData":"0x"}
+{"gasUsed":"0x5218","status":"0x1","returnData":"0x000000000000000000000000000000000000000000000000000000000000002a"}
