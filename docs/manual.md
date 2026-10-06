@@ -158,6 +158,7 @@ When the input to `-x` begins with `{`, it is parsed as a call object instead of
 | `from` | `msg.sender` |
 | `data` / `input` | calldata, or initcode when `to` is absent |
 | `value` | `msg.value` |
+| `gas` | gas limit for this call; defaults to `0xffffffffffffffff` |
 | `nonce` | nonce of `from` before this call; it persists |
 | `chainId` | `block.chainid` for this call only |
 | `blockOverrides` | block values for this call only, keyed like geth's `eth_call` (see below) |

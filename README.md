@@ -333,6 +333,7 @@ Call objects also work with `-x` alone.
 | `from` | `tx.origin` |
 | `data` or `input` | calldata, or initcode |
 | `value` | `msg.value` |
+| `gas` | gas limit for this call; defaults to `0xffffffffffffffff` |
 | `nonce` | the nonce of `from` before this call; it persists |
 | `chainId` | `block.chainid` for this call only |
 | `blockOverrides` | block values for this call only, keyed like geth's `eth_call`: `number`, `time`, `gasLimit`, `baseFeePerGas`, `blobBaseFee`, `prevRandao`, `feeRecipient` |
