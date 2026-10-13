@@ -13,7 +13,8 @@
 #define MAX_LOG_TOPICS 4
 
 static inline int jsonIgnores(char ch) {
-    return ch != '{'
+    return ch
+           && ch != '{'
            && ch != '}'
            && ch != '['
            && ch != ']'
@@ -27,6 +28,16 @@ static inline int jsonIgnores(char ch) {
 }
 
 static uint64_t lineNumber = 0;
+
+static void jsonFailExpectingChar(char expected, char actual) {
+    fprintf(stderr, "Config: expecting '%c', found '%c' on line %" PRIu64 "\n", expected, actual, lineNumber);
+    exit(1);
+}
+
+static void jsonFailUnexpectedEnd(char expected) {
+    fprintf(stderr, "Config: expecting '%c', found unexpected end of file on line %" PRIu64 "\n", expected, lineNumber);
+    exit(1);
+}
 
 static void jsonScanWaste(const char **iter) {
     for (; jsonIgnores(**iter); (*iter)++) {
@@ -42,6 +53,8 @@ static void jsonScanChar(const char **iter, char expected) {
             if (ch == '\n') {
                 lineNumber++;
             }
+        } else if (ch == '\0') {
+            jsonFailUnexpectedEnd(expected);
         } else {
             fprintf(stderr, "Config: when seeking '%c' found unexpected character '%c' on line %" PRIu64 "\n", expected, ch, lineNumber);
             exit(1);
@@ -50,14 +63,11 @@ static void jsonScanChar(const char **iter, char expected) {
     (*iter)++;
 }
 
-static void jsonFailExpectingChar(char expected, char actual) {
-    fprintf(stderr, "Config: expecting '%c', found '%c' on line %" PRIu64 "\n", expected, actual, lineNumber);
-    exit(1);
-}
-
 static void jsonSkipExpectedChar(const char **iter, char expected) {
     if (**iter == expected) {
         (*iter)++;
+    } else if (**iter == '\0') {
+        jsonFailUnexpectedEnd(expected);
     } else {
         jsonFailExpectingChar(expected, **iter);
     }
@@ -92,6 +102,9 @@ static void jsonSkipEntryValue(const char **iter) {
         if (**iter == '\n') {
             lineNumber++;
             continue;
+        }
+        if (**iter == '\0') {
+            jsonFailUnexpectedEnd(*top == '"' ? '"' : *top == '[' ? ']' : '}');
         }
         if (*top == '"') {
             if (**iter == '"') {
@@ -583,6 +596,9 @@ static address_t *jsonReadAddress(const char **iter) {
     jsonSkipExpectedChar(iter, 'x');
     address_t *address = malloc(sizeof(address_t));
     for (unsigned int i = 0; i < 20; i++) {
+        if (!(*iter)[0] || !(*iter)[1]) {
+            jsonFailUnexpectedEnd('"');
+        }
         address->address[i] = hexString16ToUint8(*iter);
         *iter += 2;
     }
@@ -867,7 +883,7 @@ static void jsonScanEntry(const char **iter) {
             jsonSkipExpectedChar(iter, '"');
             jsonSkipExpectedChar(iter, '0');
             jsonSkipExpectedChar(iter, 'x');
-            while (**iter != '"') {
+            while (**iter && **iter != '"') {
                 entry.balance[0] <<= 4;
                 entry.balance[0] |= entry.balance[1] >> 28;
                 entry.balance[1] <<= 4;
@@ -884,7 +900,7 @@ static void jsonScanEntry(const char **iter) {
             jsonSkipExpectedChar(iter, '"');
             jsonSkipExpectedChar(iter, '0');
             jsonSkipExpectedChar(iter, 'x');
-            while (**iter != '"') {
+            while (**iter && **iter != '"') {
                 entry.nonce <<= 4;
                 entry.nonce |= hexString8ToUint8(**iter);
                 (*iter)++;
@@ -997,7 +1013,7 @@ static void jsonScanEntry(const char **iter) {
                 jsonSkipExpectedChar(iter, '0');
                 jsonSkipExpectedChar(iter, 'x');
                 clear256(&storageEntry->key);
-                while (**iter != '"') {
+                while (**iter && **iter != '"') {
                     shiftl256(&storageEntry->key, 4, &storageEntry->key);
                     LOWER(LOWER(storageEntry->key)) |= hexString8ToUint8(**iter);
                     (*iter)++;
@@ -1008,7 +1024,7 @@ static void jsonScanEntry(const char **iter) {
                 jsonSkipExpectedChar(iter, '0');
                 jsonSkipExpectedChar(iter, 'x');
                 clear256(&storageEntry->value);
-                while (**iter != '"') {
+                while (**iter && **iter != '"') {
                     shiftl256(&storageEntry->value, 4, &storageEntry->value);
                     LOWER(LOWER(storageEntry->value)) |= hexString8ToUint8(**iter);
                     (*iter)++;
@@ -1149,7 +1165,16 @@ void loadConfig(const char *_configFile, int updateConfigFile) {
             perror(_configFile);
             exit(1);
         }
-        char *configContents = mmap(NULL, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE, fd, 0);
+        // reserve a zeroed page-padded region one byte longer than the file so the contents are always NUL-terminated
+        char *configContents = mmap(NULL, fstatus.st_size + 1, PROT_READ, MAP_PRIVATE | MAP_ANON, -1, 0);
+        if (configContents == MAP_FAILED) {
+            perror(_configFile);
+            exit(1);
+        }
+        if (fstatus.st_size && mmap(configContents, fstatus.st_size, PROT_READ, MAP_PRIVATE | MAP_FILE | MAP_FIXED, fd, 0) == MAP_FAILED) {
+            perror(_configFile);
+            exit(1);
+        }
         {
             uint64_t prevLineNumber = lineNumber;
             struct testResults results = testResults;
@@ -1162,7 +1187,7 @@ void loadConfig(const char *_configFile, int updateConfigFile) {
             lineNumber = prevLineNumber;
             testResults = results;
         }
-        munmap(configContents, fstatus.st_size);
+        munmap(configContents, fstatus.st_size + 1);
         close(fd);
     }
 }

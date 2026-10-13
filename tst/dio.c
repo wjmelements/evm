@@ -267,6 +267,38 @@ void test_applyConfig_from_short() {
     evmFinalize();
 }
 
+// Run fn(arg) in a child, asserting that it exits 1 with exactly expectedErr on stderr.
+static void assertFails(void (*fn)(const char *), const char *arg, const char *expectedErr) {
+    int rw[2];
+    assert(pipe(rw) == 0);
+    fflush(stderr);
+    pid_t pid = fork();
+    assert(pid >= 0);
+    if (pid == 0) {
+        dup2(rw[1], 2);
+        close(rw[0]);
+        close(rw[1]);
+        evmInit();
+        fn(arg);
+        _exit(0);
+    }
+    close(rw[1]);
+    char actualErr[512];
+    size_t total = 0;
+    ssize_t red;
+    while ((red = read(rw[0], actualErr + total, sizeof(actualErr) - 1 - total)) > 0) {
+        total += red;
+    }
+    assert(red == 0);
+    actualErr[total] = '\0';
+    close(rw[0]);
+
+    int status;
+    assert(waitpid(pid, &status, 0) == pid);
+    assert(WIFEXITED(status) && WEXITSTATUS(status) == 1);
+    assert(strcmp(actualErr, expectedErr) == 0);
+}
+
 // A "from" address with more than 40 hex digits is rejected.
 void test_applyConfig_from_long() {
     const char config[] =
@@ -285,32 +317,45 @@ void test_applyConfig_from_long() {
         "            ]"
         "    }"
         "]";
-    const char *expectedErr = "Config: address too long (42) on line 1\n";
+    assertFails(applyConfig, config, "Config: address too long (42) on line 1\n");
+}
 
-    int rw[2];
-    assert(pipe(rw) == 0);
-    fflush(stderr);
-    pid_t pid = fork();
-    assert(pid >= 0);
-    if (pid == 0) {
-        dup2(rw[1], 2);
-        close(rw[0]);
-        close(rw[1]);
-        evmInit();
-        applyConfig(config);
-        _exit(0);
-    }
-    close(rw[1]);
-    char actualErr[128];
-    ssize_t red = read(rw[0], actualErr, sizeof(actualErr) - 1);
-    assert(red >= 0);
-    actualErr[red] = '\0';
-    close(rw[0]);
+// Truncated configs report the end of input instead of reading past it.
+void test_applyConfig_truncated() {
+    assertFails(applyConfig, "", "Config: expecting '[', found unexpected end of file on line 1\n");
+    assertFails(applyConfig, "[", "Config: expecting '{', found unexpected end of file on line 1\n");
+    assertFails(applyConfig, "[{\"balance\":\"0x12", "Config: expecting '\"', found unexpected end of file on line 1\n");
+    assertFails(applyConfig, "[{\"nonce\":\"0x12", "Config: expecting '\"', found unexpected end of file on line 1\n");
+    assertFails(applyConfig, "[{\"storage\":{\"0x01", "Config: expecting '\"', found unexpected end of file on line 1\n");
+    assertFails(applyConfig, "[{\"storage\":{\"0x01\":\"0x02", "Config: expecting '\"', found unexpected end of file on line 1\n");
+    assertFails(applyConfig, "[{\"address\":\"0x1234", "Config: expecting '\"', found unexpected end of file on line 1\n");
+    assertFails(applyConfig, "[{\"code\":\"0x00\",\"tests\":[{\"input\":\"0x", "Config: expecting '\"', found unexpected end of file on line 1\n");
+    assertFails(applyConfig, "[{\"code\":\"0x00\",\"tests\":[{\"input\":\"0x\"\n\n", "Config: expecting '}', found unexpected end of file on line 3\n");
+    assertFails(applyConfig, "[{\"code\":\"0x00\",\"foo\":{\"a\":[1", "Unexpected entry heading \"foo\" on line 1\nConfig: expecting ']', found unexpected end of file on line 1\n");
+    assertFails(applyConfig, "[{\"code\":\"0x00\",\"foo\":\"ab", "Unexpected entry heading \"foo\" on line 1\nConfig: expecting '\"', found unexpected end of file on line 1\n");
+}
 
-    int status;
-    assert(waitpid(pid, &status, 0) == pid);
-    assert(WIFEXITED(status) && WEXITSTATUS(status) == 1);
-    assert(strcmp(actualErr, expectedErr) == 0);
+static void loadConfigNoUpdate(const char *path) {
+    loadConfig(path, false);
+}
+
+// A truncated config file filling exactly one page is not followed by mapped zero padding.
+void test_loadConfig_truncated_page() {
+    char path[] = "/tmp/dio_test_XXXXXX";
+    int fd = mkstemp(path);
+    assert(fd != -1);
+    const char prefix[] = "[{\"code\":\"0x00\",\"tests\":[{\"input\":\"0x\"";
+    size_t pageSize = getpagesize();
+    char *contents = malloc(pageSize);
+    memset(contents, ' ', pageSize);
+    memcpy(contents, prefix, sizeof(prefix) - 1);
+    assert(write(fd, contents, pageSize) == (ssize_t)pageSize);
+    close(fd);
+    free(contents);
+
+    assertFails(loadConfigNoUpdate, path, "Config: expecting '}', found unexpected end of file on line 1\n");
+
+    unlink(path);
 }
 
 int main() {
@@ -326,5 +371,7 @@ int main() {
     test_applyConfig_tests();
     test_applyConfig_from_short();
     test_applyConfig_from_long();
+    test_applyConfig_truncated();
+    test_loadConfig_truncated_page();
     return 0;
 }
