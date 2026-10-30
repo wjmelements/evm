@@ -29,7 +29,6 @@ static void disassembleWaste(const char **iter) {
 static void disassemblePushDecimal(op_t op, uint8_t pushlen, const char **iter) {
     uint64_t value = 0;
     while (pushlen) {
-        disassembleWaste(iter);
         value *= 16;
         if (**iter) {
             value += hexString8ToUint8(*(*iter)++);
@@ -39,6 +38,7 @@ static void disassemblePushDecimal(op_t op, uint8_t pushlen, const char **iter) 
         if (**iter) {
             value += hexString8ToUint8(*(*iter)++);
         }
+        disassembleWaste(iter);
         pushlen--;
         pc++;
     }
@@ -59,7 +59,6 @@ static void disassemblePushHex(op_t op, uint8_t pushlen, const char **iter) {
     str[1] = 'x';
     uint8_t i = 2;
     while (pushlen) {
-        disassembleWaste(iter);
         if (**iter) {
             str[i++] = *(*iter)++;
         } else {
@@ -71,6 +70,7 @@ static void disassemblePushHex(op_t op, uint8_t pushlen, const char **iter) {
         } else {
             str[i++] = '0';
         }
+        disassembleWaste(iter);
         pushlen--;
         pc++;
     }
@@ -102,7 +102,9 @@ statement_t labelForPc(pc_t pc) {
 
 static void disassemblePush(op_t op, const char **iter) {
     uint8_t pushlen = op - PUSH1 + 1;
-    if (pushlen <= 3) {
+    disassembleWaste(iter);
+    // a leading zero byte would be lost in decimal
+    if (pushlen <= 3 && **iter && hexString16ToUint8(*iter)) {
         disassemblePushDecimal(op, pushlen, iter);
     } else {
         disassemblePushHex(op, pushlen, iter);
